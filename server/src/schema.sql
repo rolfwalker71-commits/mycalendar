@@ -1,0 +1,76 @@
+-- Idempotentes Schema für Kalender. Wird beim Start angewendet.
+
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+CREATE TABLE IF NOT EXISTS users (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  google_sub TEXT NOT NULL UNIQUE,
+  email TEXT NOT NULL,
+  name TEXT,
+  picture_url TEXT,
+  refresh_token_enc TEXT,
+  token_expiry TIMESTAMPTZ,
+  week_start SMALLINT NOT NULL DEFAULT 1,
+  last_sync_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  last_login_at TIMESTAMPTZ
+);
+
+CREATE TABLE IF NOT EXISTS calendars (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  google_cal_id TEXT NOT NULL,
+  summary TEXT,
+  color TEXT,
+  background_color TEXT,
+  foreground_color TEXT,
+  timezone TEXT,
+  selected BOOLEAN NOT NULL DEFAULT TRUE,
+  primary_cal BOOLEAN NOT NULL DEFAULT FALSE,
+  access_role TEXT,
+  sync_token TEXT,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (user_id, google_cal_id)
+);
+
+CREATE INDEX IF NOT EXISTS calendars_user_idx ON calendars (user_id);
+
+CREATE TABLE IF NOT EXISTS events (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  calendar_id UUID NOT NULL REFERENCES calendars(id) ON DELETE CASCADE,
+  google_event_id TEXT NOT NULL,
+  ical_uid TEXT,
+  summary TEXT,
+  description TEXT,
+  location TEXT,
+  status TEXT,
+  html_link TEXT,
+  hangout_link TEXT,
+  start_at TIMESTAMPTZ,
+  end_at TIMESTAMPTZ,
+  all_day BOOLEAN NOT NULL DEFAULT FALSE,
+  all_day_start DATE,
+  all_day_end DATE,
+  timezone TEXT,
+  attendees JSONB,
+  recurrence JSONB,
+  recurring_event_id TEXT,
+  transparency TEXT,
+  visibility TEXT,
+  conference_data JSONB,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (calendar_id, google_event_id)
+);
+
+CREATE INDEX IF NOT EXISTS events_user_range_idx ON events (user_id, start_at, end_at);
+CREATE INDEX IF NOT EXISTS events_user_google_idx ON events (user_id, google_event_id);
+CREATE INDEX IF NOT EXISTS events_search_idx ON events (user_id, start_at);
+
+CREATE TABLE IF NOT EXISTS oauth_states (
+  state TEXT PRIMARY KEY,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  expires_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS oauth_states_expires_idx ON oauth_states (expires_at);
