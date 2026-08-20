@@ -1,4 +1,5 @@
 import type { CalendarEvent, CalendarItem, Me } from "./types";
+import type { MailLabel, MailThread, MailThreadSummary } from "@/mail/types";
 
 export class ApiError extends Error {
   constructor(
@@ -86,5 +87,45 @@ export const apiClient = {
     api<{ ok: boolean; lastSyncAt: string }>("/api/sync", {
       method: "POST",
       body: JSON.stringify({ timeMin, timeMax }),
+    }),
+  mailLabels: () => api<{ labels: MailLabel[] }>("/api/mail/labels"),
+  mailThreads: (opts: { labelId?: string; q?: string; pageToken?: string }) => {
+    const query = new URLSearchParams();
+    if (opts.labelId) query.set("labelId", opts.labelId);
+    if (opts.q) query.set("q", opts.q);
+    if (opts.pageToken) query.set("pageToken", opts.pageToken);
+    return api<{
+      threads: MailThreadSummary[];
+      nextPageToken: string | null;
+      resultSizeEstimate: number;
+    }>(`/api/mail/threads?${query}`);
+  },
+  mailThread: (id: string) => api<MailThread>(`/api/mail/threads/${encodeURIComponent(id)}`),
+  mailModify: (id: string, addLabelIds: string[], removeLabelIds: string[]) =>
+    api<{ ok: boolean }>(`/api/mail/threads/${encodeURIComponent(id)}/modify`, {
+      method: "POST",
+      body: JSON.stringify({ addLabelIds, removeLabelIds }),
+    }),
+  mailTrash: (id: string) =>
+    api<{ ok: boolean }>(`/api/mail/threads/${encodeURIComponent(id)}/trash`, {
+      method: "POST",
+    }),
+  mailUntrash: (id: string) =>
+    api<{ ok: boolean }>(`/api/mail/threads/${encodeURIComponent(id)}/untrash`, {
+      method: "POST",
+    }),
+  mailSend: (body: {
+    to: string[];
+    cc?: string[];
+    bcc?: string[];
+    subject: string;
+    text: string;
+    threadId?: string;
+    inReplyTo?: string;
+    references?: string;
+  }) =>
+    api<{ ok: boolean; id?: string; threadId?: string }>("/api/mail/send", {
+      method: "POST",
+      body: JSON.stringify(body),
     }),
 };

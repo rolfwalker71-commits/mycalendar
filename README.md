@@ -1,12 +1,13 @@
-# Kalender
+# Kalender & Mail
 
-Selbst gehostete Kalender-App für Rolf und seine Frau: Google-Kalender (Workspace) im Browser und als installierbare PWA. Optik angelehnt an den Apple-Kalender, Alltagstauglichkeit wie Samsung Calendar. Kein Material-Overload, keine Outlook-Tabellen.
+Selbst gehostete App für Rolf und seine Frau: **Google-Kalender** und **Gmail** (Workspace) im Browser und als installierbare PWA. Kalender angelehnt an Apple Calendar, Mail an iOS Mail. Umschalter oben: Kalender | Mail.
 
 Die App spricht **Deutsch** (`de-DE`). Standard-Zeitzone: **Europe/Berlin**. Die originalen Google-Event-Zeitzonen bleiben erhalten.
 
 ## Was v1 kann
 
 - Google-Anmeldung (OAuth 2.0), getrennte Sitzungen pro Person
+- Umschalter zwischen Kalender und Mail in derselben App
 - Kalenderliste inklusive geteilter Kalender, Farben, Ein-/Ausblenden
 - Ansichten: Tag, Woche, Monat, Jahr, Agenda
 - Termine anlegen, bearbeiten, löschen (inkl. ganztägig über mehrere Tage)
@@ -14,11 +15,13 @@ Die App spricht **Deutsch** (`de-DE`). Standard-Zeitzone: **Europe/Berlin**. Die
 - Einladungen und eigene Zusage (zusagen / vielleicht / ablehnen)
 - Google Meet-Link anzeigen und optional beim Anlegen erzeugen
 - Suche in Titel, Ort und Notiz (Cache)
+- Mail: Posteingang, Markiert, Entwürfe, Gesendet, Spam, Papierkorb, eigene Label
+- Lesen, antworten, senden, archivieren, löschen, markieren; Suche über Gmail
 - Hell- und Dunkelmodus, installierbare PWA (Desktop-Chrome und Android-Chrome)
 
 ## Was v1 nicht kann
 
-Kein Mail, Chat, Kontakte, CalDAV, iCloud, Microsoft, Wear OS, native Widgets, Werbung oder Telemetrie. Räume, Arbeitsort, Fokus/OOO, Anhänge, Geburtstags-Politur, Push-Benachrichtigungen und Drag zwischen Kalendern sind für spätere Versionen vorgesehen.
+Kein Chat, Kontakte, CalDAV, iCloud, Microsoft, Wear OS, native Widgets, Werbung oder Telemetrie. Räume, Arbeitsort, Fokus/OOO, Mail-Anhänge beim Senden, Geburtstags-Politur, Push-Benachrichtigungen und Drag zwischen Kalendern sind für spätere Versionen vorgesehen.
 
 Google-Kalender-Webhooks (`calendar.events.watch`) sind vorbereitet (`PUBLIC_BASE_URL`, Route `/api/google/push`), Standard bleibt Polling.
 
@@ -48,7 +51,7 @@ API auf Port 3366, Vite-Devserver mit Proxy auf `/api`.
 ## Google Cloud OAuth
 
 1. In der [Google Cloud Console](https://console.cloud.google.com/) ein Projekt anlegen (oder das Workspace-Projekt nutzen).
-2. **Google Calendar API** aktivieren.
+2. **Google Calendar API** und **Gmail API** aktivieren.
 3. OAuth-Zustimmungsbildschirm: Nutzertyp **intern** (Workspace) oder **extern / Testing** mit Testnutzern (Rolf und Frau).
 4. OAuth-Client (Webanwendung) anlegen.
 
@@ -65,10 +68,12 @@ API auf Port 3366, Vite-Devserver mit Proxy auf `/api`.
 - `https://www.googleapis.com/auth/calendar.readonly`
 - `https://www.googleapis.com/auth/calendar.events`
 - `https://www.googleapis.com/auth/calendar.calendars.readonly`
+- `https://www.googleapis.com/auth/gmail.modify`
+- `https://www.googleapis.com/auth/gmail.send`
 
 Die App fordert `access_type=offline` und `prompt=consent` an, damit ein Refresh-Token gespeichert werden kann (AES-256-GCM, nie im Klartext).
 
-Sensitive Calendar-Scopes sind für interne/Testing-Apps mit Testnutzern in Ordnung.
+Sensitive Calendar- und Gmail-Scopes sind für interne/Testing-Apps mit Testnutzern in Ordnung. Wer die App schon vor Mail genutzt hat, muss sich **einmal neu anmelden**, damit Gmail freigegeben wird.
 
 ## Zugang aus dem Internet
 
@@ -86,7 +91,7 @@ In `production` ohne diese Liste ist der Login gesperrt.
 2. In `.env`: `NODE_ENV=production`, `COOKIE_SECURE=true`, `GOOGLE_REDIRECT_URI` und `PUBLIC_BASE_URL` auf `https://…` setzen.
 3. PostgreSQL nicht nach außen mappen (Compose macht das bereits nicht).
 
-Denselben Login und dieselbe Freigabeliste später für Mail (Gmail-API, gleiche Nutzer).
+Kalender und Mail nutzen denselben Google-Login und dieselbe Freigabeliste (`ALLOWED_GOOGLE_EMAILS`).
 
 ## Umgebungsvariablen
 

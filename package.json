@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Selbst gehosteter Kalender mit Google Calendar — PWA und Desktop-Webapp.",
+  "description": "Selbst gehosteter Kalender und Mail mit Google Workspace — PWA und Desktop-Webapp.",
   "scripts": {
     "dev": "concurrently -k -n server,web -c blue,green \"npm run dev:server\" \"npm run dev:web\"",
     "dev:server": "tsx watch server/src/index.ts",

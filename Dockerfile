@@ -36,7 +36,7 @@ ENV TZ=Europe/Berlin
 # Verknüpft das GHCR-Paket mit dem GitHub-Repository.
 LABEL org.opencontainers.image.source="https://github.com/rolfwalker71-commits/mycalendar"
 LABEL org.opencontainers.image.title="mycalendar"
-LABEL org.opencontainers.image.description="Selbst gehosteter Kalender mit Google Calendar, Express und PostgreSQL"
+LABEL org.opencontainers.image.description="Selbst gehosteter Kalender und Mail mit Google Workspace, Express und PostgreSQL"
 
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force

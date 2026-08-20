@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { google } from "googleapis";
-import type { calendar_v3 } from "googleapis";
+import type { Auth, calendar_v3, gmail_v1 } from "googleapis";
 import {
   GOOGLE_CLIENT_ID,
   GOOGLE_CLIENT_SECRET,
@@ -14,7 +14,7 @@ import type { UserRow } from "./types.js";
 export class GoogleAuthError extends Error {
   constructor(
     message: string,
-    readonly code: "reauth" | "config" | "google" = "google",
+    readonly code: "reauth" | "config" | "google" | "gmail_scope" = "google",
   ) {
     super(message);
     this.name = "GoogleAuthError";
@@ -40,9 +40,9 @@ export function authUrl(state: string): string {
   });
 }
 
-export async function getAuthedCalendar(
+async function getAuthedOAuthClient(
   user: UserRow,
-): Promise<calendar_v3.Calendar> {
+): Promise<Auth.OAuth2Client> {
   if (!user.refresh_token_enc) {
     throw new GoogleAuthError("Bitte erneut anmelden.", "reauth");
   }
@@ -54,18 +54,30 @@ export async function getAuthedCalendar(
       throw new GoogleAuthError("Bitte erneut anmelden.", "reauth");
     }
   } catch (err) {
-    const status = (err as { status?: number; code?: number }).status ??
+    const status =
+      (err as { status?: number; code?: number }).status ??
       (err as { code?: number }).code;
     if (status === 401 || status === 400) {
-      await query(
-        "UPDATE users SET refresh_token_enc = NULL WHERE id = $1",
-        [user.id],
-      );
+      await query("UPDATE users SET refresh_token_enc = NULL WHERE id = $1", [
+        user.id,
+      ]);
       throw new GoogleAuthError("Bitte erneut anmelden.", "reauth");
     }
     throw err;
   }
+  return client;
+}
+
+export async function getAuthedCalendar(
+  user: UserRow,
+): Promise<calendar_v3.Calendar> {
+  const client = await getAuthedOAuthClient(user);
   return google.calendar({ version: "v3", auth: client });
+}
+
+export async function getAuthedGmail(user: UserRow): Promise<gmail_v1.Gmail> {
+  const client = await getAuthedOAuthClient(user);
+  return google.gmail({ version: "v1", auth: client });
 }
 
 export function isGoneError(err: unknown): boolean {
@@ -76,6 +88,26 @@ export function isGoneError(err: unknown): boolean {
 export function isAuthError(err: unknown): boolean {
   const e = err as { code?: number; status?: number };
   return e.code === 401 || e.status === 401;
+}
+
+export function isInsufficientScope(err: unknown): boolean {
+  const e = err as {
+    code?: number;
+    status?: number;
+    errors?: { reason?: string }[];
+    message?: string;
+  };
+  const status = e.code ?? e.status;
+  const reason = e.errors?.[0]?.reason ?? "";
+  const msg = (e.message ?? "").toLowerCase();
+  return (
+    status === 403 &&
+    (reason === "insufficientPermissions" ||
+      msg.includes("insufficient") ||
+      msg.includes("access not granted") ||
+      msg.includes("metadata scope") ||
+      msg.includes("insufficient authentication scopes"))
+  );
 }
 
 export function newWatchRequestId(): string {

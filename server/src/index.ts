@@ -15,6 +15,7 @@ import { calendarsRouter } from "./routes/calendars.js";
 import { eventsRouter } from "./routes/events.js";
 import { googlePushRouter, meRouter, syncRouter } from "./routes/me.js";
 import { searchRouter } from "./routes/search.js";
+import { mailRouter } from "./routes/mail.js";
 
 Settings.defaultZone = TZ;
 Settings.defaultLocale = "de";
@@ -35,10 +36,11 @@ app.use(
         defaultSrc: ["'self'"],
         scriptSrc: ["'self'"],
         styleSrc: ["'self'", "'unsafe-inline'"],
-        imgSrc: ["'self'", "data:", "https://lh3.googleusercontent.com"],
+        imgSrc: ["'self'", "data:", "https:"],
         fontSrc: ["'self'"],
         connectSrc: ["'self'"],
         workerSrc: ["'self'"],
+        frameSrc: ["'self'", "blob:"],
         manifestSrc: ["'self'"],
         objectSrc: ["'none'"],
         baseUri: ["'self'"],
@@ -53,7 +55,7 @@ app.use(
   }),
 );
 
-app.use(express.json({ limit: "256kb" }));
+app.use(express.json({ limit: "2mb" }));
 app.use(cookieParser());
 
 app.get("/health", async (_req, res) => {
@@ -70,6 +72,7 @@ app.use("/api/me", meRouter);
 app.use("/api/calendars", calendarsRouter);
 app.use("/api/events", eventsRouter);
 app.use("/api/search", searchRouter);
+app.use("/api/mail", mailRouter);
 app.use("/api/sync", syncRouter);
 app.use("/api/google", googlePushRouter);
 
@@ -107,7 +110,8 @@ app.use(
     _next: express.NextFunction,
   ) => {
     if (err instanceof GoogleAuthError) {
-      res.status(401).json({ error: err.message, code: err.code });
+      const status = err.code === "gmail_scope" ? 403 : 401;
+      res.status(status).json({ error: err.message, code: err.code });
       return;
     }
     console.error(err);
@@ -136,7 +140,7 @@ async function backgroundSync(): Promise<void> {
 async function main(): Promise<void> {
   await initSchema();
   app.listen(APP_PORT, "0.0.0.0", () => {
-    console.log(`Kalender lauscht auf Port ${APP_PORT}`);
+    console.log(`Kalender & Mail lauscht auf Port ${APP_PORT}`);
     if (ALLOWED_GOOGLE_EMAILS.length) {
       console.log(`Login nur für ${ALLOWED_GOOGLE_EMAILS.length} Google-Konten.`);
     } else if (NODE_ENV === "production") {

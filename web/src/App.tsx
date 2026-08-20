@@ -14,6 +14,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { LoginScreen } from "@/components/LoginScreen";
+import { AppSwitcher } from "@/components/AppSwitcher";
 import { MobileDock } from "@/components/MobileDock";
 import { MiniMonth, MiniNavigator, type MiniRange } from "@/components/MiniMonth";
 import { CalendarList } from "@/components/CalendarList";
@@ -37,6 +38,8 @@ import {
 } from "@/lib/dates";
 import type { CalendarEvent, CalendarItem, Me, MobileTab, ViewId } from "@/lib/types";
 import { Toaster } from "@/components/ui/sonner";
+import { MailApp } from "@/mail/MailApp";
+import type { AppModule } from "@/mail/types";
 
 function useDesktop() {
   const [desktop, setDesktop] = useState(() =>
@@ -58,7 +61,7 @@ function applyTheme(theme: Theme) {
     theme === "dark" ||
     (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
   document.documentElement.classList.toggle("dark", dark);
-  document.getElementById("theme-color")?.setAttribute("content", dark ? "#1c1c1e" : "#fafafa");
+  document.getElementById("theme-color")?.setAttribute("content", dark ? "#1c1c1e" : "#ffffff");
 }
 
 function handleAuthError(err: unknown, onReauth: () => void) {
@@ -70,7 +73,17 @@ function handleAuthError(err: unknown, onReauth: () => void) {
   return false;
 }
 
-function CalendarApp({ me, onLogout }: { me: Me; onLogout: () => void }) {
+function CalendarApp({
+  me,
+  onLogout,
+  module,
+  onModule,
+}: {
+  me: Me;
+  onLogout: () => void;
+  module: AppModule;
+  onModule: (next: AppModule) => void;
+}) {
   const desktop = useDesktop();
   const [theme, setTheme] = useState<Theme>(
     () => (localStorage.getItem("kalender-theme") as Theme) || "system",
@@ -250,6 +263,9 @@ function CalendarApp({ me, onLogout }: { me: Me; onLogout: () => void }) {
 
   const header = (
     <header className="flex flex-col gap-3 border-b border-border px-3 py-3 lg:flex-row lg:items-center lg:px-6">
+      <div className="flex items-center gap-2 lg:hidden">
+        <AppSwitcher value={module} onChange={onModule} />
+      </div>
       <div className="flex items-center gap-2">
         <Button variant="outline" onClick={() => setCursor(now())}>
           Heute
@@ -464,6 +480,7 @@ function CalendarApp({ me, onLogout }: { me: Me; onLogout: () => void }) {
     >
       <div className="flex min-h-0 flex-1">
         <aside className="hidden w-72 shrink-0 flex-col gap-6 overflow-auto border-r border-border p-4 lg:flex">
+          <AppSwitcher value={module} onChange={onModule} />
           <div>
             <p className="mb-2 text-5xl font-semibold tracking-tight">{cursor.day}</p>
             <p className="text-muted-foreground capitalize">{monthTitle(cursor)}</p>
@@ -548,6 +565,15 @@ function CalendarApp({ me, onLogout }: { me: Me; onLogout: () => void }) {
 
 export function App() {
   const [me, setMe] = useState<Me | null | undefined>(undefined);
+  const [module, setModule] = useState<AppModule>(() => {
+    if (typeof window === "undefined") return "calendar";
+    return window.localStorage.getItem("app-module") === "mail" ? "mail" : "calendar";
+  });
+
+  function onModule(next: AppModule) {
+    setModule(next);
+    window.localStorage.setItem("app-module", next);
+  }
 
   useEffect(() => {
     apiClient
@@ -579,7 +605,11 @@ export function App() {
   }
   return (
     <>
-      <CalendarApp me={me} onLogout={() => setMe(null)} />
+      {module === "mail" ? (
+        <MailApp me={me} onLogout={() => setMe(null)} module={module} onModule={onModule} />
+      ) : (
+        <CalendarApp me={me} onLogout={() => setMe(null)} module={module} onModule={onModule} />
+      )}
       <Toaster />
     </>
   );

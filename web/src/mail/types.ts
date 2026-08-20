@@ -1,0 +1,66 @@
+export type MailAddress = {
+  name: string;
+  email: string;
+};
+
+export type MailLabel = {
+  id: string;
+  name: string;
+  type: "system" | "user";
+  messagesTotal: number;
+  messagesUnread: number;
+  threadsTotal: number;
+  threadsUnread: number;
+};
+
+export type MailThreadSummary = {
+  id: string;
+  snippet: string;
+  messageCount: number;
+  from: MailAddress;
+  to: MailAddress;
+  subject: string;
+  date: string;
+  unread: boolean;
+  starred: boolean;
+  draft?: boolean;
+  internalDate: string | null;
+};
+
+export type MailAttachment = {
+  filename: string;
+  mimeType: string;
+  size: number;
+  attachmentId: string;
+  messageId: string;
+};
+
+export type MailMessage = {
+  id: string;
+  threadId: string;
+  from: MailAddress;
+  to: string;
+  cc: string;
+  bcc: string;
+  subject: string;
+  date: string;
+  messageId: string;
+  references: string;
+  snippet: string;
+  text: string;
+  html: string;
+  attachments: MailAttachment[];
+  unread: boolean;
+  starred: boolean;
+  labelIds: string[];
+  internalDate: string | null;
+};
+
+export type MailThread = {
+  id: string;
+  messages: MailMessage[];
+  unread: boolean;
+  starred: boolean;
+};
+
+export type AppModule = "calendar" | "mail";

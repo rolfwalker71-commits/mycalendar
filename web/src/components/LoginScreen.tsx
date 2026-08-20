@@ -1,4 +1,3 @@
-import { CalendarDays } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -10,12 +9,16 @@ export function LoginScreen() {
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center bg-background px-6">
       <div className="flex w-full max-w-sm flex-col items-center text-center">
-        <div className="mb-6 flex size-16 items-center justify-center rounded-2xl bg-card shadow-lg shadow-black/10 ring-1 ring-border">
-          <CalendarDays className="size-8 text-foreground" />
-        </div>
-        <h1 className="text-3xl font-semibold tracking-tight">Kalender</h1>
+        <img
+          src="/logo.png"
+          alt=""
+          width={96}
+          height={96}
+          className="mb-6 size-24 rounded-3xl bg-white object-contain shadow-lg shadow-black/10 ring-1 ring-border"
+        />
+        <h1 className="text-3xl font-semibold tracking-tight">Kalender & Mail</h1>
         <p className="mt-2 text-muted-foreground">
-          Termine aus Google Calendar — privat, selbst gehostet.
+          Google Workspace — privat, selbst gehostet, im Browser und als PWA.
         </p>
         {denied ? (
           <p className="mt-4 rounded-xl bg-destructive/10 px-3 py-2 text-sm text-destructive">
@@ -29,7 +32,7 @@ export function LoginScreen() {
           Mit Google anmelden
         </a>
         <p className="mt-4 text-xs text-muted-foreground">
-          Nur freigeschaltete Konten. Die Sitzung bleibt auf diesem Gerät.
+          Nur freigeschaltete Konten. Die Sitzung bleibt auf diesem Gerät. Bestehende Nutzer bitte einmal neu anmelden, damit Mail freigegeben wird.
         </p>
       </div>
     </div>

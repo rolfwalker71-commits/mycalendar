@@ -16,7 +16,7 @@ export default defineConfig({
     VitePWA({
       registerType: "autoUpdate",
       filename: "sw.js",
-      includeAssets: ["icons/*.png", "apple-touch-icon.png"],
+      includeAssets: ["icons/*.png", "apple-touch-icon.png", "logo.png"],
       manifest: false,
       workbox: {
         globPatterns: ["**/*.{js,css,html,ico,png,svg,webmanifest}"],
