@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { LoaderCircle, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -64,7 +65,7 @@ export function GeminiCard({
               Gemini fasst zusammen…
             </p>
           ) : text ? (
-            <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed">{text}</p>
+            <GeminiBody text={text} />
           ) : available === false ? (
             <p className="mt-1 text-sm text-muted-foreground">
               Die Gemini-Übersichten aus Gmail selbst liefert Google nicht per Schnittstelle.
@@ -90,5 +91,138 @@ export function GeminiCard({
         </div>
       </div>
     </section>
+  );
+}
+
+const LABEL_LINE = /^(?:[-*•]\s+)?\*\*(.+?):\*\*\s*(.*)$/;
+
+function stripFence(text: string): string {
+  return text
+    .replace(/^```(?:markdown|md|json|text)?\s*\n?/i, "")
+    .replace(/\n?```\s*$/i, "")
+    .replace(/\r\n/g, "\n")
+    .trim();
+}
+
+function renderInline(text: string): ReactNode {
+  const nodes: ReactNode[] = [];
+  const re = /(\*\*[^*]+?\*\*|__[^_]+?__|\*[^*]+?\*)/g;
+  let last = 0;
+  let match: RegExpExecArray | null;
+  let i = 0;
+  while ((match = re.exec(text))) {
+    if (match.index > last) nodes.push(text.slice(last, match.index));
+    const raw = match[0];
+    const inner = raw.replace(/^\*\*|^__|^\*|\*\*$|__$|\*$/g, "");
+    nodes.push(
+      raw.startsWith("*") && !raw.startsWith("**") ? (
+        <em key={i++}>{inner}</em>
+      ) : (
+        <strong key={i++} className="font-semibold">
+          {inner}
+        </strong>
+      ),
+    );
+    last = match.index + raw.length;
+  }
+  if (last < text.length) nodes.push(text.slice(last));
+  return nodes.length === 1 ? nodes[0] : nodes;
+}
+
+function parseLabelRows(text: string): { label: string; value: string }[] | null {
+  const lines = text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (lines.length < 2) return null;
+  const matched = lines.map((line) => line.match(LABEL_LINE));
+  if (matched.filter(Boolean).length < Math.ceil(lines.length * 0.6)) return null;
+  return matched.map((row, i) =>
+    row ? { label: row[1].trim(), value: row[2].trim() } : { label: "", value: lines[i] },
+  );
+}
+
+function GeminiBlocks({ text }: { text: string }) {
+  const lines = text.split("\n");
+  const blocks: ReactNode[] = [];
+  let i = 0;
+  let key = 0;
+  while (i < lines.length) {
+    if (!lines[i].trim()) {
+      i += 1;
+      continue;
+    }
+    if (/^\s*[-*•]\s+/.test(lines[i])) {
+      const items: string[] = [];
+      while (i < lines.length && /^\s*[-*•]\s+/.test(lines[i])) {
+        items.push(lines[i].replace(/^\s*[-*•]\s+/, "").trim());
+        i += 1;
+      }
+      blocks.push(
+        <ul key={key++} className="mt-1.5 list-disc space-y-1 pl-4">
+          {items.map((item, j) => (
+            <li key={j}>{renderInline(item)}</li>
+          ))}
+        </ul>,
+      );
+      continue;
+    }
+    if (/^\s*\d+[.)]\s+/.test(lines[i])) {
+      const items: string[] = [];
+      while (i < lines.length && /^\s*\d+[.)]\s+/.test(lines[i])) {
+        items.push(lines[i].replace(/^\s*\d+[.)]\s+/, "").trim());
+        i += 1;
+      }
+      blocks.push(
+        <ol key={key++} className="mt-1.5 list-decimal space-y-1 pl-4">
+          {items.map((item, j) => (
+            <li key={j}>{renderInline(item)}</li>
+          ))}
+        </ol>,
+      );
+      continue;
+    }
+    const para: string[] = [];
+    while (
+      i < lines.length &&
+      lines[i].trim() &&
+      !/^\s*[-*•]\s+/.test(lines[i]) &&
+      !/^\s*\d+[.)]\s+/.test(lines[i])
+    ) {
+      para.push(lines[i].trim());
+      i += 1;
+    }
+    blocks.push(
+      <p key={key++} className="mt-1.5 first:mt-1">
+        {renderInline(para.join(" "))}
+      </p>,
+    );
+  }
+  return <>{blocks}</>;
+}
+
+function GeminiBody({ text }: { text: string }) {
+  const raw = stripFence(text);
+  const facts = parseLabelRows(raw);
+  if (facts) {
+    return (
+      <dl className="mt-2 space-y-2.5">
+        {facts.map((row, i) => (
+          <div key={`${row.label}-${i}`}>
+            {row.label ? (
+              <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                {row.label}
+              </dt>
+            ) : null}
+            <dd className="text-sm leading-relaxed">{renderInline(row.value || "—")}</dd>
+          </div>
+        ))}
+      </dl>
+    );
+  }
+  return (
+    <div className="mt-1 text-sm leading-relaxed">
+      <GeminiBlocks text={raw} />
+    </div>
   );
 }

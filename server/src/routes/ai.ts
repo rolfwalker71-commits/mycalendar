@@ -64,8 +64,13 @@ aiRouter.post("/mail", async (req, res) => {
       return `Von: ${from.name || from.email}\nBetreff: ${headers.subject || ""}\n${body}`;
     });
     const prompt = `Fasse diese E-Mail-Unterhaltung auf Deutsch knapp zusammen.
-Nenne Absender, das eigentliche Anliegen, offene Punkte oder Termine, und was als Nächstes zu tun ist.
-Keine Floskeln, keine Erfindung. Maximal 8 Sätze, gerne Stichpunkte.
+Schreibe genau diese fünf Stichpunkte, eine Zeile je Punkt, Labels fett:
+- **Absender:** …
+- **Anliegen:** …
+- **Details:** …
+- **Offene Punkte:** … (oder „Keine.“)
+- **Nächste Schritte:** … (oder „Keine.“)
+Keine Floskeln, nichts erfinden, kein weiterer Text, kein Markdown außer den Fettschrift-Labels.
 
 ${parts.join("\n\n---\n\n")}`;
     const result = await cachedGemini(req.user!.id, "mail", `${id}:${lastId}`, prompt);
@@ -164,7 +169,7 @@ aiRouter.post("/calendar", async (req, res) => {
       : `${start.setLocale("de").toFormat("d. LLL")}–${end.setLocale("de").toFormat("d. LLL")}`;
     const prompt = `Du bist ein knapper Kalenderassistent. Fasse den folgenden Zeitraum auf Deutsch zusammen (${label}).
 Erwähne Engpässe, Lücken, Fahrten/Meet-Links und was vorbereitet werden sollte.
-Maximal 6 Sätze oder Stichpunkte. Nichts erfinden.
+Maximal 6 Sätze oder Stichpunkte mit Bindestrich. Nichts erfinden. Kein Markdown außer einfachen Listen.
 
 ${lines.join("\n") || "Keine Termine."}`;
     const ref = `${start.toISODate()}:${end.toISODate()}:${rows.length}`;
