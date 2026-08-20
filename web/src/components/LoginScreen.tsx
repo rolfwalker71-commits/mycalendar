@@ -14,7 +14,7 @@ export function LoginScreen() {
           alt=""
           width={96}
           height={96}
-          className="mb-6 size-24 rounded-3xl bg-white object-contain shadow-lg shadow-black/10 ring-1 ring-border"
+          className="mb-6 size-24 object-contain"
         />
         <h1 className="text-3xl font-semibold tracking-tight">Kalender & Mail</h1>
         <p className="mt-2 text-muted-foreground">
