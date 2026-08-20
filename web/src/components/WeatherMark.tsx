@@ -38,6 +38,21 @@ export function weatherIcon(code: number): LucideIcon {
   return CloudRain;
 }
 
+/** WMO-code colors that stay readable in light and dark mode. */
+export function weatherIconClass(code: number): string {
+  if (code <= 1) return "text-amber-500";
+  if (code === 2) {
+    return "text-amber-500 [&>path:last-child]:stroke-slate-400 dark:[&>path:last-child]:stroke-slate-300";
+  }
+  if (code === 3) return "text-slate-500 dark:text-slate-400";
+  if (code === 45 || code === 48) return "text-slate-400 dark:text-slate-300";
+  if ([71, 73, 75, 77, 85, 86].includes(code)) return "text-sky-500";
+  if ([95, 96, 99].includes(code)) {
+    return "text-violet-400 dark:text-violet-300 [&>path:last-child]:stroke-amber-500";
+  }
+  return "text-blue-500";
+}
+
 export function WeatherMark({
   code,
   temp,
@@ -55,14 +70,20 @@ export function WeatherMark({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-0.5 text-muted-foreground",
+        "inline-flex items-center gap-0.5",
         compact ? "text-[11px]" : "text-sm",
         className,
       )}
       title={name}
     >
-      <Icon className={cn(compact ? "size-3.5" : "size-4", "shrink-0")} />
-      <span className="tabular-nums">{temp}°</span>
+      <Icon
+        className={cn(
+          compact ? "size-3.5" : "size-4",
+          "shrink-0",
+          weatherIconClass(code),
+        )}
+      />
+      <span className="tabular-nums text-muted-foreground">{temp}°</span>
     </span>
   );
 }

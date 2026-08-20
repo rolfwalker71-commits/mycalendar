@@ -71,8 +71,8 @@ export function WeekView({
         <div />
         {days.map((day, i) => (
           <div key={day.toISODate()} className="py-2 text-center">
-            <div className="flex items-center justify-center gap-1 text-xs text-muted-foreground">
-              <span>{labels[i]}</span>
+            <div className="flex items-center justify-center gap-1 text-xs">
+              <span className="text-muted-foreground">{labels[i]}</span>
               <DayWeather iso={day.toISODate()} />
             </div>
             <div
