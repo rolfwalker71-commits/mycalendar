@@ -1,0 +1,18 @@
+export const GMAIL_LABEL_COLORS: { backgroundColor: string; textColor: string }[] = [
+  { backgroundColor: "#fb4c2f", textColor: "#ffffff" },
+  { backgroundColor: "#ffad47", textColor: "#ffffff" },
+  { backgroundColor: "#fad165", textColor: "#000000" },
+  { backgroundColor: "#16a766", textColor: "#ffffff" },
+  { backgroundColor: "#43d692", textColor: "#000000" },
+  { backgroundColor: "#4a86e8", textColor: "#ffffff" },
+  { backgroundColor: "#a479e2", textColor: "#ffffff" },
+  { backgroundColor: "#f691b3", textColor: "#000000" },
+  { backgroundColor: "#cc3a21", textColor: "#ffffff" },
+  { backgroundColor: "#0b804b", textColor: "#ffffff" },
+  { backgroundColor: "#285bac", textColor: "#ffffff" },
+  { backgroundColor: "#653e9b", textColor: "#ffffff" },
+  { backgroundColor: "#b65775", textColor: "#ffffff" },
+  { backgroundColor: "#ac2b16", textColor: "#ffffff" },
+  { backgroundColor: "#8e63ce", textColor: "#ffffff" },
+  { backgroundColor: "#cccccc", textColor: "#000000" },
+];

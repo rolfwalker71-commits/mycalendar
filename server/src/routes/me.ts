@@ -4,8 +4,9 @@ import { query } from "../db.js";
 import { GoogleAuthError, isAuthError } from "../google.js";
 import { syncUserEvents } from "../sync.js";
 import { TZ } from "../config.js";
-import type { UserRow } from "../types.js";
+import type { UserRow, WorkingHoursJson } from "../types.js";
 import { geminiAvailable, loadGeminiKey } from "../gemini.js";
+import { describeGoogleApiError, getAuthedCalendar } from "../google.js";
 
 function meJson(u: UserRow) {
   return {
@@ -18,6 +19,9 @@ function meJson(u: UserRow) {
     timezone: TZ,
     notifyCalendar: u.notify_calendar !== false,
     notifyMail: u.notify_mail !== false,
+    hideDeclined: Boolean(u.hide_declined),
+    secondTimezone: u.second_timezone,
+    workingHours: u.working_hours,
     geminiAvailable: geminiAvailable(),
   };
 }
@@ -46,6 +50,22 @@ meRouter.patch("/", async (req, res) => {
     sets.push(`notify_mail = $${i++}`);
     vals.push(req.body.notifyMail);
   }
+  if (typeof req.body?.hideDeclined === "boolean") {
+    sets.push(`hide_declined = $${i++}`);
+    vals.push(req.body.hideDeclined);
+  }
+  if (typeof req.body?.secondTimezone === "string" || req.body?.secondTimezone === null) {
+    sets.push(`second_timezone = $${i++}`);
+    vals.push(req.body.secondTimezone || null);
+  }
+  if (req.body?.workingHours && typeof req.body.workingHours === "object") {
+    const wh = req.body.workingHours as WorkingHoursJson;
+    sets.push(`working_hours = $${i++}::jsonb`);
+    vals.push(JSON.stringify({
+      enabled: Boolean(wh.enabled),
+      days: wh.days && typeof wh.days === "object" ? wh.days : {},
+    }));
+  }
   if (!sets.length) {
     res.status(400).json({ error: "Keine gültigen Felder." });
     return;
@@ -54,6 +74,40 @@ meRouter.patch("/", async (req, res) => {
   await query(`UPDATE users SET ${sets.join(", ")} WHERE id = $${i}`, vals);
   const updated = await loadUserById(req.user!.id);
   res.json(meJson(updated ?? req.user!));
+});
+
+meRouter.get("/calendar-settings", async (req, res) => {
+  try {
+    const api = await getAuthedCalendar(req.user!);
+    const { data } = await api.settings.list({ maxResults: 250 });
+    const items = (data.items ?? []).map((s) => ({ id: s.id, value: s.value }));
+    res.json({
+      googleSettings: items,
+      workingHours: req.user!.working_hours,
+      googleWorkingHoursSupported: false,
+      note:
+        "Die Calendar API v3 hat keine Schnittstelle für Arbeitszeiten (nur Zeitzone, Wochenende, Standarddauer usw.). Arbeitszeiten werden in dieser App gespeichert und in Tag-/Wochenansicht angezeigt. Fokuszeit, Abwesenheit und Arbeitsort sind als Terminarten verfügbar.",
+    });
+  } catch (err) {
+    const described = describeGoogleApiError(err, "calendar");
+    if (described) {
+      res.status(described.status).json({
+        error: described.error,
+        code: described.code,
+        workingHours: req.user!.working_hours,
+        googleWorkingHoursSupported: false,
+        note:
+          "Die Calendar API v3 hat keine Schnittstelle für Arbeitszeiten. Arbeitszeiten werden in dieser App gespeichert.",
+      });
+      return;
+    }
+    console.error(err);
+    res.status(502).json({
+      error: "Kalendereinstellungen konnten nicht geladen werden.",
+      workingHours: req.user!.working_hours,
+      googleWorkingHoursSupported: false,
+    });
+  }
 });
 
 export const syncRouter = Router();

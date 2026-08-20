@@ -8,6 +8,7 @@ export type MailLabel = {
   id: string;
   name: string;
   type: "system" | "user";
+  color?: { backgroundColor: string; textColor: string } | null;
   messagesTotal: number;
   messagesUnread: number;
   threadsTotal: number;
@@ -25,6 +26,8 @@ export type MailThreadSummary = {
   unread: boolean;
   starred: boolean;
   draft?: boolean;
+  draftId?: string | null;
+  labelIds?: string[];
   internalDate: string | null;
 };
 
@@ -63,6 +66,8 @@ export type MailThread = {
   messages: MailMessage[];
   unread: boolean;
   starred: boolean;
+  draft?: boolean;
+  draftId?: string | null;
 };
 
 export type AppModule = "calendar" | "mail";

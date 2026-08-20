@@ -3,16 +3,23 @@ import {
   Archive,
   ArrowLeft,
   ChevronRight,
+  Forward,
   Inbox,
   LoaderCircle,
   Mail,
+  MailOpen,
+  MoreHorizontal,
   Paperclip,
   Pencil,
   Reply,
+  ReplyAll,
   Search,
   Send,
   Settings,
+  ShieldAlert,
+  ShieldCheck,
   Star,
+  Tag,
   Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -34,8 +41,10 @@ import { ComposeSheet, type ComposeState } from "./ComposeSheet";
 import { MailAvatar } from "./MailAvatar";
 import { displayName, formatMailDate, formatMailDateLong } from "./format";
 import type { AppModule, MailLabel, MailMessage, MailThread, MailThreadSummary } from "./types";
+import { GMAIL_LABEL_COLORS } from "./gmailColors";
 import { PullToRefresh } from "@/components/PullToRefresh";
 import { GeminiCard, HighlightCards } from "@/components/AiSummary";
+import { Checkbox } from "@/components/ui/checkbox";
 
 function handleAuthError(err: unknown, onReauth: () => void, onScope?: () => void) {
   if (err instanceof ApiError && err.code === "gmail_scope") {
@@ -80,6 +89,12 @@ function MailboxRow({
       )}
     >
       <Icon className={cn("size-4", active ? "text-mail" : "text-mail")} />
+      {label.type === "user" && label.color?.backgroundColor ? (
+        <span
+          className="size-2.5 shrink-0 rounded-full ring-1 ring-black/10"
+          style={{ backgroundColor: label.color.backgroundColor }}
+        />
+      ) : null}
       <span className="min-w-0 flex-1 truncate font-medium">{label.name}</span>
       {unread ? (
         <span className={cn("text-[11px] tabular-nums", active ? "text-mail" : "text-muted-foreground")}>
@@ -138,7 +153,7 @@ function FolderDrawer({
       />
       <nav
         className={cn(
-          "absolute top-[3.75rem] bottom-3 left-0 flex w-[min(17.5rem,78vw)] flex-col overflow-hidden rounded-tr-2xl rounded-br-2xl bg-card shadow-2xl ring-1 ring-border transition-transform duration-[750ms] ease-in-out",
+          "absolute top-[3.75rem] bottom-3 left-0 flex w-[min(17.5rem,78vw)] flex-col overflow-hidden bg-card shadow-2xl ring-1 ring-border transition-transform duration-[750ms] ease-in-out",
           shown ? "translate-x-0" : "-translate-x-full",
         )}
       >
@@ -202,6 +217,9 @@ function ThreadRow({
         </span>
         <span className="mt-0.5 block truncate text-sm text-muted-foreground">{thread.snippet}</span>
       </span>
+      {thread.draft ? (
+        <span className="mt-1 shrink-0 text-[11px] font-medium text-mail">Entwurf</span>
+      ) : null}
       {thread.starred ? <Star className="mt-1 size-4 shrink-0 fill-amber-400 text-amber-400" /> : null}
     </button>
   );
@@ -286,10 +304,17 @@ function ThreadDetail({
   selfPhoto,
   geminiAvailable,
   threaded,
+  userLabels,
   onReply,
+  onReplyAll,
+  onForward,
   onArchive,
   onTrash,
   onToggleStar,
+  onMarkUnread,
+  onSpam,
+  onNotSpam,
+  onToggleLabel,
   onBack,
   showBack,
 }: {
@@ -298,10 +323,17 @@ function ThreadDetail({
   selfPhoto?: string | null;
   geminiAvailable?: boolean;
   threaded: boolean;
+  userLabels: MailLabel[];
   onReply: (message: MailMessage) => void;
+  onReplyAll: (message: MailMessage) => void;
+  onForward: (message: MailMessage) => void;
   onArchive: () => void;
   onTrash: () => void;
   onToggleStar: () => void;
+  onMarkUnread: () => void;
+  onSpam: () => void;
+  onNotSpam: () => void;
+  onToggleLabel: (labelId: string, on: boolean) => void;
   onBack?: () => void;
   showBack?: boolean;
 }) {
@@ -315,6 +347,9 @@ function ThreadDetail({
   }
   const hasRemoteImages = thread.messages.some((m) => /<img/i.test(m.html));
   const cards = thread.messages.flatMap((m) => m.cards ?? []);
+  const threadLabelIds = new Set(thread.messages.flatMap((m) => m.labelIds ?? []));
+  const appliedUserLabels = userLabels.filter((l) => threadLabelIds.has(l.id));
+  const isSpam = threadLabelIds.has("SPAM");
 
   async function loadSummary() {
     setSummaryLoading(true);
@@ -351,8 +386,68 @@ function ThreadDetail({
         <Button variant="ghost" size="icon" aria-label="Antworten" onClick={() => onReply(last)}>
           <Reply className="size-5 text-mail" />
         </Button>
+        <Button variant="ghost" size="icon" aria-label="Allen antworten" onClick={() => onReplyAll(last)}>
+          <ReplyAll className="size-5 text-mail" />
+        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger render={<Button variant="ghost" size="icon" aria-label="Weitere Aktionen" />}>
+            <MoreHorizontal className="size-5 text-mail" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => onForward(last)}>
+              <Forward className="size-4" />
+              Weiterleiten
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onMarkUnread}>
+              <MailOpen className="size-4" />
+              Als ungelesen
+            </DropdownMenuItem>
+            {isSpam ? (
+              <DropdownMenuItem onClick={onNotSpam}>
+                <ShieldCheck className="size-4" />
+                Kein Spam
+              </DropdownMenuItem>
+            ) : (
+              <DropdownMenuItem onClick={onSpam}>
+                <ShieldAlert className="size-4" />
+                Als Spam
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuSeparator />
+            <div className="px-2 py-1 text-xs font-medium text-muted-foreground">Ordner</div>
+            {userLabels.map((label) => {
+              const on = threadLabelIds.has(label.id);
+              return (
+                <DropdownMenuItem
+                  key={label.id}
+                  onClick={() => onToggleLabel(label.id, !on)}
+                >
+                  <Tag className="size-4" />
+                  <Checkbox checked={on} className="pointer-events-none" />
+                  {label.name}
+                </DropdownMenuItem>
+              );
+            })}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </header>
       <div className="min-h-0 flex-1 overflow-auto">
+        {appliedUserLabels.length ? (
+          <div className="flex flex-wrap gap-1.5 px-4 pt-3">
+            {appliedUserLabels.map((label) => (
+              <span
+                key={label.id}
+                className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium"
+                style={{
+                  backgroundColor: label.color?.backgroundColor ?? "var(--muted)",
+                  color: label.color?.textColor ?? "inherit",
+                }}
+              >
+                {label.name}
+              </span>
+            ))}
+          </div>
+        ) : null}
         <HighlightCards cards={cards} />
         <GeminiCard
           title="Zusammenfassung"
@@ -488,12 +583,22 @@ export function MailApp({
   }, [loadThreads, onLogout]);
 
   async function openThread(id: string) {
-    setSelectedId(id);
-    setLoadingThread(true);
-    if (!desktop) setMobilePane("thread");
+    const summary = threads.find((t) => t.id === id);
     setFoldersOpen(false);
     try {
       const next = await apiClient.mailThread(id, threaded);
+      if (next.draftId || next.draft || summary?.draft) {
+        setCompose({
+          open: true,
+          mode: "draft",
+          draftId: next.draftId ?? summary?.draftId ?? undefined,
+          replyTo: next.messages[0],
+        });
+        return;
+      }
+      setSelectedId(id);
+      setLoadingThread(true);
+      if (!desktop) setMobilePane("thread");
       setThread(next);
       if (next.unread) {
         await apiClient.mailModify(id, [], ["UNREAD"], threaded);
@@ -534,6 +639,55 @@ export function MailApp({
     else await apiClient.mailModify(selectedId, ["STARRED"], [], threaded);
     setThread({ ...thread, starred: !thread.starred });
     setThreads((ts) => ts.map((t) => (t.id === selectedId ? { ...t, starred: !t.starred } : t)));
+  }
+
+  async function markUnread() {
+    if (!selectedId) return;
+    await apiClient.mailModify(selectedId, ["UNREAD"], [], threaded);
+    setThreads((ts) => ts.map((t) => (t.id === selectedId ? { ...t, unread: true } : t)));
+    setThread((th) => (th ? { ...th, unread: true } : th));
+    toast.success("Als ungelesen markiert.");
+  }
+
+  async function reportSpam() {
+    if (!selectedId) return;
+    await apiClient.mailModify(selectedId, ["SPAM"], ["INBOX"], threaded);
+    setThreads((ts) => ts.filter((t) => t.id !== selectedId));
+    setThread(null);
+    setSelectedId(null);
+    if (!desktop) setMobilePane("list");
+    toast.success("Als Spam gemeldet.");
+  }
+
+  async function notSpam() {
+    if (!selectedId) return;
+    await apiClient.mailModify(selectedId, ["INBOX"], ["SPAM"], threaded);
+    setThreads((ts) => ts.filter((t) => t.id !== selectedId));
+    setThread(null);
+    setSelectedId(null);
+    if (!desktop) setMobilePane("list");
+    toast.success("Kein Spam — im Posteingang.");
+  }
+
+  async function toggleLabel(label: string, on: boolean) {
+    if (!selectedId || !thread) return;
+    await apiClient.mailModify(selectedId, on ? [label] : [], on ? [] : [label], threaded);
+    setThread({
+      ...thread,
+      messages: thread.messages.map((m) => ({
+        ...m,
+        labelIds: on
+          ? [...new Set([...(m.labelIds ?? []), label])]
+          : (m.labelIds ?? []).filter((id) => id !== label),
+      })),
+    });
+  }
+
+  async function setLabelColor(id: string, backgroundColor: string, textColor: string) {
+    await apiClient.mailLabelColor(id, backgroundColor, textColor);
+    setLabels((ls) =>
+      ls.map((l) => (l.id === id ? { ...l, color: { backgroundColor, textColor } } : l)),
+    );
   }
 
   const account = (
@@ -607,16 +761,49 @@ export function MailApp({
             Ordner
           </p>
           {userLabels.map((label) => (
-            <MailboxRow
-              key={label.id}
-              label={label}
-              active={labelId === label.id}
-              onClick={() => {
-                setLabelId(label.id);
-                setFoldersOpen(false);
-                if (!desktop) setMobilePane("list");
-              }}
-            />
+            <div key={label.id} className="flex items-center gap-0.5">
+              <div className="min-w-0 flex-1">
+                <MailboxRow
+                  label={label}
+                  active={labelId === label.id}
+                  onClick={() => {
+                    setLabelId(label.id);
+                    setFoldersOpen(false);
+                    if (!desktop) setMobilePane("list");
+                  }}
+                />
+              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <Button variant="ghost" size="icon" className="size-8 shrink-0" aria-label="Ordnerfarbe" />
+                  }
+                >
+                  <span
+                    className="size-3 rounded-full ring-1 ring-border"
+                    style={{ backgroundColor: label.color?.backgroundColor ?? "#cccccc" }}
+                  />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-44">
+                  <div className="grid grid-cols-8 gap-1 p-2">
+                    {GMAIL_LABEL_COLORS.map((c) => (
+                      <button
+                        key={c.backgroundColor}
+                        type="button"
+                        className="size-4 rounded-full ring-1 ring-black/10"
+                        style={{ backgroundColor: c.backgroundColor }}
+                        aria-label={c.backgroundColor}
+                        onClick={() =>
+                          setLabelColor(label.id, c.backgroundColor, c.textColor).catch((err) =>
+                            toast.error(err instanceof ApiError ? err.message : "Farbe fehlgeschlagen."),
+                          )
+                        }
+                      />
+                    ))}
+                  </div>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           ))}
         </>
       ) : null}
@@ -658,9 +845,44 @@ export function MailApp({
           <Input
             value={query}
             onValueChange={setQuery}
-            placeholder="Suchen"
+            placeholder="Suchen (from:, to:, has:attachment …)"
             className="rounded-full bg-muted pl-9"
             aria-label="Mail durchsuchen"
+          />
+        </div>
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {[
+            ["from:", "from:"],
+            ["Anhang", "has:attachment"],
+            ["Ungelesen", "is:unread"],
+            ["Markiert", "is:starred"],
+          ].map(([label, op]) => (
+            <button
+              key={op}
+              type="button"
+              className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground"
+              onClick={() => setQuery((q) => (q.includes(op) ? q : `${q} ${op}`.trim()))}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          <Input
+            type="date"
+            aria-label="Nach dem"
+            onValueChange={(v) => {
+              if (!v) return;
+              setQuery((q) => `${q.replace(/\bafter:\S+/g, "").trim()} after:${v}`.trim());
+            }}
+          />
+          <Input
+            type="date"
+            aria-label="Vor dem"
+            onValueChange={(v) => {
+              if (!v) return;
+              setQuery((q) => `${q.replace(/\bbefore:\S+/g, "").trim()} before:${v}`.trim());
+            }}
           />
         </div>
       </form>
@@ -717,6 +939,7 @@ export function MailApp({
       selfPhoto={me.pictureUrl}
       geminiAvailable={me.geminiAvailable}
       threaded={threaded}
+      userLabels={userLabels}
       showBack={!desktop}
       onBack={() => {
         setMobilePane("list");
@@ -724,9 +947,15 @@ export function MailApp({
         setSelectedId(null);
       }}
       onReply={(message) => setCompose({ open: true, mode: "reply", replyTo: message })}
+      onReplyAll={(message) => setCompose({ open: true, mode: "replyAll", replyTo: message })}
+      onForward={(message) => setCompose({ open: true, mode: "forward", replyTo: message })}
       onArchive={() => archive().catch((err) => toast.error(err instanceof ApiError ? err.message : "Archivieren fehlgeschlagen."))}
       onTrash={() => trash().catch((err) => toast.error(err instanceof ApiError ? err.message : "Löschen fehlgeschlagen."))}
       onToggleStar={() => toggleStar().catch((err) => toast.error(err instanceof ApiError ? err.message : "Markierung fehlgeschlagen."))}
+      onMarkUnread={() => markUnread().catch((err) => toast.error(err instanceof ApiError ? err.message : "Änderung fehlgeschlagen."))}
+      onSpam={() => reportSpam().catch((err) => toast.error(err instanceof ApiError ? err.message : "Spam fehlgeschlagen."))}
+      onNotSpam={() => notSpam().catch((err) => toast.error(err instanceof ApiError ? err.message : "Änderung fehlgeschlagen."))}
+      onToggleLabel={(id, on) => toggleLabel(id, on).catch((err) => toast.error(err instanceof ApiError ? err.message : "Ordner fehlgeschlagen."))}
     />
   ) : (
     <div className="hidden flex-1 flex-col items-center justify-center text-muted-foreground lg:flex">
@@ -772,10 +1001,12 @@ export function MailApp({
       </Button>
       {compose.open ? (
         <ComposeSheet
-          key={`${compose.mode}-${compose.replyTo?.id ?? "new"}`}
+          key={`${compose.mode}-${compose.replyTo?.id ?? "new"}-${compose.draftId ?? ""}`}
           state={compose}
           desktop={desktop}
+          selfEmail={me.email}
           onOpenChange={(open) => setCompose(open ? compose : { open: false })}
+          onReconnect={() => setNeedsScope(true)}
           onSent={() => {
             loadThreads().catch(() => undefined);
             loadLabels().catch(() => undefined);

@@ -1,4 +1,4 @@
-import type { CalendarEvent, CalendarItem, Me } from "./types";
+import type { CalendarEvent, CalendarItem, Me, TaskItem } from "./types";
 import type { MailLabel, MailThread, MailThreadSummary } from "@/mail/types";
 
 export class ApiError extends Error {
@@ -49,6 +49,12 @@ export const apiClient = {
     weekStart?: 0 | 1;
     notifyCalendar?: boolean;
     notifyMail?: boolean;
+    hideDeclined?: boolean;
+    secondTimezone?: string | null;
+    workingHours?: {
+      enabled: boolean;
+      days: Record<string, { start: string; end: string } | null>;
+    };
   }) =>
     api<Me>("/api/me", {
       method: "PATCH",
@@ -161,13 +167,150 @@ export const apiClient = {
     cc?: string[];
     bcc?: string[];
     subject: string;
-    text: string;
+    text?: string;
+    html?: string;
+    from?: string;
     threadId?: string;
     inReplyTo?: string;
     references?: string;
+    draftId?: string;
+    attachments?: { filename: string; mimeType: string; data: string }[];
+    forwardAttachments?: {
+      messageId: string;
+      attachmentId: string;
+      filename: string;
+      mimeType: string;
+    }[];
   }) =>
     api<{ ok: boolean; id?: string; threadId?: string }>("/api/mail/send", {
       method: "POST",
       body: JSON.stringify(body),
     }),
+  mailDraft: (body: {
+    draftId?: string;
+    to: string[];
+    cc?: string[];
+    bcc?: string[];
+    subject: string;
+    text?: string;
+    html?: string;
+    from?: string;
+    threadId?: string;
+    inReplyTo?: string;
+    references?: string;
+    attachments?: { filename: string; mimeType: string; data: string }[];
+    forwardAttachments?: {
+      messageId: string;
+      attachmentId: string;
+      filename: string;
+      mimeType: string;
+    }[];
+  }) =>
+    api<{ ok: boolean; id?: string; threadId?: string }>("/api/mail/drafts", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  mailDraftGet: (id: string) =>
+    api<{ id: string; message: import("@/mail/types").MailMessage | null }>(
+      `/api/mail/drafts/${encodeURIComponent(id)}`,
+    ),
+  mailDraftDelete: (id: string) =>
+    api<{ ok: boolean }>(`/api/mail/drafts/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  mailLabelColor: (id: string, backgroundColor: string, textColor: string) =>
+    api<{ id: string }>(`/api/mail/labels/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ backgroundColor, textColor }),
+    }),
+  mailSendAs: () =>
+    api<{
+      aliases: {
+        sendAsEmail: string;
+        displayName: string;
+        isDefault: boolean;
+        isPrimary: boolean;
+        signature: string;
+      }[];
+    }>("/api/mail/send-as"),
+  mailSaveSignature: (email: string, signature: string) =>
+    api<{ ok: boolean; signature: string }>(
+      `/api/mail/send-as/${encodeURIComponent(email)}/signature`,
+      { method: "PUT", body: JSON.stringify({ signature }) },
+    ),
+  mailVacation: () =>
+    api<{
+      enableAutoReply: boolean;
+      responseSubject: string;
+      responseBodyHtml: string;
+      responseBodyPlainText: string;
+      restrictToContacts: boolean;
+      restrictToDomain: boolean;
+      startTime: string | null;
+      endTime: string | null;
+    }>("/api/mail/vacation"),
+  mailSaveVacation: (body: unknown) =>
+    api<{ enableAutoReply: boolean }>("/api/mail/vacation", {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+  mailFilters: () =>
+    api<{
+      filters: {
+        id?: string | null;
+        criteria: Record<string, unknown>;
+        action: Record<string, unknown>;
+      }[];
+    }>("/api/mail/filters"),
+  mailCreateFilter: (body: unknown) =>
+    api<{ filter: { id?: string | null } }>("/api/mail/filters", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  mailDeleteFilter: (id: string) =>
+    api<{ ok: boolean }>(`/api/mail/filters/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  mailContacts: (q: string) =>
+    api<{ contacts: { name: string; email: string }[] }>(
+      `/api/mail/contacts?q=${encodeURIComponent(q)}`,
+    ),
+  rooms: () =>
+    api<{ rooms: { id: string; summary: string | null }[]; hint: string | null }>(
+      "/api/calendars/rooms",
+    ),
+  freeBusy: (emails: string[], timeMin: string, timeMax: string) =>
+    api<{ calendars: { id: string; busy: { start?: string | null; end?: string | null }[] }[] }>(
+      "/api/events/freebusy",
+      { method: "POST", body: JSON.stringify({ emails, timeMin, timeMax }) },
+    ),
+  findTime: (emails: string[], durationMin: 30 | 60) =>
+    api<{ slots: { start: string; end: string }[]; durationMin: number }>("/api/events/find-time", {
+      method: "POST",
+      body: JSON.stringify({ emails, durationMin }),
+    }),
+  calendarSettings: () =>
+    api<{
+      googleSettings: { id?: string | null; value?: string | null }[];
+      workingHours: Me["workingHours"];
+      googleWorkingHoursSupported: boolean;
+      note: string;
+    }>("/api/me/calendar-settings"),
+  tasks: () =>
+    api<{ lists: { id?: string | null; title: string }[]; tasks: TaskItem[] }>("/api/tasks"),
+  createTask: (body: { title: string; listId?: string; due?: string; notes?: string }) =>
+    api<{ task: TaskItem }>("/api/tasks", { method: "POST", body: JSON.stringify(body) }),
+  patchTask: (
+    listId: string,
+    id: string,
+    body: { title?: string; status?: string; due?: string; notes?: string },
+  ) =>
+    api<{ task: TaskItem }>(`/api/tasks/${encodeURIComponent(listId)}/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  deleteTask: (listId: string, id: string) =>
+    api<{ ok: boolean }>(`/api/tasks/${encodeURIComponent(listId)}/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    }),
+  mapsPreview: (q: string) =>
+    api<{ lat: number | null; lon: number | null }>(
+      `/api/maps/preview?q=${encodeURIComponent(q)}`,
+    ),
 };

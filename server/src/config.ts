@@ -64,6 +64,10 @@ export const GOOGLE_SCOPES = [
   "https://www.googleapis.com/auth/calendar.calendars.readonly",
   "https://www.googleapis.com/auth/gmail.modify",
   "https://www.googleapis.com/auth/gmail.send",
+  "https://www.googleapis.com/auth/gmail.settings.basic",
+  "https://www.googleapis.com/auth/contacts.readonly",
+  "https://www.googleapis.com/auth/contacts.other.readonly",
+  "https://www.googleapis.com/auth/tasks",
 ] as const;
 
 export function googleConfigured(): boolean {

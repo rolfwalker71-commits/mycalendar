@@ -3,18 +3,25 @@ import { DateTime } from "luxon";
 import { TZ } from "../config.js";
 import { requireAuth, clearSessionCookie } from "../auth.js";
 import { query } from "../db.js";
-import { GoogleAuthError, getAuthedCalendar, isAuthError } from "../google.js";
+import { GoogleAuthError, describeGoogleApiError, getAuthedCalendar, isAuthError } from "../google.js";
 import {
   eventToGoogleBody,
   refreshCachedEvent,
   syncUserEvents,
 } from "../sync.js";
 import type { CalendarRow, EventRow } from "../types.js";
+import { buildVcalendar } from "../ics.js";
 
 export const eventsRouter = Router();
 eventsRouter.use(requireAuth);
 
 function handleGoogleError(res: import("express").Response, err: unknown): boolean {
+  const described = describeGoogleApiError(err, "calendar");
+  if (described) {
+    if (described.code === "reauth") clearSessionCookie(res);
+    res.status(described.status).json({ error: described.error, code: described.code });
+    return true;
+  }
   if (err instanceof GoogleAuthError && err.code === "reauth") {
     clearSessionCookie(res);
     res.status(401).json({ error: "Bitte erneut anmelden.", code: "reauth" });
@@ -52,6 +59,9 @@ function serializeEvent(e: EventRow & { background_color?: string | null; calend
     transparency: e.transparency,
     visibility: e.visibility,
     conferenceData: e.conference_data,
+    eventType: e.event_type ?? "default",
+    reminders: e.reminders ?? null,
+    attachments: e.attachments ?? null,
     backgroundColor: e.background_color ?? null,
     calendarSummary: e.calendar_summary ?? null,
     calendarTimezone: e.calendar_timezone ?? null,
@@ -151,10 +161,21 @@ eventsRouter.post("/", async (req, res) => {
     timezone?: string;
     location?: string;
     description?: string;
-    attendees?: { email: string }[];
+    attendees?: { email: string; resource?: boolean; displayName?: string }[];
     recurrence?: string[];
     createMeet?: boolean;
     visibility?: string;
+    reminders?: { useDefault: boolean; overrides?: { method: string; minutes: number }[] };
+    attachments?: { fileUrl: string; title?: string; mimeType?: string }[];
+    eventType?: string;
+    focusTimeProperties?: { autoDeclineMode?: string; chatStatus?: string; declineMessage?: string };
+    outOfOfficeProperties?: { autoDeclineMode?: string; declineMessage?: string };
+    workingLocationProperties?: {
+      type?: string;
+      homeOffice?: object;
+      customLocation?: { label?: string };
+      officeLocation?: { label?: string; buildingId?: string };
+    };
   };
   if (!body.summary?.trim() || !body.calendarId || !body.start || !body.end) {
     res.status(400).json({ error: "Titel, Kalender, Start und Ende sind erforderlich." });
@@ -181,11 +202,18 @@ eventsRouter.post("/", async (req, res) => {
       recurrence: body.recurrence,
       visibility: body.visibility,
       createMeet: body.createMeet,
+      reminders: body.reminders,
+      attachments: body.attachments,
+      eventType: body.eventType,
+      focusTimeProperties: body.focusTimeProperties,
+      outOfOfficeProperties: body.outOfOfficeProperties,
+      workingLocationProperties: body.workingLocationProperties,
     });
     const created = await api.events.insert({
       calendarId: calendar.google_cal_id,
       requestBody,
       conferenceDataVersion: body.createMeet ? 1 : undefined,
+      supportsAttachments: body.attachments?.length ? true : undefined,
       sendUpdates: body.attendees?.length ? "all" : "none",
     });
     if (!created.data.id) {
@@ -250,11 +278,22 @@ eventsRouter.patch("/:id", async (req, res) => {
     timezone?: string;
     location?: string | null;
     description?: string | null;
-    attendees?: { email: string }[];
+    attendees?: { email: string; resource?: boolean; displayName?: string }[];
     recurrence?: string[] | null;
     visibility?: string | null;
     createMeet?: boolean;
     scope?: "this" | "thisAndFollowing" | "all";
+    reminders?: { useDefault: boolean; overrides?: { method: string; minutes: number }[] } | null;
+    attachments?: { fileUrl: string; title?: string; mimeType?: string }[] | null;
+    eventType?: string;
+    focusTimeProperties?: { autoDeclineMode?: string; chatStatus?: string; declineMessage?: string };
+    outOfOfficeProperties?: { autoDeclineMode?: string; declineMessage?: string };
+    workingLocationProperties?: {
+      type?: string;
+      homeOffice?: object;
+      customLocation?: { label?: string };
+      officeLocation?: { label?: string; buildingId?: string };
+    };
   };
 
   const calendar = await getOwnedCalendar(req.user!.id, event.calendar_id);
@@ -276,6 +315,12 @@ eventsRouter.patch("/:id", async (req, res) => {
     recurrence: body.recurrence === undefined ? undefined : body.recurrence ?? undefined,
     visibility: body.visibility !== undefined ? body.visibility : event.visibility,
     createMeet: body.createMeet,
+    reminders: body.reminders !== undefined ? body.reminders : event.reminders,
+    attachments: body.attachments !== undefined ? body.attachments : event.attachments,
+    eventType: body.eventType ?? event.event_type,
+    focusTimeProperties: body.focusTimeProperties,
+    outOfOfficeProperties: body.outOfOfficeProperties,
+    workingLocationProperties: body.workingLocationProperties,
   });
 
   try {
@@ -319,6 +364,7 @@ eventsRouter.patch("/:id", async (req, res) => {
           recurrence: body.recurrence ?? master.data.recurrence,
         },
         conferenceDataVersion: body.createMeet ? 1 : undefined,
+        supportsAttachments: patchBody.attachments?.length ? true : undefined,
         sendUpdates: "all",
       });
       if (inserted.data.id) {
@@ -346,6 +392,7 @@ eventsRouter.patch("/:id", async (req, res) => {
       eventId: targetId,
       requestBody: patchBody,
       conferenceDataVersion: body.createMeet ? 1 : undefined,
+      supportsAttachments: patchBody.attachments?.length ? true : undefined,
       sendUpdates: "all",
     });
     await refreshCachedEvent(req.user!, calendar, targetId);
@@ -468,5 +515,142 @@ eventsRouter.post("/:id/rsvp", async (req, res) => {
     if (handleGoogleError(res, err)) return;
     console.error(err);
     res.status(502).json({ error: "Zusage konnte nicht gespeichert werden." });
+  }
+});
+
+eventsRouter.get("/:id/ics", async (req, res) => {
+  const event = await getOwnedEvent(req.user!.id, req.params.id);
+  if (!event) {
+    res.status(404).json({ error: "Termin nicht gefunden." });
+    return;
+  }
+  const ics = buildVcalendar([event], event.calendar_summary ?? "Kalender");
+  const filename = `${(event.summary || "termin").replace(/[^\w\-]+/g, "_").slice(0, 40)}.ics`;
+  res.setHeader("Content-Type", "text/calendar; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+  res.send(ics);
+});
+
+eventsRouter.get("/export.ics", async (req, res) => {
+  const from = String(req.query.from ?? "");
+  const to = String(req.query.to ?? "");
+  if (!from || !to) {
+    res.status(400).json({ error: "Parameter from und to sind erforderlich." });
+    return;
+  }
+  const fromDt = DateTime.fromISO(from, { setZone: true });
+  const toDt = DateTime.fromISO(to, { setZone: true });
+  if (!fromDt.isValid || !toDt.isValid) {
+    res.status(400).json({ error: "Ungültiger Zeitraum." });
+    return;
+  }
+  const fromDate = fromDt.toISODate();
+  const toDate = toDt.toISODate();
+  const { rows } = await query<EventRow & { calendar_summary: string | null }>(
+    `SELECT e.*, c.summary AS calendar_summary
+       FROM events e
+       JOIN calendars c ON c.id = e.calendar_id
+      WHERE e.user_id = $1
+        AND e.status IS DISTINCT FROM 'cancelled'
+        AND c.selected = TRUE
+        AND (
+          (e.all_day = FALSE AND e.start_at < $3::timestamptz AND e.end_at > $2::timestamptz)
+          OR
+          (e.all_day = TRUE AND e.all_day_start < $4::date AND e.all_day_end > $5::date)
+        )
+      ORDER BY e.start_at ASC NULLS LAST`,
+    [req.user!.id, fromDt.toUTC().toISO(), toDt.toUTC().toISO(), toDate, fromDate],
+  );
+  const ics = buildVcalendar(rows, "Kalender");
+  res.setHeader("Content-Type", "text/calendar; charset=utf-8");
+  res.setHeader("Content-Disposition", 'attachment; filename="kalender.ics"');
+  res.send(ics);
+});
+
+eventsRouter.post("/freebusy", async (req, res) => {
+  const emails = Array.isArray(req.body?.emails)
+    ? req.body.emails.filter((x: unknown) => typeof x === "string")
+    : [];
+  const timeMin = typeof req.body?.timeMin === "string" ? req.body.timeMin : "";
+  const timeMax = typeof req.body?.timeMax === "string" ? req.body.timeMax : "";
+  if (!timeMin || !timeMax) {
+    res.status(400).json({ error: "Zeitraum fehlt." });
+    return;
+  }
+  try {
+    const api = await getAuthedCalendar(req.user!);
+    const items = [{ id: "primary" }, ...emails.map((id: string) => ({ id }))];
+    const unique = [...new Map(items.map((i) => [i.id, i])).values()];
+    const { data } = await api.freebusy.query({
+      requestBody: { timeMin, timeMax, items: unique },
+    });
+    const calendars = data.calendars ?? {};
+    const result = Object.entries(calendars).map(([id, info]) => ({
+      id,
+      busy: (info.busy ?? []).map((b) => ({ start: b.start, end: b.end })),
+      errors: info.errors ?? [],
+    }));
+    res.json({ calendars: result });
+  } catch (err) {
+    if (handleGoogleError(res, err)) return;
+    console.error(err);
+    res.status(502).json({ error: "Frei/Belegt konnte nicht geladen werden." });
+  }
+});
+
+eventsRouter.post("/find-time", async (req, res) => {
+  const emails = Array.isArray(req.body?.emails)
+    ? req.body.emails.filter((x: unknown) => typeof x === "string")
+    : [];
+  const durationMin = Number(req.body?.durationMin ?? 30) === 60 ? 60 : 30;
+  const now = DateTime.now().setZone(TZ);
+  const timeMin = now.toUTC().toISO() ?? "";
+  const timeMax = now.plus({ days: 7 }).endOf("day").toUTC().toISO() ?? "";
+  try {
+    const api = await getAuthedCalendar(req.user!);
+    const items = [{ id: "primary" }, ...emails.map((id: string) => ({ id }))];
+    const unique = [...new Map(items.map((i) => [i.id, i])).values()];
+    const { data } = await api.freebusy.query({
+      requestBody: { timeMin, timeMax, items: unique },
+    });
+    const busy = Object.values(data.calendars ?? {}).flatMap((info) =>
+      (info.busy ?? []).map((b) => ({
+        start: DateTime.fromISO(b.start ?? "", { setZone: true }),
+        end: DateTime.fromISO(b.end ?? "", { setZone: true }),
+      })),
+    );
+    const slots: { start: string; end: string }[] = [];
+    let cursor = now.plus({ minutes: 15 - (now.minute % 15 || 15) }).set({ second: 0, millisecond: 0 });
+    const limit = now.plus({ days: 7 });
+    while (cursor < limit && slots.length < 8) {
+      const local = cursor.setZone(TZ);
+      if (local.weekday > 5 || local.hour < 8 || local.hour >= 18) {
+        if (local.hour >= 18 || local.weekday > 5) {
+          cursor = local.plus({ days: local.weekday >= 5 ? 8 - local.weekday : 1 }).startOf("day").set({ hour: 8 });
+        } else {
+          cursor = local.set({ hour: 8, minute: 0 });
+        }
+        continue;
+      }
+      const start = cursor;
+      const end = cursor.plus({ minutes: durationMin });
+      if (end.hour > 18 || (end.hour === 18 && end.minute > 0)) {
+        cursor = local.plus({ days: 1 }).startOf("day").set({ hour: 8 });
+        continue;
+      }
+      const overlaps = busy.some((b) => b.start.isValid && b.end.isValid && b.start < end && b.end > start);
+      if (!overlaps) {
+        slots.push({
+          start: start.toISO({ suppressMilliseconds: true }) ?? "",
+          end: end.toISO({ suppressMilliseconds: true }) ?? "",
+        });
+      }
+      cursor = cursor.plus({ minutes: 15 });
+    }
+    res.json({ slots, durationMin });
+  } catch (err) {
+    if (handleGoogleError(res, err)) return;
+    console.error(err);
+    res.status(502).json({ error: "Freie Zeiten konnten nicht ermittelt werden." });
   }
 });

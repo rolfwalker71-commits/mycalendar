@@ -1,3 +1,8 @@
+export type WorkingHoursJson = {
+  enabled: boolean;
+  days: Record<string, { start: string; end: string } | null>;
+};
+
 export type UserRow = {
   id: string;
   google_sub: string;
@@ -11,6 +16,9 @@ export type UserRow = {
   gmail_history_id: string | null;
   notify_calendar: boolean;
   notify_mail: boolean;
+  hide_declined: boolean;
+  second_timezone: string | null;
+  working_hours: WorkingHoursJson | null;
   created_at: Date;
   last_login_at: Date | null;
 };
@@ -28,6 +36,7 @@ export type CalendarRow = {
   primary_cal: boolean;
   access_role: string | null;
   sync_token: string | null;
+  default_reminders: { method: string; minutes: number }[] | null;
   updated_at: Date;
 };
 
@@ -37,6 +46,20 @@ export type AttendeeJson = {
   responseStatus?: string;
   organizer?: boolean;
   self?: boolean;
+  resource?: boolean;
+};
+
+export type ReminderJson = {
+  useDefault: boolean;
+  overrides?: { method: string; minutes: number }[];
+};
+
+export type EventAttachmentJson = {
+  fileUrl: string;
+  title?: string;
+  mimeType?: string;
+  iconLink?: string;
+  fileId?: string;
 };
 
 export type EventRow = {
@@ -63,5 +86,8 @@ export type EventRow = {
   transparency: string | null;
   visibility: string | null;
   conference_data: unknown;
+  event_type: string | null;
+  reminders: ReminderJson | null;
+  attachments: EventAttachmentJson[] | null;
   updated_at: Date;
 };

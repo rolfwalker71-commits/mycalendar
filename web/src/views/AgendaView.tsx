@@ -7,6 +7,8 @@ import type { CalendarEvent } from "@/lib/types";
 import { isDeclined } from "@/components/EventChip";
 import { Button } from "@/components/ui/button";
 import { GeminiCard } from "@/components/AiSummary";
+import { EventMapSnippet } from "@/components/EventMap";
+import { EventArtBanner } from "@/components/EventArt";
 import { apiClient, ApiError } from "@/lib/api";
 
 function groupByDay(events: CalendarEvent[], from: DateTime) {
@@ -29,11 +31,13 @@ export function AgendaView({
   from,
   onOpen,
   geminiAvailable,
+  tasks,
 }: {
   events: CalendarEvent[];
   from: DateTime;
   onOpen: (e: CalendarEvent) => void;
   geminiAvailable?: boolean;
+  tasks?: import("@/lib/types").TaskItem[];
 }) {
   const groups = groupByDay(events, from);
   const today = now();
@@ -83,6 +87,26 @@ export function AgendaView({
         available={geminiAvailable}
         onGenerate={() => void loadBriefing()}
       />
+      {tasks?.length ? (
+        <section>
+          <h2 className="px-3 pb-2 text-sm font-medium text-muted-foreground">Aufgaben</h2>
+          <ul className="flex flex-col gap-1 px-3">
+            {tasks
+              .filter((t) => t.status !== "completed")
+              .slice(0, 12)
+              .map((t) => (
+                <li key={t.id} className="rounded-xl bg-card px-3 py-2 text-sm ring-1 ring-border">
+                  {t.title}
+                  {t.due ? (
+                    <span className="ml-2 text-xs text-muted-foreground">
+                      {DateTime.fromISO(t.due, { setZone: true }).toFormat("d. LLL")}
+                    </span>
+                  ) : null}
+                </li>
+              ))}
+          </ul>
+        </section>
+      ) : null}
       {groups.map(([iso, items]) => {
         const day = DateTime.fromISO(iso).setLocale("de");
         const heading = isSameDay(day, today) ? "Heute" : formatDayHeading(day);
@@ -98,9 +122,9 @@ export function AgendaView({
                     <Button
                       variant="ghost"
                       onClick={() => onOpen(event)}
-                      className="h-auto min-h-0 w-full flex-col items-stretch whitespace-normal rounded-2xl bg-card px-4 py-3 text-left leading-snug shadow-lg shadow-black/10 ring-1 ring-border hover:bg-muted"
+                      className="h-auto min-h-0 w-full flex-row items-stretch overflow-hidden whitespace-normal rounded-2xl bg-card p-0 text-left leading-snug shadow-lg shadow-black/10 ring-1 ring-border hover:bg-muted"
                     >
-                      <div className="flex items-start gap-3">
+                      <div className="flex min-w-0 flex-1 items-start gap-3 px-4 py-3">
                         <span
                           className="mt-1 size-2.5 shrink-0 rounded-full"
                           style={{ backgroundColor: eventChipStyle(event.backgroundColor).backgroundColor }}
@@ -114,10 +138,13 @@ export function AgendaView({
                             {event.calendarSummary ? ` · ${event.calendarSummary}` : ""}
                           </p>
                           {event.location ? (
-                            <p className="mt-1 flex items-center gap-1 text-sm text-muted-foreground">
-                              <MapPin className="size-3.5" />
-                              <span className="break-words">{event.location}</span>
-                            </p>
+                            <>
+                              <p className="mt-1 flex items-center gap-1 text-sm text-muted-foreground">
+                                <MapPin className="size-3.5" />
+                                <span className="break-words">{event.location}</span>
+                              </p>
+                              <EventMapSnippet location={event.location} />
+                            </>
                           ) : null}
                           {event.hangoutLink ? (
                             <p className="mt-1 flex items-center gap-1 text-sm text-muted-foreground">
@@ -127,6 +154,12 @@ export function AgendaView({
                           ) : null}
                         </div>
                       </div>
+                      <EventArtBanner
+                        summary={event.summary}
+                        description={event.description}
+                        calendarSummary={event.calendarSummary}
+                        eventType={event.eventType}
+                      />
                     </Button>
                   </li>
                 );

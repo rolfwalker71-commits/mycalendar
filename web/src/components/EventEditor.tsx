@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { DateTime } from "luxon";
 import { toast } from "sonner";
-import { Video, XIcon } from "lucide-react";
+import { Copy, Download, Paperclip, Video, XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -32,6 +32,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { apiClient, ApiError } from "@/lib/api";
+import { EventMapSnippet } from "@/components/EventMap";
+import { EventArtBanner } from "@/components/EventArt";
 import { nthWeekdayOfMonth, ZONE } from "@/lib/dates";
 import type { CalendarEvent, CalendarItem, RecurrenceScope } from "@/lib/types";
 
@@ -102,6 +104,7 @@ export function EventEditor({
   desktop,
   onSaved,
   onDeleted,
+  onOpenEvent,
 }: {
   state: EditorState;
   onOpenChange: (open: boolean) => void;
@@ -109,6 +112,7 @@ export function EventEditor({
   desktop: boolean;
   onSaved: () => void;
   onDeleted: () => void;
+  onOpenEvent?: (event: CalendarEvent) => void;
 }) {
   const event = state.event ?? null;
   const writable = calendars.filter((c) =>
@@ -137,6 +141,21 @@ export function EventEditor({
   const [scope, setScope] = useState<RecurrenceScope>("this");
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [eventType, setEventType] = useState("default");
+  const [workLocType, setWorkLocType] = useState("homeOffice");
+  const [useDefaultReminders, setUseDefaultReminders] = useState(true);
+  const [reminderRows, setReminderRows] = useState<{ method: string; minutes: string }[]>([
+    { method: "popup", minutes: "10" },
+  ]);
+  const [driveUrl, setDriveUrl] = useState("");
+  const [driveTitle, setDriveTitle] = useState("");
+  const [attachments, setAttachments] = useState<{ fileUrl: string; title?: string; mimeType?: string }[]>([]);
+  const [rooms, setRooms] = useState<{ id: string; summary: string | null }[]>([]);
+  const [roomsHint, setRoomsHint] = useState<string | null>(null);
+  const [busyHint, setBusyHint] = useState<string | null>(null);
+  const [slots, setSlots] = useState<{ start: string; end: string }[]>([]);
+  const [findDuration, setFindDuration] = useState<"30" | "60">("30");
+  const [finding, setFinding] = useState(false);
 
   useEffect(() => {
     if (!state.open) return;
@@ -166,6 +185,14 @@ export function EventEditor({
       setCreateMeet(Boolean(event.hangoutLink));
       setDescription(event.description ?? "");
       setScope("this");
+      setEventType(event.eventType && event.eventType !== "default" ? event.eventType : "default");
+      setUseDefaultReminders(event.reminders?.useDefault !== false);
+      setReminderRows(
+        event.reminders?.overrides?.length
+          ? event.reminders.overrides.map((o) => ({ method: o.method, minutes: String(o.minutes) }))
+          : [{ method: "popup", minutes: "10" }],
+      );
+      setAttachments(event.attachments ?? []);
     } else if (state.defaults) {
       const s = state.defaults.start;
       const e = state.defaults.end;
@@ -183,8 +210,22 @@ export function EventEditor({
       setLocation("");
       setCreateMeet(false);
       setDescription("");
+      setEventType("default");
+      setUseDefaultReminders(true);
+      setReminderRows([{ method: "popup", minutes: "10" }]);
+      setAttachments([]);
+      setSlots([]);
+      setBusyHint(null);
     }
   }, [state.open, event, state.defaults, primary?.id]);
+
+  useEffect(() => {
+    if (!state.open) return;
+    apiClient.rooms().then((res) => {
+      setRooms(res.rooms);
+      setRoomsHint(res.hint);
+    }).catch(() => undefined);
+  }, [state.open]);
 
   const startDt = useMemo(() => {
     if (allDay) return DateTime.fromISO(startDate, { zone: timezone || ZONE });
@@ -222,10 +263,39 @@ export function EventEditor({
       timezone: timezone || ZONE,
       location: location || null,
       description: description || null,
-      attendees: attendees.map((email) => ({ email })),
+      attendees: attendees.map((email) => {
+        const room = rooms.find((r) => r.id === email);
+        return room
+          ? { email, resource: true, displayName: room.summary ?? email }
+          : { email };
+      }),
       recurrence: buildRrule(preset, startDt, endMode, until, count),
       createMeet: createMeet && !event?.hangoutLink,
       scope: event?.recurringEventId ? scope : undefined,
+      reminders: {
+        useDefault: useDefaultReminders,
+        overrides: useDefaultReminders
+          ? undefined
+          : reminderRows
+              .map((r) => ({ method: r.method, minutes: Number(r.minutes) }))
+              .filter((r) => r.minutes > 0 && (r.method === "popup" || r.method === "email")),
+      },
+      attachments,
+      eventType: eventType === "default" ? undefined : eventType,
+      workingLocationProperties:
+        eventType === "workingLocation"
+          ? workLocType === "customLocation"
+            ? { type: "customLocation", customLocation: { label: location || "Unterwegs" } }
+            : { type: workLocType }
+          : undefined,
+      outOfOfficeProperties:
+        eventType === "outOfOffice"
+          ? { autoDeclineMode: "declineOnlyNewConflictingInvitations" }
+          : undefined,
+      focusTimeProperties:
+        eventType === "focusTime"
+          ? { autoDeclineMode: "declineNone", chatStatus: "doNotDisturb" }
+          : undefined,
     };
   }
 
@@ -278,6 +348,80 @@ export function EventEditor({
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Zusage fehlgeschlagen.");
     }
+  }
+
+  async function duplicate() {
+    setSaving(true);
+    try {
+      const body = payload();
+      const { event: created } = await apiClient.createEvent({
+        ...body,
+        summary: `Kopie: ${summary.trim() || "Ohne Titel"}`,
+        scope: undefined,
+      });
+      toast.success("Kopie erstellt.");
+      onSaved();
+      if (created && onOpenEvent) onOpenEvent(created);
+      else onOpenChange(false);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Duplizieren fehlgeschlagen.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function findSlots() {
+    setFinding(true);
+    try {
+      const res = await apiClient.findTime(attendees, findDuration === "60" ? 60 : 30);
+      setSlots(res.slots);
+      if (!res.slots.length) toast.message("Keine freien Termine in den nächsten Tagen.");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Termin finden fehlgeschlagen.");
+    } finally {
+      setFinding(false);
+    }
+  }
+
+  async function checkBusy() {
+    if (!attendees.length) {
+      setBusyHint(null);
+      return;
+    }
+    const start = allDay
+      ? DateTime.fromISO(startDate, { zone: timezone || ZONE }).startOf("day")
+      : DateTime.fromISO(`${startDate}T${startTime}`, { zone: timezone || ZONE });
+    const end = allDay
+      ? DateTime.fromISO(endDate, { zone: timezone || ZONE }).plus({ days: 1 })
+      : DateTime.fromISO(`${endDate}T${endTime}`, { zone: timezone || ZONE });
+    try {
+      const res = await apiClient.freeBusy(
+        attendees,
+        start.toUTC().toISO() ?? "",
+        end.toUTC().toISO() ?? "",
+      );
+      const busy = res.calendars.filter((c) => c.busy.length);
+      setBusyHint(
+        busy.length
+          ? `Belegt: ${busy.map((c) => c.id).join(", ")}`
+          : "Alle eingeladenen Personen sind in diesem Zeitraum frei.",
+      );
+    } catch {
+      setBusyHint("Frei/Belegt konnte nicht geprüft werden.");
+    }
+  }
+
+  function addDrive() {
+    const url = driveUrl.trim();
+    if (!url) return;
+    let fileUrl = url;
+    const idMatch = url.match(/[-\w]{25,}/);
+    if (!url.startsWith("http") && idMatch) {
+      fileUrl = `https://drive.google.com/file/d/${idMatch[0]}/view`;
+    }
+    setAttachments((a) => [...a, { fileUrl, title: driveTitle.trim() || "Drive-Datei" }]);
+    setDriveUrl("");
+    setDriveTitle("");
   }
 
   const form = (
@@ -486,9 +630,113 @@ export function EventEditor({
           </div>
         ) : null}
       </div>
+      {attendees.length ? (
+        <div className="flex flex-col gap-2">
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={() => void checkBusy()}>
+              Frei/Belegt prüfen
+            </Button>
+            <Select value={findDuration} onValueChange={(v) => setFindDuration(v === "60" ? "60" : "30")}>
+              <SelectTrigger className="w-28">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="30">30 Min.</SelectItem>
+                <SelectItem value="60">60 Min.</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button type="button" variant="outline" size="sm" onClick={() => void findSlots()} disabled={finding}>
+              {finding ? "Sucht…" : "Termin finden"}
+            </Button>
+          </div>
+          {busyHint ? <p className="text-xs text-muted-foreground">{busyHint}</p> : null}
+          {slots.length ? (
+            <ul className="flex flex-col gap-1">
+              {slots.map((s) => {
+                const st = DateTime.fromISO(s.start, { setZone: true }).setLocale("de");
+                const en = DateTime.fromISO(s.end, { setZone: true });
+                return (
+                  <li key={s.start}>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      className="h-auto min-h-9 w-full justify-start text-left text-sm"
+                      onClick={() => {
+                        setAllDay(false);
+                        setStartDate(st.toISODate() ?? "");
+                        setEndDate(en.toISODate() ?? "");
+                        setStartTime(st.toFormat("HH:mm"));
+                        setEndTime(en.toFormat("HH:mm"));
+                      }}
+                    >
+                      {st.toFormat("ccc d. LLL, HH:mm")}–{en.toFormat("HH:mm")}
+                    </Button>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
+      {rooms.length ? (
+        <div className="flex flex-col gap-1.5">
+          <Label>Raum</Label>
+          <Select
+            value="__none"
+            onValueChange={(v) => {
+              const id = String(v ?? "");
+              if (id && id !== "__none" && !attendees.includes(id)) setAttendees((a) => [...a, id]);
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Raum hinzufügen" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none">Raum wählen</SelectItem>
+              {rooms.map((r) => (
+                <SelectItem key={r.id} value={r.id}>
+                  {r.summary || r.id}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      ) : roomsHint ? (
+        <p className="text-xs text-muted-foreground">{roomsHint}</p>
+      ) : null}
+      <div className="flex flex-col gap-1.5">
+        <Label>Terminart</Label>
+        <Select value={eventType} onValueChange={(v) => setEventType(String(v ?? "default"))}>
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="default">Termin</SelectItem>
+            <SelectItem value="focusTime">Fokuszeit</SelectItem>
+            <SelectItem value="outOfOffice">Abwesenheit</SelectItem>
+            <SelectItem value="workingLocation">Arbeitsort</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      {eventType === "workingLocation" ? (
+        <div className="flex flex-col gap-1.5">
+          <Label>Arbeitsort</Label>
+          <Select value={workLocType} onValueChange={(v) => setWorkLocType(String(v ?? "homeOffice"))}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="homeOffice">Homeoffice</SelectItem>
+              <SelectItem value="officeLocation">Büro</SelectItem>
+              <SelectItem value="customLocation">Anderer Ort</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      ) : null}
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="location">Ort</Label>
         <Input id="location" value={location} onValueChange={setLocation} />
+        <EventMapSnippet location={location} />
       </div>
       <div className="flex min-h-11 items-center justify-between gap-3">
         <Label htmlFor="meet" className="flex items-center gap-2">
@@ -520,6 +768,86 @@ export function EventEditor({
           rows={4}
         />
       </div>
+      <div className="flex min-h-11 items-center justify-between gap-3">
+        <Label htmlFor="def-rem">Kalender-Standarderinnerungen</Label>
+        <Switch
+          id="def-rem"
+          checked={useDefaultReminders}
+          onCheckedChange={(v) => setUseDefaultReminders(Boolean(v))}
+        />
+      </div>
+      {!useDefaultReminders ? (
+        <div className="flex flex-col gap-2">
+          {reminderRows.map((row, i) => (
+            <div key={i} className="grid grid-cols-[1fr_5rem_auto] gap-2">
+              <Select
+                value={row.method}
+                onValueChange={(v) =>
+                  setReminderRows((rows) => rows.map((r, j) => (j === i ? { ...r, method: String(v ?? "popup") } : r)))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="popup">Hinweis</SelectItem>
+                  <SelectItem value="email">E-Mail</SelectItem>
+                </SelectContent>
+              </Select>
+              <Input
+                type="number"
+                min={0}
+                value={row.minutes}
+                onValueChange={(v) =>
+                  setReminderRows((rows) => rows.map((r, j) => (j === i ? { ...r, minutes: v } : r)))
+                }
+                aria-label="Minuten vorher"
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => setReminderRows((rows) => rows.filter((_, j) => j !== i))}
+              >
+                <XIcon className="size-4" />
+              </Button>
+            </div>
+          ))}
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={() => setReminderRows((r) => [...r, { method: "popup", minutes: "10" }])}>
+              10 Min. Hinweis
+            </Button>
+            <Button type="button" variant="outline" size="sm" onClick={() => setReminderRows((r) => [...r, { method: "email", minutes: "1440" }])}>
+              1 Tag E-Mail
+            </Button>
+          </div>
+        </div>
+      ) : null}
+      <div className="flex flex-col gap-1.5">
+        <Label>Drive-Anhänge</Label>
+        <div className="grid gap-2 sm:grid-cols-2">
+          <Input value={driveUrl} onValueChange={setDriveUrl} placeholder="Drive-URL oder Datei-ID" />
+          <Input value={driveTitle} onValueChange={setDriveTitle} placeholder="Dateiname" />
+        </div>
+        <Button type="button" variant="outline" size="sm" onClick={addDrive}>
+          <Paperclip className="size-4" />
+          Anhängen
+        </Button>
+        {attachments.length ? (
+          <ul className="flex flex-col gap-1">
+            {attachments.map((a) => (
+              <li key={a.fileUrl} className="flex items-center gap-2 text-sm">
+                <a href={a.fileUrl} className="min-w-0 flex-1 truncate text-primary" target="_blank" rel="noreferrer">
+                  {a.title || a.fileUrl}
+                </a>
+                <Button type="button" variant="ghost" size="icon" className="size-8" onClick={() => setAttachments((xs) => xs.filter((x) => x.fileUrl !== a.fileUrl))}>
+                  <XIcon className="size-3.5" />
+                </Button>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
       {event?.attendees?.some((a) => a.self) ? (
         <div className="flex flex-wrap gap-2">
           <Button type="button" variant="secondary" onClick={() => rsvp("accepted")}>
@@ -538,6 +866,20 @@ export function EventEditor({
 
   const footer = (
     <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+      {event ? (
+        <>
+          <Button variant="outline" onClick={() => void duplicate()} disabled={saving}>
+            <Copy className="size-4" />
+            Duplizieren
+          </Button>
+          <a href={`/api/events/${event.id}/ics`}>
+            <Button variant="outline" type="button">
+              <Download className="size-4" />
+              ICS
+            </Button>
+          </a>
+        </>
+      ) : null}
       {event ? (
         confirmDelete ? (
           <Button variant="destructive" onClick={remove} disabled={saving}>
@@ -561,13 +903,20 @@ export function EventEditor({
   if (desktop) {
     return (
       <Dialog open={state.open} onOpenChange={onOpenChange}>
-        <DialogContent>
-          <DialogHeader>
+        <DialogContent className="gap-4 overflow-hidden p-0 sm:max-w-xl">
+          <EventArtBanner
+            variant="header"
+            className="h-44"
+            summary={summary}
+            eventType={eventType}
+            calendarSummary={event?.calendarSummary}
+          />
+          <DialogHeader className="px-4">
             <DialogTitle>{event ? "Termin bearbeiten" : "Neuer Termin"}</DialogTitle>
             <DialogDescription>Änderungen werden mit Google Calendar synchronisiert.</DialogDescription>
           </DialogHeader>
-          {form}
-          <DialogFooter>{footer}</DialogFooter>
+          <div className="px-4">{form}</div>
+          <DialogFooter className="px-4 pb-4">{footer}</DialogFooter>
         </DialogContent>
       </Dialog>
     );
@@ -575,7 +924,14 @@ export function EventEditor({
 
   return (
     <Sheet open={state.open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="overflow-y-auto">
+      <SheetContent side="bottom" className="gap-0 overflow-y-auto p-0">
+        <EventArtBanner
+          variant="header"
+          className="h-44 rounded-t-2xl"
+          summary={summary}
+          eventType={eventType}
+          calendarSummary={event?.calendarSummary}
+        />
         <SheetHeader>
           <SheetTitle>{event ? "Termin bearbeiten" : "Neuer Termin"}</SheetTitle>
           <SheetDescription>Änderungen werden mit Google Calendar synchronisiert.</SheetDescription>

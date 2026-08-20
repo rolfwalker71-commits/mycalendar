@@ -18,9 +18,11 @@ import { eventsRouter } from "./routes/events.js";
 import { googlePushRouter, meRouter, syncRouter } from "./routes/me.js";
 import { searchRouter } from "./routes/search.js";
 import { mailRouter } from "./routes/mail.js";
+import { tasksRouter } from "./routes/tasks.js";
 import { pushRouter } from "./routes/push.js";
 import { aiRouter } from "./routes/ai.js";
 import { weatherRouter } from "./routes/weather.js";
+import { mapsRouter } from "./routes/maps.js";
 import { loadGeminiKey } from "./gemini.js";
 
 Settings.defaultZone = TZ;
@@ -61,7 +63,7 @@ app.use(
   }),
 );
 
-app.use(express.json({ limit: "2mb" }));
+app.use(express.json({ limit: "30mb" }));
 app.use(cookieParser());
 
 app.get("/health", async (_req, res) => {
@@ -79,9 +81,11 @@ app.use("/api/calendars", calendarsRouter);
 app.use("/api/events", eventsRouter);
 app.use("/api/search", searchRouter);
 app.use("/api/mail", mailRouter);
+app.use("/api/tasks", tasksRouter);
 app.use("/api/push", pushRouter);
 app.use("/api/ai", aiRouter);
 app.use("/api/weather", weatherRouter);
+app.use("/api/maps", mapsRouter);
 app.use("/api/sync", syncRouter);
 app.use("/api/google", googlePushRouter);
 

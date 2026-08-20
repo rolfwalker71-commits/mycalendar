@@ -7,6 +7,8 @@ import { formatDate, formatIsoDate, formatTime, fromISO } from "@/lib/dates";
 import type { CalendarEvent } from "@/lib/types";
 import { eventChipStyle } from "@/lib/colors";
 import { toast } from "sonner";
+import { EventMapSnippet } from "@/components/EventMap";
+import { EventArtBanner } from "@/components/EventArt";
 
 export function SearchView({
   onOpen,
@@ -65,14 +67,14 @@ export function SearchView({
               key={event.id}
               variant="ghost"
               onClick={() => onOpen(event)}
-              className="h-auto min-h-0 w-full flex-col items-stretch whitespace-normal rounded-2xl bg-card px-4 py-3 text-left leading-snug shadow-lg shadow-black/10 ring-1 ring-border hover:bg-muted"
+              className="h-auto min-h-0 w-full flex-row items-stretch overflow-hidden whitespace-normal rounded-2xl bg-card p-0 text-left leading-snug shadow-lg shadow-black/10 ring-1 ring-border hover:bg-muted"
             >
-              <div className="flex items-start gap-3">
+              <div className="flex min-w-0 flex-1 items-start gap-3 px-4 py-3">
                 <span
                   className="mt-1 size-2.5 shrink-0 rounded-full"
                   style={{ backgroundColor: eventChipStyle(event.backgroundColor).backgroundColor }}
                 />
-                <div>
+                <div className="min-w-0 flex-1">
                   <p className="font-medium break-words">{event.summary || "Ohne Titel"}</p>
                   <p className="text-sm text-muted-foreground">
                     {event.allDay
@@ -81,8 +83,20 @@ export function SearchView({
                         ? `${formatDate(start)} · ${formatTime(start)}`
                         : ""}
                   </p>
+                  {event.location ? (
+                    <>
+                      <p className="mt-1 text-sm text-muted-foreground break-words">{event.location}</p>
+                      <EventMapSnippet location={event.location} />
+                    </>
+                  ) : null}
                 </div>
               </div>
+              <EventArtBanner
+                summary={event.summary}
+                description={event.description}
+                calendarSummary={event.calendarSummary}
+                eventType={event.eventType}
+              />
             </Button>
           );
         })}

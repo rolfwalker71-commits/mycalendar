@@ -24,7 +24,34 @@ calendarsRouter.get("/", async (req, res) => {
       selected: c.selected,
       primary: c.primary_cal,
       accessRole: c.access_role,
+      defaultReminders: c.default_reminders ?? [],
     })),
+  });
+});
+
+calendarsRouter.get("/rooms", async (req, res) => {
+  const { rows } = await query<CalendarRow>(
+    `SELECT * FROM calendars
+      WHERE user_id = $1
+        AND (
+          google_cal_id ILIKE '%resource.calendar.google.com'
+          OR google_cal_id ILIKE '%group.calendar.google.com'
+        )
+      ORDER BY summary ASC`,
+    [req.user!.id],
+  );
+  const rooms = rows
+    .filter((c) => c.google_cal_id.toLowerCase().includes("resource.calendar.google.com"))
+    .map((c) => ({
+      id: c.google_cal_id,
+      summary: c.summary,
+      backgroundColor: c.background_color,
+    }));
+  res.json({
+    rooms,
+    hint: rooms.length
+      ? null
+      : "Keine Ressourcenkalender sichtbar. Räume in Google Calendar abonnieren. Die Directory-API (Workspace-Admin) wird nicht verwendet.",
   });
 });
 

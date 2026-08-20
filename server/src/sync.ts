@@ -10,7 +10,7 @@ import {
   GoogleAuthError,
 } from "./google.js";
 import { notifyNewCalendarEvent } from "./notify.js";
-import type { AttendeeJson, CalendarRow, EventRow, UserRow } from "./types.js";
+import type { AttendeeJson, CalendarRow, EventAttachmentJson, EventRow, ReminderJson, UserRow } from "./types.js";
 
 function asDate(value: string | null | undefined): string | null {
   if (!value) return null;
@@ -53,6 +53,7 @@ function mapGoogleEvent(
           responseStatus: a.responseStatus ?? undefined,
           organizer: a.organizer ?? undefined,
           self: a.self ?? undefined,
+          resource: a.resource ?? undefined,
         }))
     : null;
 
@@ -61,6 +62,29 @@ function mapGoogleEvent(
     item.conferenceData?.entryPoints?.find((p) => p.entryPointType === "video")
       ?.uri ??
     null;
+
+  const reminders: ReminderJson | null = item.reminders
+    ? {
+        useDefault: Boolean(item.reminders.useDefault),
+        overrides: (item.reminders.overrides ?? [])
+          .filter((o): o is { method: string; minutes: number } =>
+            Boolean(o.method && o.minutes != null),
+          )
+          .map((o) => ({ method: o.method, minutes: o.minutes })),
+      }
+    : null;
+
+  const attachments: EventAttachmentJson[] | null = item.attachments?.length
+    ? item.attachments
+        .filter((a): a is NonNullable<typeof a> & { fileUrl: string } => Boolean(a.fileUrl))
+        .map((a) => ({
+          fileUrl: a.fileUrl,
+          title: a.title ?? undefined,
+          mimeType: a.mimeType ?? undefined,
+          iconLink: a.iconLink ?? undefined,
+          fileId: a.fileId ?? undefined,
+        }))
+    : null;
 
   return {
     user_id: userId,
@@ -85,6 +109,9 @@ function mapGoogleEvent(
     transparency: item.transparency ?? null,
     visibility: item.visibility ?? null,
     conference_data: item.conferenceData ?? null,
+    event_type: item.eventType ?? "default",
+    reminders,
+    attachments,
   };
 }
 
@@ -96,9 +123,10 @@ async function upsertEvent(
        user_id, calendar_id, google_event_id, ical_uid, summary, description,
        location, status, html_link, hangout_link, start_at, end_at, all_day,
        all_day_start, all_day_end, timezone, attendees, recurrence,
-       recurring_event_id, transparency, visibility, conference_data, updated_at
+       recurring_event_id, transparency, visibility, conference_data,
+       event_type, reminders, attachments, updated_at
      ) VALUES (
-       $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17::jsonb,$18::jsonb,$19,$20,$21,$22::jsonb, NOW()
+       $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17::jsonb,$18::jsonb,$19,$20,$21,$22::jsonb,$23,$24::jsonb,$25::jsonb, NOW()
      )
      ON CONFLICT (calendar_id, google_event_id) DO UPDATE SET
        ical_uid = EXCLUDED.ical_uid,
@@ -120,6 +148,9 @@ async function upsertEvent(
        transparency = EXCLUDED.transparency,
        visibility = EXCLUDED.visibility,
        conference_data = EXCLUDED.conference_data,
+       event_type = EXCLUDED.event_type,
+       reminders = EXCLUDED.reminders,
+       attachments = EXCLUDED.attachments,
        updated_at = NOW()
      RETURNING id, (xmax = 0) AS inserted`,
     [
@@ -145,6 +176,9 @@ async function upsertEvent(
       row.transparency,
       row.visibility,
       row.conference_data ? JSON.stringify(row.conference_data) : null,
+      row.event_type,
+      row.reminders ? JSON.stringify(row.reminders) : null,
+      row.attachments ? JSON.stringify(row.attachments) : null,
     ],
   );
   const rowOut = rows[0];
@@ -176,8 +210,8 @@ export async function syncCalendarList(user: UserRow): Promise<CalendarRow[]> {
       await query(
         `INSERT INTO calendars (
            user_id, google_cal_id, summary, color, background_color,
-           foreground_color, timezone, primary_cal, access_role, updated_at
-         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9, NOW())
+           foreground_color, timezone, primary_cal, access_role, default_reminders, updated_at
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb, NOW())
          ON CONFLICT (user_id, google_cal_id) DO UPDATE SET
            summary = EXCLUDED.summary,
            color = EXCLUDED.color,
@@ -186,6 +220,7 @@ export async function syncCalendarList(user: UserRow): Promise<CalendarRow[]> {
            timezone = EXCLUDED.timezone,
            primary_cal = EXCLUDED.primary_cal,
            access_role = EXCLUDED.access_role,
+           default_reminders = EXCLUDED.default_reminders,
            updated_at = NOW()`,
         [
           user.id,
@@ -197,6 +232,13 @@ export async function syncCalendarList(user: UserRow): Promise<CalendarRow[]> {
           item.timeZone ?? null,
           Boolean(item.primary),
           item.accessRole ?? null,
+          item.defaultReminders?.length
+            ? JSON.stringify(
+                item.defaultReminders
+                  .filter((r) => r.method && r.minutes != null)
+                  .map((r) => ({ method: r.method, minutes: r.minutes })),
+              )
+            : null,
         ],
       );
     }
@@ -378,10 +420,16 @@ export function eventToGoogleBody(input: {
   start: string;
   end: string;
   timezone?: string;
-  attendees?: { email: string }[];
+  attendees?: { email: string; resource?: boolean; displayName?: string }[];
   recurrence?: string[] | null;
   visibility?: string | null;
   createMeet?: boolean;
+  reminders?: ReminderJson | null;
+  attachments?: EventAttachmentJson[] | null;
+  eventType?: string | null;
+  focusTimeProperties?: calendar_v3.Schema$Event["focusTimeProperties"];
+  outOfOfficeProperties?: calendar_v3.Schema$Event["outOfOfficeProperties"];
+  workingLocationProperties?: calendar_v3.Schema$Event["workingLocationProperties"];
 }): calendar_v3.Schema$Event {
   const tz = input.timezone || TZ;
   const body: calendar_v3.Schema$Event = {
@@ -398,7 +446,11 @@ export function eventToGoogleBody(input: {
     body.end = { dateTime: input.end, timeZone: tz };
   }
   if (input.attendees?.length) {
-    body.attendees = input.attendees.map((a) => ({ email: a.email }));
+    body.attendees = input.attendees.map((a) => ({
+      email: a.email,
+      displayName: a.displayName,
+      resource: a.resource,
+    }));
   }
   if (input.recurrence?.length) {
     body.recurrence = input.recurrence;
@@ -410,6 +462,41 @@ export function eventToGoogleBody(input: {
         conferenceSolutionKey: { type: "hangoutsMeet" },
       },
     };
+  }
+  if (input.reminders) {
+    body.reminders = {
+      useDefault: input.reminders.useDefault,
+      overrides: input.reminders.useDefault ? undefined : input.reminders.overrides,
+    };
+  }
+  if (input.attachments?.length) {
+    body.attachments = input.attachments.map((a) => ({
+      fileUrl: a.fileUrl,
+      title: a.title,
+      mimeType: a.mimeType,
+    }));
+  }
+  const eventType = input.eventType && input.eventType !== "default" ? input.eventType : undefined;
+  if (eventType) {
+    body.eventType = eventType;
+    if (eventType === "focusTime") {
+      body.focusTimeProperties = input.focusTimeProperties ?? {
+        autoDeclineMode: "declineNone",
+        chatStatus: "doNotDisturb",
+      };
+      body.transparency = "opaque";
+    }
+    if (eventType === "outOfOffice") {
+      body.outOfOfficeProperties = input.outOfOfficeProperties ?? {
+        autoDeclineMode: "declineOnlyNewConflictingInvitations",
+      };
+      body.transparency = "opaque";
+    }
+    if (eventType === "workingLocation") {
+      body.workingLocationProperties = input.workingLocationProperties ?? {
+        type: "homeOffice",
+      };
+    }
   }
   return body;
 }

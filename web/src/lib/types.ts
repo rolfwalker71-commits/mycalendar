@@ -4,6 +4,25 @@ export type Attendee = {
   responseStatus?: string;
   organizer?: boolean;
   self?: boolean;
+  resource?: boolean;
+};
+
+export type EventReminder = {
+  useDefault: boolean;
+  overrides?: { method: string; minutes: number }[];
+};
+
+export type EventAttachment = {
+  fileUrl: string;
+  title?: string;
+  mimeType?: string;
+  iconLink?: string;
+  fileId?: string;
+};
+
+export type WorkingHours = {
+  enabled: boolean;
+  days: Record<string, { start: string; end: string } | null>;
 };
 
 export type CalendarItem = {
@@ -17,6 +36,7 @@ export type CalendarItem = {
   selected: boolean;
   primary: boolean;
   accessRole: string | null;
+  defaultReminders?: { method: string; minutes: number }[];
 };
 
 export type CalendarEvent = {
@@ -42,10 +62,23 @@ export type CalendarEvent = {
   transparency?: string | null;
   visibility?: string | null;
   conferenceData?: unknown;
+  eventType?: string | null;
+  reminders?: EventReminder | null;
+  attachments?: EventAttachment[] | null;
   backgroundColor: string | null;
   calendarSummary: string | null;
   calendarTimezone: string | null;
   updatedAt?: string;
+};
+
+export type TaskItem = {
+  id: string;
+  listId: string;
+  listTitle?: string;
+  title: string;
+  notes?: string;
+  status: "needsAction" | "completed";
+  due: string | null;
 };
 
 export type Me = {
@@ -55,9 +88,12 @@ export type Me = {
   pictureUrl: string | null;
   weekStart: 0 | 1;
   lastSyncAt: string | null;
-    timezone: string;
+  timezone: string;
   notifyCalendar: boolean;
   notifyMail: boolean;
+  hideDeclined: boolean;
+  secondTimezone: string | null;
+  workingHours: WorkingHours | null;
   geminiAvailable: boolean;
 };
 

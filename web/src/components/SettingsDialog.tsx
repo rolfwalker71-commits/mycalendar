@@ -10,7 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { apiClient } from "@/lib/api";
+import { apiClient, ApiError } from "@/lib/api";
 import {
   disablePush,
   enablePush,
@@ -21,6 +21,16 @@ import type { Me } from "@/lib/types";
 import { useTheme } from "@/components/ThemeProvider";
 import type { Theme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { DateField } from "@/components/DateTimeFields";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 function Row({
   id,
@@ -67,6 +77,24 @@ export function SettingsDialog({
   const supported = pushSupported();
   const [subscribed, setSubscribed] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [vacationOn, setVacationOn] = useState(false);
+  const [vacationSubject, setVacationSubject] = useState("");
+  const [vacationBody, setVacationBody] = useState("");
+  const [vacationStart, setVacationStart] = useState("");
+  const [vacationEnd, setVacationEnd] = useState("");
+  const [restrictContacts, setRestrictContacts] = useState(false);
+  const [restrictDomain, setRestrictDomain] = useState(false);
+  const [signature, setSignature] = useState("");
+  const [aliasEmail, setAliasEmail] = useState(me.email);
+  const [filters, setFilters] = useState<{ id?: string | null; criteria: Record<string, unknown>; action: Record<string, unknown> }[]>([]);
+  const [filterFrom, setFilterFrom] = useState("");
+  const [filterQuery, setFilterQuery] = useState("");
+  const [filterAction, setFilterAction] = useState("skip");
+  const [mailErr, setMailErr] = useState<string | null>(null);
+  const [calNote, setCalNote] = useState<string | null>(null);
+  const [whEnabled, setWhEnabled] = useState(Boolean(me.workingHours?.enabled));
+  const [whStart, setWhStart] = useState(me.workingHours?.days?.mon?.start ?? "09:00");
+  const [whEnd, setWhEnd] = useState(me.workingHours?.days?.mon?.end ?? "17:00");
   const denied =
     supported && typeof Notification !== "undefined" && Notification.permission === "denied";
 
@@ -75,6 +103,35 @@ export function SettingsDialog({
     getExistingSubscription()
       .then((sub) => setSubscribed(Boolean(sub)))
       .catch(() => setSubscribed(false));
+    apiClient.mailVacation()
+      .then((v) => {
+        setVacationOn(v.enableAutoReply);
+        setVacationSubject(v.responseSubject);
+        setVacationBody(v.responseBodyHtml || v.responseBodyPlainText);
+        setRestrictContacts(v.restrictToContacts);
+        setRestrictDomain(v.restrictToDomain);
+        setMailErr(null);
+      })
+      .catch((err) => {
+        setMailErr(err instanceof ApiError ? err.message : "Gmail-Einstellungen nicht verfügbar.");
+      });
+    apiClient.mailSendAs()
+      .then((res) => {
+        const def = res.aliases.find((a) => a.isDefault) ?? res.aliases[0];
+        if (def) {
+          setAliasEmail(def.sendAsEmail);
+          setSignature(def.signature);
+        }
+      })
+      .catch(() => undefined);
+    apiClient.mailFilters()
+      .then((res) => setFilters(res.filters))
+      .catch(() => undefined);
+    apiClient.calendarSettings()
+      .then((res) => setCalNote(res.note))
+      .catch((err) => {
+        setCalNote(err instanceof Error ? err.message : null);
+      });
   }, [open]);
 
   async function onPushToggle(next: boolean) {
@@ -96,7 +153,15 @@ export function SettingsDialog({
     }
   }
 
-  async function patchFlags(partial: Partial<Pick<Me, "notifyCalendar" | "notifyMail">>) {
+  async function patchFlags(
+    partial: {
+      notifyCalendar?: boolean;
+      notifyMail?: boolean;
+      hideDeclined?: boolean;
+      secondTimezone?: string | null;
+      workingHours?: { enabled: boolean; days: Record<string, { start: string; end: string } | null> };
+    },
+  ) {
     const next = await apiClient.patchMe(partial);
     onMeChange(next);
   }
@@ -124,7 +189,7 @@ export function SettingsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Einstellungen</DialogTitle>
           <DialogDescription className="sr-only">App-Einstellungen</DialogDescription>
@@ -213,6 +278,200 @@ export function SettingsDialog({
               ? "Gemini-Zusammenfassungen sind aktiv. Die fertigen Gmail-KI-Übersichten stellt Google nicht per Schnittstelle bereit — hier entstehen eigene."
               : "Gmail-Gemini-Übersichten sind per API nicht lesbar. Für eigene Zusammenfassungen GEMINI_API_KEY in der .env setzen."}
           </p>
+          {mailErr ? <p className="text-xs text-destructive">{mailErr}</p> : null}
+          <div className="flex flex-col gap-2 pt-2">
+            <Label>Signatur (HTML)</Label>
+            <Textarea value={signature} onChange={(e) => setSignature(e.target.value)} rows={3} />
+            <Button
+              variant="outline"
+              onClick={() =>
+                apiClient
+                  .mailSaveSignature(aliasEmail, signature)
+                  .then(() => toast.success("Signatur gespeichert."))
+                  .catch((err) => toast.error(err instanceof ApiError ? err.message : "Signatur fehlgeschlagen."))
+              }
+            >
+              Signatur speichern
+            </Button>
+          </div>
+          <div className="flex flex-col gap-2 pt-2">
+            <Row
+              id="vacation"
+              title="Abwesenheitsnotiz"
+              hint="Automatische Antwort über Gmail-Einstellungen"
+              checked={vacationOn}
+              onCheckedChange={setVacationOn}
+            />
+            <Input value={vacationSubject} onValueChange={setVacationSubject} placeholder="Betreff" />
+            <Textarea value={vacationBody} onChange={(e) => setVacationBody(e.target.value)} rows={3} placeholder="Text" />
+            <div className="grid grid-cols-2 gap-2">
+              <DateField value={vacationStart} onValueChange={setVacationStart} />
+              <DateField value={vacationEnd} onValueChange={setVacationEnd} />
+            </div>
+            <Row
+              id="vac-contacts"
+              title="Nur Kontakte"
+              hint="Antwort nur an Personen im Adressbuch"
+              checked={restrictContacts}
+              onCheckedChange={setRestrictContacts}
+            />
+            <Row
+              id="vac-domain"
+              title="Nur eigene Domain"
+              hint="Antwort nur innerhalb der Workspace-Domain"
+              checked={restrictDomain}
+              onCheckedChange={setRestrictDomain}
+            />
+            <Button
+              variant="outline"
+              onClick={() =>
+                apiClient
+                  .mailSaveVacation({
+                    enableAutoReply: vacationOn,
+                    responseSubject: vacationSubject,
+                    responseBodyHtml: vacationBody,
+                    restrictToContacts: restrictContacts,
+                    restrictToDomain: restrictDomain,
+                    startTime: vacationStart ? String(Date.parse(`${vacationStart}T00:00:00`)) : undefined,
+                    endTime: vacationEnd ? String(Date.parse(`${vacationEnd}T23:59:59`)) : undefined,
+                  })
+                  .then(() => toast.success("Abwesenheit gespeichert."))
+                  .catch((err) => toast.error(err instanceof ApiError ? err.message : "Speichern fehlgeschlagen."))
+              }
+            >
+              Abwesenheit speichern
+            </Button>
+          </div>
+          <div className="flex flex-col gap-2 pt-2">
+            <h3 className="text-sm font-medium">Filter</h3>
+            <Input value={filterFrom} onValueChange={setFilterFrom} placeholder="Von (E-Mail)" />
+            <Input value={filterQuery} onValueChange={setFilterQuery} placeholder="Suche / query" />
+            <Select value={filterAction} onValueChange={(v) => setFilterAction(String(v ?? "skip"))}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="skip">Posteingang überspringen</SelectItem>
+                <SelectItem value="star">Markieren</SelectItem>
+                <SelectItem value="trash">In den Papierkorb</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button
+              variant="outline"
+              onClick={() => {
+                const action =
+                  filterAction === "star"
+                    ? { addLabelIds: ["STARRED"] }
+                    : filterAction === "trash"
+                      ? { addLabelIds: ["TRASH"] }
+                      : { removeLabelIds: ["INBOX"] };
+                apiClient
+                  .mailCreateFilter({ from: filterFrom, query: filterQuery, ...action })
+                  .then(() => apiClient.mailFilters())
+                  .then((res) => {
+                    setFilters(res.filters);
+                    toast.success("Filter erstellt.");
+                  })
+                  .catch((err) => toast.error(err instanceof ApiError ? err.message : "Filter fehlgeschlagen."));
+              }}
+            >
+              Filter anlegen
+            </Button>
+            <ul className="flex flex-col gap-1 text-xs">
+              {filters.map((f) => (
+                <li key={f.id ?? JSON.stringify(f.criteria)} className="flex items-center justify-between gap-2 rounded-lg bg-muted/60 px-2 py-1">
+                  <span className="min-w-0 truncate">
+                    {String(f.criteria.from ?? f.criteria.query ?? "Filter")}
+                  </span>
+                  {f.id ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() =>
+                        apiClient
+                          .mailDeleteFilter(f.id!)
+                          .then(() => setFilters((xs) => xs.filter((x) => x.id !== f.id)))
+                          .catch((err) => toast.error(err instanceof ApiError ? err.message : "Löschen fehlgeschlagen."))
+                      }
+                    >
+                      Löschen
+                    </Button>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+        <section className="flex flex-col gap-2">
+          <h2 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Kalender</h2>
+          <Row
+            id="hide-declined"
+            title="Abgelehnte Termine ausblenden"
+            hint="Termine, die du abgelehnt hast, nicht anzeigen"
+            checked={me.hideDeclined}
+            onCheckedChange={(v) => void patchFlags({ hideDeclined: v })}
+          />
+          <div className="flex flex-col gap-1.5">
+            <Label>Zweite Zeitzone (Tag/Woche)</Label>
+            <Select
+              value={me.secondTimezone || "none"}
+              onValueChange={(v) =>
+                void patchFlags({ secondTimezone: v === "none" ? null : String(v) })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Keine</SelectItem>
+                <SelectItem value="UTC">UTC</SelectItem>
+                <SelectItem value="Europe/London">Europe/London</SelectItem>
+                <SelectItem value="America/New_York">America/New_York</SelectItem>
+                <SelectItem value="America/Los_Angeles">America/Los_Angeles</SelectItem>
+                <SelectItem value="Asia/Tokyo">Asia/Tokyo</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <Row
+            id="wh"
+            title="Arbeitszeiten in der App anzeigen"
+            hint="Schattierung außerhalb der Kernzeit"
+            checked={whEnabled}
+            onCheckedChange={setWhEnabled}
+          />
+          <div className="grid grid-cols-2 gap-2">
+            <Input type="time" value={whStart} onValueChange={setWhStart} aria-label="Arbeitsbeginn" />
+            <Input type="time" value={whEnd} onValueChange={setWhEnd} aria-label="Arbeitsende" />
+          </div>
+          <Button
+            variant="outline"
+            onClick={() => {
+              const days = {
+                mon: { start: whStart, end: whEnd },
+                tue: { start: whStart, end: whEnd },
+                wed: { start: whStart, end: whEnd },
+                thu: { start: whStart, end: whEnd },
+                fri: { start: whStart, end: whEnd },
+                sat: null,
+                sun: null,
+              };
+              void patchFlags({
+                workingHours: { enabled: whEnabled, days },
+              }).then(() => toast.success("Arbeitszeiten gespeichert."));
+            }}
+          >
+            Arbeitszeiten speichern
+          </Button>
+          {calNote ? <p className="text-xs text-muted-foreground">{calNote}</p> : null}
+        </section>
+        <section className="flex flex-col gap-2">
+          <h2 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Google</h2>
+          <p className="text-xs text-muted-foreground">
+            Nach neuen Berechtigungen (Kontakte, Aufgaben, Gmail-Einstellungen) bitte neu anmelden. In der Cloud Console ggf. People API, Tasks API und Gmail API aktivieren.
+          </p>
+          <a href="/api/auth/google">
+            <Button className="w-full">Google erneut verbinden</Button>
+          </a>
         </section>
       </DialogContent>
     </Dialog>

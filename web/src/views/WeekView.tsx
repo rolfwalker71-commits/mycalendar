@@ -2,7 +2,7 @@ import { DateTime } from "luxon";
 import { cn } from "@/lib/utils";
 import { isSameDay, now, startOfWeek, weekdayShort } from "@/lib/dates";
 import { eventOverlapsDay } from "@/lib/dates";
-import type { CalendarEvent } from "@/lib/types";
+import type { CalendarEvent, TaskItem, WorkingHours } from "@/lib/types";
 import { TimeGrid } from "@/views/DayView";
 import { DayWeather } from "@/components/WeatherMark";
 
@@ -12,14 +12,24 @@ export function WeekView({
   events,
   onOpen,
   onCreate,
+  onMove,
   compact,
+  secondTimezone,
+  workingHours,
+  tasks,
+  onToggleTask,
 }: {
   cursor: DateTime;
   weekStart: 0 | 1;
   events: CalendarEvent[];
   onOpen: (e: CalendarEvent) => void;
   onCreate: (start: DateTime) => void;
+  onMove?: (event: CalendarEvent, start: DateTime, end: DateTime) => void;
   compact?: boolean;
+  secondTimezone?: string | null;
+  workingHours?: WorkingHours | null;
+  tasks?: TaskItem[];
+  onToggleTask?: (task: TaskItem) => void;
 }) {
   const start = startOfWeek(cursor, weekStart);
   const days = Array.from({ length: 7 }, (_, i) => start.plus({ days: i }));
@@ -55,7 +65,12 @@ export function WeekView({
                   events={events.filter((e) => eventOverlapsDay(e, day))}
                   onOpen={onOpen}
                   onCreate={onCreate}
+                  onMove={onMove}
                   showNow={isSameDay(day, today)}
+                  secondTimezone={secondTimezone}
+                  workingHours={workingHours}
+                  tasks={tasks}
+                  onToggleTask={onToggleTask}
                 />
               </div>
             </div>
@@ -94,7 +109,12 @@ export function WeekView({
               events={events.filter((e) => eventOverlapsDay(e, day))}
               onOpen={onOpen}
               onCreate={onCreate}
+              onMove={onMove}
               showNow={isSameDay(day, today)}
+              secondTimezone={secondTimezone}
+              workingHours={workingHours}
+              tasks={tasks}
+              onToggleTask={onToggleTask}
             />
           </div>
         ))}

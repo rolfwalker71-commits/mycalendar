@@ -20,6 +20,8 @@ import { MiniMonth, MiniNavigator, type MiniRange } from "@/components/MiniMonth
 import { CalendarList } from "@/components/CalendarList";
 import { ViewSwitcher } from "@/components/ViewSwitcher";
 import { EventEditor, type EditorState } from "@/components/EventEditor";
+import { TasksPanel } from "@/components/TasksPanel";
+import { isDeclined } from "@/components/EventChip";
 import { AgendaView } from "@/views/AgendaView";
 import { DayView } from "@/views/DayView";
 import { WeekView } from "@/views/WeekView";
@@ -37,9 +39,23 @@ import {
   visibleRange,
   ZONE,
 } from "@/lib/dates";
-import type { CalendarEvent, CalendarItem, Me, MobileTab, ViewId } from "@/lib/types";
-import { Toaster } from "@/components/ui/sonner";
+import type { CalendarEvent, CalendarItem, Me, MobileTab, RecurrenceScope, TaskItem, ViewId } from "@/lib/types";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { SettingsDialog } from "@/components/SettingsDialog";
+import { Toaster } from "@/components/ui/sonner";
 import { MailApp } from "@/mail/MailApp";
 import type { AppModule } from "@/mail/types";
 import { useTheme } from "@/components/ThemeProvider";
@@ -96,6 +112,14 @@ function CalendarApp({
     () => (localStorage.getItem("kalender-mini-range") as MiniRange) || "month",
   );
   const [searchOpen, setSearchOpen] = useState(false);
+  const [tasks, setTasks] = useState<TaskItem[]>([]);
+  const [tasksError, setTasksError] = useState<string | null>(null);
+  const [pendingMove, setPendingMove] = useState<{
+    event: CalendarEvent;
+    start: string;
+    end: string;
+  } | null>(null);
+  const [moveScope, setMoveScope] = useState<RecurrenceScope>("this");
 
   const effectiveView: ViewId = desktop
     ? searchOpen
@@ -127,6 +151,17 @@ function CalendarApp({
     setCalendars(next);
   }, []);
 
+  const loadTasks = useCallback(async () => {
+    try {
+      const res = await apiClient.tasks();
+      setTasks(res.tasks);
+      setTasksError(null);
+    } catch (err) {
+      setTasks([]);
+      setTasksError(err instanceof ApiError ? err.message : "Aufgaben nicht verfügbar.");
+    }
+  }, []);
+
   const sync = useCallback(
     async (silent = false) => {
       if (!silent) setSyncing(true);
@@ -138,6 +173,7 @@ function CalendarApp({
         setLastSync(res.lastSyncAt);
         await loadCalendars();
         await loadEvents();
+        await loadTasks();
       } catch (err) {
         if (!handleAuthError(err, onLogout) && !silent) {
           toast.error(err instanceof ApiError ? err.message : "Aktualisierung fehlgeschlagen.");
@@ -146,7 +182,7 @@ function CalendarApp({
         setSyncing(false);
       }
     },
-    [loadCalendars, loadEvents, onLogout, range.from, range.to],
+    [loadCalendars, loadEvents, loadTasks, onLogout, range.from, range.to],
   );
 
   useEffect(() => {
@@ -179,8 +215,8 @@ function CalendarApp({
 
   const visibleEvents = useMemo(() => {
     const selected = new Set(calendars.filter((c) => c.selected).map((c) => c.id));
-    return events.filter((e) => selected.has(e.calendarId));
-  }, [calendars, events]);
+    return events.filter((e) => selected.has(e.calendarId) && (!me.hideDeclined || !isDeclined(e)));
+  }, [calendars, events, me.hideDeclined]);
 
   function shift(dir: number) {
     if (view === "day" || (!desktop && mobileTab === "today")) {
@@ -206,6 +242,45 @@ function CalendarApp({
         calendarId: calendars.find((c) => c.primary)?.id,
       },
     });
+  }
+
+  async function applyMove(event: CalendarEvent, start: DateTime, end: DateTime, scope: RecurrenceScope) {
+    try {
+      await apiClient.patchEvent(event.id, {
+        start: event.allDay ? start.toISODate() : start.toISO({ suppressMilliseconds: true }),
+        end: event.allDay ? end.toISODate() : end.toISO({ suppressMilliseconds: true }),
+        allDay: event.allDay,
+        timezone: event.timezone,
+        scope: event.recurringEventId ? scope : undefined,
+      });
+      await loadEvents();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Verschieben fehlgeschlagen.");
+    }
+  }
+
+  function onMove(event: CalendarEvent, start: DateTime, end: DateTime) {
+    if (event.recurringEventId) {
+      setPendingMove({
+        event,
+        start: start.toISO({ suppressMilliseconds: true }) ?? "",
+        end: end.toISO({ suppressMilliseconds: true }) ?? "",
+      });
+      setMoveScope("this");
+      return;
+    }
+    void applyMove(event, start, end, "this");
+  }
+
+  async function toggleTask(task: TaskItem) {
+    try {
+      await apiClient.patchTask(task.listId, task.id, {
+        status: task.status === "completed" ? "needsAction" : "completed",
+      });
+      await loadTasks();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Aufgabe fehlgeschlagen.");
+    }
   }
 
   useEffect(() => {
@@ -299,6 +374,13 @@ function CalendarApp({
         >
           <Search className="size-5" />
         </Button>
+        <a
+          href={`/api/events/export.ics?from=${encodeURIComponent(range.from.toUTC().toISO() ?? "")}&to=${encodeURIComponent(range.to.toUTC().toISO() ?? "")}`}
+        >
+          <Button variant="ghost" size="icon" aria-label="ICS exportieren">
+            ICS
+          </Button>
+        </a>
         <DropdownMenu>
           <DropdownMenuTrigger
             render={
@@ -374,6 +456,11 @@ function CalendarApp({
             />
           </div>
         </section>
+        <section>
+          <div className="rounded-2xl bg-card p-3 shadow-lg shadow-black/10 ring-1 ring-border">
+            <TasksPanel tasks={tasks} onChange={() => void loadTasks()} error={tasksError} />
+          </div>
+        </section>
         <Button variant="outline" onClick={onOpenSettings}>
           Einstellungen
         </Button>
@@ -409,6 +496,7 @@ function CalendarApp({
           from={cursor}
           onOpen={onOpenEvent}
           geminiAvailable={me.geminiAvailable}
+          tasks={tasks}
         />
       </div>
     );
@@ -419,7 +507,12 @@ function CalendarApp({
         events={visibleEvents.filter((e) => eventOverlapsDay(e, cursor))}
         onOpen={onOpenEvent}
         onCreate={(s) => openNew(s)}
+        onMove={onMove}
         agendaBeside={desktop}
+        secondTimezone={me.secondTimezone}
+        workingHours={me.workingHours}
+        tasks={tasks}
+        onToggleTask={(t) => void toggleTask(t)}
       />
     );
   } else if (view === "week") {
@@ -430,7 +523,12 @@ function CalendarApp({
         events={visibleEvents}
         onOpen={onOpenEvent}
         onCreate={(s) => openNew(s)}
+        onMove={onMove}
         compact={!desktop}
+        secondTimezone={me.secondTimezone}
+        workingHours={me.workingHours}
+        tasks={tasks}
+        onToggleTask={(t) => void toggleTask(t)}
       />
     );
   } else if (view === "year") {
@@ -490,6 +588,7 @@ function CalendarApp({
               }
             }}
           />
+          <TasksPanel tasks={tasks} onChange={() => void loadTasks()} error={tasksError} />
           <div className="mt-auto flex min-h-11 items-center justify-between gap-3 pt-4">
             <Label className="text-muted-foreground">Dunkel</Label>
             <Switch checked={dark} onCheckedChange={(v) => setTheme(v ? "dark" : "light")} />
@@ -535,6 +634,7 @@ function CalendarApp({
         onOpenChange={(open) => setEditor((s) => ({ ...s, open }))}
         calendars={calendars}
         desktop={desktop}
+        onOpenEvent={(event) => setEditor({ open: true, event })}
         onSaved={() => {
           loadEvents().catch(() => undefined);
           sync(true).catch(() => undefined);
@@ -543,6 +643,37 @@ function CalendarApp({
           loadEvents().catch(() => undefined);
         }}
       />
+      <Dialog open={Boolean(pendingMove)} onOpenChange={(open) => { if (!open) setPendingMove(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Serientermin verschieben</DialogTitle>
+          </DialogHeader>
+          <Select value={moveScope} onValueChange={(v) => setMoveScope(v as RecurrenceScope)}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="this">Nur dieses Ereignis</SelectItem>
+              <SelectItem value="thisAndFollowing">Dieses und folgende</SelectItem>
+              <SelectItem value="all">Alle Ereignisse</SelectItem>
+            </SelectContent>
+          </Select>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPendingMove(null)}>Abbrechen</Button>
+            <Button
+              onClick={() => {
+                if (!pendingMove) return;
+                const start = DateTime.fromISO(pendingMove.start, { setZone: true });
+                const end = DateTime.fromISO(pendingMove.end, { setZone: true });
+                void applyMove(pendingMove.event, start, end, moveScope);
+                setPendingMove(null);
+              }}
+            >
+              Verschieben
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
