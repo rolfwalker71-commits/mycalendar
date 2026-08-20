@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   Archive,
   ArrowLeft,
@@ -207,6 +207,56 @@ function ThreadRow({
   );
 }
 
+const ISOLATED_HTML_CSS = `
+:host {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  font-size: 16px;
+  line-height: 1.375;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  color: inherit;
+}
+img {
+  max-width: 100%;
+  height: auto;
+}
+a {
+  color: var(--mail, #007aff);
+}
+`;
+
+function openIsolatedMailLink(event: Event) {
+  const anchor = event
+    .composedPath()
+    .find((node): node is HTMLAnchorElement => node instanceof HTMLAnchorElement);
+  if (!anchor?.href) return;
+  event.preventDefault();
+  window.open(anchor.href, "_blank", "noopener,noreferrer");
+}
+
+/** Renders HTML email in a Shadow DOM so author CSS cannot leak into the app. */
+function IsolatedHtml({ html }: { html: string }) {
+  const hostRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
+
+    const shadow = host.shadowRoot ?? host.attachShadow({ mode: "open" });
+    const style = document.createElement("style");
+    style.textContent = ISOLATED_HTML_CSS;
+    const wrap = document.createElement("div");
+    wrap.innerHTML = html;
+    shadow.replaceChildren(style, wrap);
+    shadow.addEventListener("click", openIsolatedMailLink);
+    return () => shadow.removeEventListener("click", openIsolatedMailLink);
+  }, [html]);
+
+  return <div ref={hostRef} />;
+}
+
 function MessageBody({
   message,
   loadImages,
@@ -221,19 +271,7 @@ function MessageBody({
   }, [message.html, loadImages]);
 
   if (html) {
-    return (
-      <div
-        className="max-w-full overflow-x-auto text-[16px] leading-snug break-words [&_a]:text-mail [&_img]:h-auto [&_img]:max-w-full"
-        dangerouslySetInnerHTML={{ __html: html }}
-        onClick={(e) => {
-          const el = (e.target as HTMLElement).closest("a");
-          if (el instanceof HTMLAnchorElement && el.href) {
-            e.preventDefault();
-            window.open(el.href, "_blank", "noopener,noreferrer");
-          }
-        }}
-      />
-    );
+    return <IsolatedHtml html={html} />;
   }
   return (
     <pre className="whitespace-pre-wrap font-sans text-[16px] leading-snug text-foreground">

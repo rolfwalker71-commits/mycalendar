@@ -58,12 +58,22 @@ export function parsePayload(payload?: gmail_v1.Schema$MessagePart | null): Pars
   return acc;
 }
 
+function stripStylesheetLinks(html: string): string {
+  return html.replace(/<link\b[^>]*>/gi, (tag) => {
+    const rel = /\brel\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i.exec(tag);
+    const value = (rel?.[1] ?? rel?.[2] ?? rel?.[3] ?? "").toLowerCase();
+    return value.split(/\s+/).includes("stylesheet") ? "" : tag;
+  });
+}
+
 export function scrubHtml(html: string): string {
-  return html
+  return stripStylesheetLinks(html)
     .replace(/<script\b[\s\S]*?<\/script>/gi, "")
     .replace(/<iframe\b[\s\S]*?<\/iframe>/gi, "")
     .replace(/<object\b[\s\S]*?<\/object>/gi, "")
     .replace(/<embed\b[^>]*>/gi, "")
+    .replace(/<style\b[\s\S]*?<\/style>/gi, "")
+    .replace(/<style\b[\s\S]*/gi, "")
     .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "")
     .replace(/javascript:/gi, "")
     .replace(/data:text\/html/gi, "");

@@ -5,7 +5,7 @@ import { GoogleAuthError, isAuthError } from "../google.js";
 import { syncUserEvents } from "../sync.js";
 import { TZ } from "../config.js";
 import type { UserRow } from "../types.js";
-import { geminiAvailable } from "../gemini.js";
+import { geminiAvailable, loadGeminiKey } from "../gemini.js";
 
 function meJson(u: UserRow) {
   return {
@@ -25,7 +25,8 @@ function meJson(u: UserRow) {
 export const meRouter = Router();
 meRouter.use(requireAuth);
 
-meRouter.get("/", (req, res) => {
+meRouter.get("/", async (req, res) => {
+  await loadGeminiKey();
   res.json(meJson(req.user!));
 });
 

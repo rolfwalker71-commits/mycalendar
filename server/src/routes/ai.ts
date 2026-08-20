@@ -3,7 +3,7 @@ import { DateTime } from "luxon";
 import { requireAuth } from "../auth.js";
 import { TZ } from "../config.js";
 import { query } from "../db.js";
-import { cachedGemini, geminiAvailable } from "../gemini.js";
+import { cachedGemini, geminiAvailable, loadGeminiKey } from "../gemini.js";
 import { GoogleAuthError, getAuthedGmail, isInsufficientScope } from "../google.js";
 import { headerMap, parseAddress, parsePayload } from "../mailMime.js";
 
@@ -15,11 +15,13 @@ function clip(text: string, max: number): string {
   return t.length > max ? `${t.slice(0, max)}…` : t;
 }
 
-aiRouter.get("/status", (_req, res) => {
+aiRouter.get("/status", async (_req, res) => {
+  await loadGeminiKey();
   res.json({ available: geminiAvailable() });
 });
 
 aiRouter.post("/mail", async (req, res) => {
+  await loadGeminiKey();
   if (!geminiAvailable()) {
     res.status(503).json({
       error:
@@ -77,9 +79,9 @@ ${parts.join("\n\n---\n\n")}`;
       res.status(403).json({ error: "Mail nicht freigegeben.", code: "gmail_scope" });
       return;
     }
-    const code = (err as { code?: string }).code;
-    if (code === "gemini_config") {
-      res.status(503).json({ error: (err as Error).message, code });
+    const gemini = geminiFailure(err);
+    if (gemini) {
+      res.status(gemini.status).json({ error: gemini.error, code: gemini.code });
       return;
     }
     console.error(err);
@@ -88,6 +90,7 @@ ${parts.join("\n\n---\n\n")}`;
 });
 
 aiRouter.post("/calendar", async (req, res) => {
+  await loadGeminiKey();
   if (!geminiAvailable()) {
     res.status(503).json({
       error:
@@ -168,7 +171,31 @@ ${lines.join("\n") || "Keine Termine."}`;
     const result = await cachedGemini(req.user!.id, "calendar", ref, prompt);
     res.json({ text: result.text, cached: result.cached });
   } catch (err) {
+    const gemini = geminiFailure(err, "Tagesüberblick fehlgeschlagen.");
+    if (gemini) {
+      res.status(gemini.status).json({ error: gemini.error, code: gemini.code });
+      return;
+    }
     console.error(err);
     res.status(502).json({ error: "Tagesüberblick fehlgeschlagen." });
   }
 });
+
+function geminiFailure(
+  err: unknown,
+  fallback = "Zusammenfassung fehlgeschlagen.",
+): { status: number; error: string; code: string } | null {
+  const code = (err as { code?: string }).code;
+  if (code === "gemini_config") {
+    return { status: 503, error: (err as Error).message || fallback, code };
+  }
+  if (code === "gemini" || code === "gemini_billing") {
+    const status = Number((err as { status?: number }).status);
+    return {
+      status: Number.isFinite(status) && status >= 400 ? status : 502,
+      error: (err as Error).message || fallback,
+      code,
+    };
+  }
+  return null;
+}
