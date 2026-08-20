@@ -4,6 +4,7 @@ import { isSameDay, now, startOfWeek, weekdayShort } from "@/lib/dates";
 import { eventOverlapsDay } from "@/lib/dates";
 import type { CalendarEvent } from "@/lib/types";
 import { TimeGrid } from "@/views/DayView";
+import { DayWeather } from "@/components/WeatherMark";
 
 export function WeekView({
   cursor,
@@ -34,11 +35,14 @@ export function WeekView({
               key={day.toISODate()}
               className="min-w-[12rem] shrink-0 rounded-2xl bg-card p-2 ring-1 ring-border"
             >
-              <div className="mb-2 flex items-center justify-between px-1">
-                <span className="text-xs text-muted-foreground">{labels[i]}</span>
+              <div className="mb-2 flex items-center justify-between gap-1 px-1">
+                <span className="flex min-w-0 items-center gap-1">
+                  <span className="text-xs text-muted-foreground">{labels[i]}</span>
+                  <DayWeather iso={day.toISODate()} />
+                </span>
                 <span
                   className={cn(
-                    "inline-flex size-7 items-center justify-center rounded-full text-sm",
+                    "inline-flex size-7 shrink-0 items-center justify-center rounded-full text-sm",
                     isSameDay(day, today) && "bg-today text-today-foreground",
                   )}
                 >
@@ -67,7 +71,10 @@ export function WeekView({
         <div />
         {days.map((day, i) => (
           <div key={day.toISODate()} className="py-2 text-center">
-            <div className="text-xs text-muted-foreground">{labels[i]}</div>
+            <div className="flex items-center justify-center gap-1 text-xs text-muted-foreground">
+              <span>{labels[i]}</span>
+              <DayWeather iso={day.toISODate()} />
+            </div>
             <div
               className={cn(
                 "mx-auto mt-1 inline-flex size-8 items-center justify-center rounded-full text-lg font-medium",

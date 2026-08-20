@@ -1,16 +1,14 @@
 import { Router } from "express";
-import { requireAuth, clearSessionCookie } from "../auth.js";
+import { requireAuth, clearSessionCookie, loadUserById } from "../auth.js";
 import { query } from "../db.js";
 import { GoogleAuthError, isAuthError } from "../google.js";
 import { syncUserEvents } from "../sync.js";
 import { TZ } from "../config.js";
+import type { UserRow } from "../types.js";
+import { geminiAvailable } from "../gemini.js";
 
-export const meRouter = Router();
-meRouter.use(requireAuth);
-
-meRouter.get("/", (req, res) => {
-  const u = req.user!;
-  res.json({
+function meJson(u: UserRow) {
+  return {
     id: u.id,
     email: u.email,
     name: u.name,
@@ -18,20 +16,43 @@ meRouter.get("/", (req, res) => {
     weekStart: u.week_start === 0 ? 0 : 1,
     lastSyncAt: u.last_sync_at,
     timezone: TZ,
-  });
+    notifyCalendar: u.notify_calendar !== false,
+    notifyMail: u.notify_mail !== false,
+    geminiAvailable: geminiAvailable(),
+  };
+}
+
+export const meRouter = Router();
+meRouter.use(requireAuth);
+
+meRouter.get("/", (req, res) => {
+  res.json(meJson(req.user!));
 });
 
 meRouter.patch("/", async (req, res) => {
-  const weekStart = req.body?.weekStart;
-  if (weekStart !== 0 && weekStart !== 1) {
-    res.status(400).json({ error: "weekStart muss 0 oder 1 sein." });
+  const sets: string[] = [];
+  const vals: unknown[] = [];
+  let i = 1;
+  if (req.body?.weekStart === 0 || req.body?.weekStart === 1) {
+    sets.push(`week_start = $${i++}`);
+    vals.push(req.body.weekStart);
+  }
+  if (typeof req.body?.notifyCalendar === "boolean") {
+    sets.push(`notify_calendar = $${i++}`);
+    vals.push(req.body.notifyCalendar);
+  }
+  if (typeof req.body?.notifyMail === "boolean") {
+    sets.push(`notify_mail = $${i++}`);
+    vals.push(req.body.notifyMail);
+  }
+  if (!sets.length) {
+    res.status(400).json({ error: "Keine gültigen Felder." });
     return;
   }
-  await query("UPDATE users SET week_start = $1 WHERE id = $2", [
-    weekStart,
-    req.user!.id,
-  ]);
-  res.json({ weekStart });
+  vals.push(req.user!.id);
+  await query(`UPDATE users SET ${sets.join(", ")} WHERE id = $${i}`, vals);
+  const updated = await loadUserById(req.user!.id);
+  res.json(meJson(updated ?? req.user!));
 });
 
 export const syncRouter = Router();

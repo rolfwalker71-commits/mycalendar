@@ -15,6 +15,8 @@ import {
   parsePayload,
   scrubHtml,
 } from "../mailMime.js";
+import { gravatarUrl } from "../mailAvatar.js";
+import { extractHighlightCards } from "../mailCards.js";
 
 export const mailRouter = Router();
 mailRouter.use(requireAuth);
@@ -95,7 +97,7 @@ function summarizeMessage(message: gmail_v1.Schema$Message) {
   return {
     id: message.id ?? "",
     threadId: message.threadId ?? "",
-    from,
+    from: { ...from, avatarUrl: gravatarUrl(from.email) },
     to,
     subject: headers.subject ?? "",
     date: headers.date ?? "",
@@ -105,6 +107,40 @@ function summarizeMessage(message: gmail_v1.Schema$Message) {
     draft: labels.includes("DRAFT"),
     labelIds: labels,
     internalDate: message.internalDate ?? null,
+  };
+}
+
+function mapFullMessage(
+  message: gmail_v1.Schema$Message,
+  threadId: string,
+) {
+  const headers = headerMap(message.payload?.headers);
+  const parsed = parsePayload(message.payload);
+  const from = parseAddress(headers.from);
+  const labels = message.labelIds ?? [];
+  return {
+    id: message.id ?? "",
+    threadId: message.threadId ?? threadId,
+    from: { ...from, avatarUrl: gravatarUrl(from.email) },
+    to: headers.to ?? "",
+    cc: headers.cc ?? "",
+    bcc: headers.bcc ?? "",
+    subject: headers.subject ?? "",
+    date: headers.date ?? "",
+    messageId: headers["message-id"] ?? "",
+    references: headers.references ?? "",
+    snippet: message.snippet ?? "",
+    text: parsed.text,
+    html: parsed.html ? scrubHtml(parsed.html) : "",
+    attachments: parsed.attachments.map((a) => ({
+      ...a,
+      messageId: message.id ?? "",
+    })),
+    unread: labels.includes("UNREAD"),
+    starred: labels.includes("STARRED"),
+    labelIds: labels,
+    internalDate: message.internalDate ?? null,
+    cards: extractHighlightCards(parsed.html),
   };
 }
 
@@ -163,35 +199,9 @@ mailRouter.get("/threads/:id", async (req, res) => {
       id: req.params.id,
       format: "full",
     });
-    const messages = (data.messages ?? []).map((message) => {
-      const headers = headerMap(message.payload?.headers);
-      const parsed = parsePayload(message.payload);
-      const from = parseAddress(headers.from);
-      const labels = message.labelIds ?? [];
-      return {
-        id: message.id ?? "",
-        threadId: message.threadId ?? data.id ?? "",
-        from,
-        to: headers.to ?? "",
-        cc: headers.cc ?? "",
-        bcc: headers.bcc ?? "",
-        subject: headers.subject ?? "",
-        date: headers.date ?? "",
-        messageId: headers["message-id"] ?? "",
-        references: headers.references ?? "",
-        snippet: message.snippet ?? "",
-        text: parsed.text,
-        html: parsed.html ? scrubHtml(parsed.html) : "",
-        attachments: parsed.attachments.map((a) => ({
-          ...a,
-          messageId: message.id ?? "",
-        })),
-        unread: labels.includes("UNREAD"),
-        starred: labels.includes("STARRED"),
-        labelIds: labels,
-        internalDate: message.internalDate ?? null,
-      };
-    });
+    const messages = (data.messages ?? []).map((message) =>
+      mapFullMessage(message, data.id ?? req.params.id),
+    );
     res.json({
       id: data.id ?? req.params.id,
       messages,
@@ -243,6 +253,115 @@ mailRouter.post("/threads/:id/untrash", async (req, res) => {
   try {
     const gmail = await gmailFor(req);
     await gmail.users.threads.untrash({ userId: "me", id: req.params.id });
+    res.json({ ok: true });
+  } catch (err) {
+    if (handleMailError(err, res)) return;
+    console.error(err);
+    res.status(502).json({ error: "Wiederherstellen fehlgeschlagen." });
+  }
+});
+
+mailRouter.get("/messages", async (req, res) => {
+  const labelId = String(req.query.labelId ?? "INBOX");
+  const q = typeof req.query.q === "string" ? req.query.q : "";
+  const pageToken = typeof req.query.pageToken === "string" ? req.query.pageToken : undefined;
+  const maxResults = Math.min(50, Math.max(10, Number(req.query.maxResults ?? 30) || 30));
+  try {
+    const gmail = await gmailFor(req);
+    const list = await gmail.users.messages.list({
+      userId: "me",
+      labelIds: labelId ? [labelId] : undefined,
+      q: q || undefined,
+      pageToken,
+      maxResults,
+    });
+    const threads = await mapPool(list.data.messages ?? [], 6, async (m) => {
+      const { data } = await gmail.users.messages.get({
+        userId: "me",
+        id: m.id ?? "",
+        format: "metadata",
+        metadataHeaders: ["From", "To", "Subject", "Date"],
+      });
+      const summary = summarizeMessage(data);
+      return {
+        ...summary,
+        id: data.id ?? m.id ?? "",
+        snippet: data.snippet ?? summary.snippet,
+        messageCount: 1,
+      };
+    });
+    res.json({
+      threads,
+      nextPageToken: list.data.nextPageToken ?? null,
+      resultSizeEstimate: list.data.resultSizeEstimate ?? threads.length,
+    });
+  } catch (err) {
+    if (handleMailError(err, res)) return;
+    console.error(err);
+    res.status(502).json({ error: "Nachrichten konnten nicht geladen werden." });
+  }
+});
+
+mailRouter.get("/messages/:id", async (req, res) => {
+  try {
+    const gmail = await gmailFor(req);
+    const { data } = await gmail.users.messages.get({
+      userId: "me",
+      id: req.params.id,
+      format: "full",
+    });
+    const mapped = mapFullMessage(data, data.threadId ?? req.params.id);
+    res.json({
+      id: mapped.id,
+      messages: [mapped],
+      unread: mapped.unread,
+      starred: mapped.starred,
+    });
+  } catch (err) {
+    if (handleMailError(err, res)) return;
+    console.error(err);
+    res.status(502).json({ error: "Nachricht konnte nicht geöffnet werden." });
+  }
+});
+
+mailRouter.post("/messages/:id/modify", async (req, res) => {
+  const addLabelIds = Array.isArray(req.body?.addLabelIds)
+    ? req.body.addLabelIds.filter((x: unknown) => typeof x === "string")
+    : [];
+  const removeLabelIds = Array.isArray(req.body?.removeLabelIds)
+    ? req.body.removeLabelIds.filter((x: unknown) => typeof x === "string")
+    : [];
+  try {
+    const gmail = await gmailFor(req);
+    await gmail.users.messages.modify({
+      userId: "me",
+      id: req.params.id,
+      requestBody: { addLabelIds, removeLabelIds },
+    });
+    res.json({ ok: true });
+  } catch (err) {
+    if (handleMailError(err, res)) return;
+    console.error(err);
+    res.status(502).json({ error: "Änderung fehlgeschlagen." });
+  }
+});
+
+mailRouter.post("/messages/:id/trash", async (req, res) => {
+  try {
+    const gmail = await gmailFor(req);
+    await gmail.users.messages.trash({ userId: "me", id: req.params.id });
+    res.json({ ok: true });
+  } catch (err) {
+    if (handleMailError(err, res)) return;
+    console.error(err);
+    res.status(502).json({ error: "Löschen fehlgeschlagen." });
+  }
+});
+
+mailRouter.post("/messages/:id/untrash", async (req, res) => {
+  try {
+    const gmail = await gmailFor(req);
+    await gmail.users.messages.untrash({ userId: "me", id: req.params.id });
     res.json({ ok: true });
   } catch (err) {
     if (handleMailError(err, res)) return;

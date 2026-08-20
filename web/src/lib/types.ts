@@ -55,7 +55,10 @@ export type Me = {
   pictureUrl: string | null;
   weekStart: 0 | 1;
   lastSyncAt: string | null;
-  timezone: string;
+    timezone: string;
+  notifyCalendar: boolean;
+  notifyMail: boolean;
+  geminiAvailable: boolean;
 };
 
 export type ViewId = "day" | "week" | "month" | "year" | "agenda";

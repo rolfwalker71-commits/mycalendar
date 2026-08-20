@@ -45,10 +45,36 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const apiClient = {
   me: () => api<Me>("/api/me"),
-  patchMe: (weekStart: 0 | 1) =>
-    api<{ weekStart: 0 | 1 }>("/api/me", {
+  patchMe: (body: {
+    weekStart?: 0 | 1;
+    notifyCalendar?: boolean;
+    notifyMail?: boolean;
+  }) =>
+    api<Me>("/api/me", {
       method: "PATCH",
-      body: JSON.stringify({ weekStart }),
+      body: JSON.stringify(body),
+    }),
+  pushVapid: () => api<{ publicKey: string }>("/api/push/vapid"),
+  pushSubscribe: (sub: PushSubscriptionJSON) =>
+    api<{ ok: boolean }>("/api/push/subscribe", {
+      method: "POST",
+      body: JSON.stringify(sub),
+    }),
+  pushUnsubscribe: (endpoint?: string) =>
+    api<{ ok: boolean }>("/api/push/unsubscribe", {
+      method: "POST",
+      body: JSON.stringify({ endpoint }),
+    }),
+  pushTest: () => api<{ ok: boolean; sent: number }>("/api/push/test", { method: "POST" }),
+  aiMailSummary: (id: string, threaded = true) =>
+    api<{ text: string; cached: boolean }>("/api/ai/mail", {
+      method: "POST",
+      body: JSON.stringify({ id, threaded }),
+    }),
+  aiCalendarBriefing: (from: string, to: string) =>
+    api<{ text: string; cached: boolean }>("/api/ai/calendar", {
+      method: "POST",
+      body: JSON.stringify({ from, to }),
     }),
   logout: () => api<{ ok: boolean }>("/api/auth/logout", { method: "POST" }),
   calendars: () => api<{ calendars: CalendarItem[] }>("/api/calendars"),
@@ -89,31 +115,47 @@ export const apiClient = {
       body: JSON.stringify({ timeMin, timeMax }),
     }),
   mailLabels: () => api<{ labels: MailLabel[] }>("/api/mail/labels"),
-  mailThreads: (opts: { labelId?: string; q?: string; pageToken?: string }) => {
+  mailThreads: (opts: {
+    labelId?: string;
+    q?: string;
+    pageToken?: string;
+    threaded?: boolean;
+  }) => {
     const query = new URLSearchParams();
     if (opts.labelId) query.set("labelId", opts.labelId);
     if (opts.q) query.set("q", opts.q);
     if (opts.pageToken) query.set("pageToken", opts.pageToken);
+    const path = opts.threaded === false ? "/api/mail/messages" : "/api/mail/threads";
     return api<{
       threads: MailThreadSummary[];
       nextPageToken: string | null;
       resultSizeEstimate: number;
-    }>(`/api/mail/threads?${query}`);
+    }>(`${path}?${query}`);
   },
-  mailThread: (id: string) => api<MailThread>(`/api/mail/threads/${encodeURIComponent(id)}`),
-  mailModify: (id: string, addLabelIds: string[], removeLabelIds: string[]) =>
-    api<{ ok: boolean }>(`/api/mail/threads/${encodeURIComponent(id)}/modify`, {
-      method: "POST",
-      body: JSON.stringify({ addLabelIds, removeLabelIds }),
-    }),
-  mailTrash: (id: string) =>
-    api<{ ok: boolean }>(`/api/mail/threads/${encodeURIComponent(id)}/trash`, {
-      method: "POST",
-    }),
-  mailUntrash: (id: string) =>
-    api<{ ok: boolean }>(`/api/mail/threads/${encodeURIComponent(id)}/untrash`, {
-      method: "POST",
-    }),
+  mailThread: (id: string, threaded = true) =>
+    api<MailThread>(
+      threaded
+        ? `/api/mail/threads/${encodeURIComponent(id)}`
+        : `/api/mail/messages/${encodeURIComponent(id)}`,
+    ),
+  mailModify: (id: string, addLabelIds: string[], removeLabelIds: string[], threaded = true) =>
+    api<{ ok: boolean }>(
+      `/api/mail/${threaded ? "threads" : "messages"}/${encodeURIComponent(id)}/modify`,
+      {
+        method: "POST",
+        body: JSON.stringify({ addLabelIds, removeLabelIds }),
+      },
+    ),
+  mailTrash: (id: string, threaded = true) =>
+    api<{ ok: boolean }>(
+      `/api/mail/${threaded ? "threads" : "messages"}/${encodeURIComponent(id)}/trash`,
+      { method: "POST" },
+    ),
+  mailUntrash: (id: string, threaded = true) =>
+    api<{ ok: boolean }>(
+      `/api/mail/${threaded ? "threads" : "messages"}/${encodeURIComponent(id)}/untrash`,
+      { method: "POST" },
+    ),
   mailSend: (body: {
     to: string[];
     cc?: string[];

@@ -1,6 +1,7 @@
 export type MailAddress = {
   name: string;
   email: string;
+  avatarUrl?: string | null;
 };
 
 export type MailLabel = {
@@ -54,6 +55,7 @@ export type MailMessage = {
   starred: boolean;
   labelIds: string[];
   internalDate: string | null;
+  cards?: { type: string; title: string; lines: string[] }[];
 };
 
 export type MailThread = {

@@ -14,14 +14,18 @@ export default defineConfig({
     react(),
     tailwindcss(),
     VitePWA({
+      strategies: "injectManifest",
+      srcDir: "src",
+      filename: "sw.ts",
       registerType: "autoUpdate",
-      filename: "sw.js",
       includeAssets: ["icons/*.png", "apple-touch-icon.png", "logo.png"],
       manifest: false,
-      workbox: {
+      injectManifest: {
         globPatterns: ["**/*.{js,css,html,ico,png,svg,webmanifest}"],
-        navigateFallback: "/index.html",
-        navigateFallbackDenylist: [/^\/api\//, /^\/health$/],
+      },
+      devOptions: {
+        enabled: true,
+        type: "module",
       },
     }),
   ],

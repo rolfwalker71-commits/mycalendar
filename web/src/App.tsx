@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { DateTime } from "luxon";
 import { ChevronLeft, ChevronRight, LoaderCircle, Plus, Search } from "lucide-react";
 import { toast } from "sonner";
@@ -27,8 +27,9 @@ import { MonthView } from "@/views/MonthView";
 import { YearView } from "@/views/YearView";
 import { SearchView } from "@/views/SearchView";
 import { apiClient, ApiError } from "@/lib/api";
+import { syncExistingPushSubscription } from "@/lib/push";
 import {
-  dayTitle,
+  dayTitleParts,
   eventOverlapsDay,
   monthTitle,
   now,
@@ -38,8 +39,12 @@ import {
 } from "@/lib/dates";
 import type { CalendarEvent, CalendarItem, Me, MobileTab, ViewId } from "@/lib/types";
 import { Toaster } from "@/components/ui/sonner";
+import { SettingsDialog } from "@/components/SettingsDialog";
 import { MailApp } from "@/mail/MailApp";
 import type { AppModule } from "@/mail/types";
+import { useTheme } from "@/components/ThemeProvider";
+import { PullToRefresh } from "@/components/PullToRefresh";
+import { HeaderWeather } from "@/components/WeatherMark";
 
 function useDesktop() {
   const [desktop, setDesktop] = useState(() =>
@@ -52,16 +57,6 @@ function useDesktop() {
     return () => mq.removeEventListener("change", fn);
   }, []);
   return desktop;
-}
-
-type Theme = "light" | "dark" | "system";
-
-function applyTheme(theme: Theme) {
-  const dark =
-    theme === "dark" ||
-    (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
-  document.documentElement.classList.toggle("dark", dark);
-  document.getElementById("theme-color")?.setAttribute("content", dark ? "#1c1c1e" : "#ffffff");
 }
 
 function handleAuthError(err: unknown, onReauth: () => void) {
@@ -78,16 +73,16 @@ function CalendarApp({
   onLogout,
   module,
   onModule,
+  onOpenSettings,
 }: {
   me: Me;
   onLogout: () => void;
   module: AppModule;
   onModule: (next: AppModule) => void;
+  onOpenSettings: () => void;
 }) {
   const desktop = useDesktop();
-  const [theme, setTheme] = useState<Theme>(
-    () => (localStorage.getItem("kalender-theme") as Theme) || "system",
-  );
+  const { setTheme, dark } = useTheme();
   const [weekStart, setWeekStart] = useState<0 | 1>(me.weekStart);
   const [cursor, setCursor] = useState(() => now());
   const [view, setView] = useState<ViewId>(desktop ? "week" : "agenda");
@@ -101,19 +96,6 @@ function CalendarApp({
     () => (localStorage.getItem("kalender-mini-range") as MiniRange) || "month",
   );
   const [searchOpen, setSearchOpen] = useState(false);
-  const pullStart = useRef<number | null>(null);
-
-  useEffect(() => {
-    applyTheme(theme);
-    localStorage.setItem("kalender-theme", theme);
-  }, [theme]);
-
-  useEffect(() => {
-    const mq = window.matchMedia("(prefers-color-scheme: dark)");
-    const fn = () => theme === "system" && applyTheme("system");
-    mq.addEventListener("change", fn);
-    return () => mq.removeEventListener("change", fn);
-  }, [theme]);
 
   const effectiveView: ViewId = desktop
     ? searchOpen
@@ -251,15 +233,16 @@ function CalendarApp({
     return () => window.removeEventListener("keydown", onKey);
   });
 
+  const dayHeading = view === "day" || (!desktop && mobileTab === "today");
   const title = useMemo(() => {
-    if (view === "day" || (!desktop && mobileTab === "today")) return dayTitle(cursor);
+    if (dayHeading) return dayTitleParts(cursor);
     if (view === "year") return String(cursor.year);
     if (view === "week") {
       const s = startOfWeek(cursor, weekStart);
       return `${s.toFormat("d.")}–${s.plus({ days: 6 }).toFormat("d. LLLL yyyy")}`;
     }
     return monthTitle(cursor);
-  }, [cursor, desktop, mobileTab, view, weekStart]);
+  }, [cursor, dayHeading, view, weekStart]);
 
   const header = (
     <header className="flex flex-col gap-3 border-b border-border px-3 py-3 lg:flex-row lg:items-center lg:px-6">
@@ -276,9 +259,17 @@ function CalendarApp({
         <Button variant="ghost" size="icon" aria-label="Weiter" onClick={() => shift(1)}>
           <ChevronRight className="size-5" />
         </Button>
-        <h1 className="min-w-0 flex-1 text-xl font-semibold tracking-tight capitalize lg:text-2xl">
-          {title}
+        <h1 className="min-w-0 flex-1 text-xl font-semibold tracking-tight capitalize leading-tight lg:text-2xl">
+          {typeof title === "string" ? (
+            title
+          ) : (
+            <>
+              <span className="block">{title.weekday}</span>
+              <span className="block">{title.date}</span>
+            </>
+          )}
         </h1>
+        <HeaderWeather />
         {syncing ? (
           <span className="flex items-center gap-1 text-xs text-muted-foreground">
             <LoaderCircle className="size-3.5 animate-spin" />
@@ -325,6 +316,7 @@ function CalendarApp({
               <div className="text-muted-foreground">{me.email}</div>
             </div>
             <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={onOpenSettings}>Einstellungen</DropdownMenuItem>
             <DropdownMenuItem
               onClick={() => {
                 apiClient.logout().finally(onLogout);
@@ -352,10 +344,7 @@ function CalendarApp({
             <div className="flex min-h-11 items-center justify-between gap-3">
               <Label>Dunkles Design</Label>
               <Switch
-                checked={
-                  theme === "dark" ||
-                  (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches)
-                }
+                checked={dark}
                 onCheckedChange={(v) => setTheme(v ? "dark" : "light")}
               />
             </div>
@@ -367,7 +356,7 @@ function CalendarApp({
                   const next: 0 | 1 = v ? 0 : 1;
                   setWeekStart(next);
                   localStorage.setItem("kalender-week-start", String(next));
-                  apiClient.patchMe(next).catch(() => undefined);
+                  apiClient.patchMe({ weekStart: next }).catch(() => undefined);
                 }}
               />
             </div>
@@ -385,11 +374,12 @@ function CalendarApp({
             />
           </div>
         </section>
+        <Button variant="outline" onClick={onOpenSettings}>
+          Einstellungen
+        </Button>
         <Button
           variant="outline"
-          onClick={() => {
-            apiClient.logout().finally(onLogout);
-          }}
+          onClick={() => apiClient.logout().finally(onLogout)}
         >
           Abmelden
         </Button>
@@ -414,7 +404,12 @@ function CalendarApp({
             />
           </div>
         ) : null}
-        <AgendaView events={visibleEvents} from={cursor} onOpen={onOpenEvent} />
+        <AgendaView
+          events={visibleEvents}
+          from={cursor}
+          onOpen={onOpenEvent}
+          geminiAvailable={me.geminiAvailable}
+        />
       </div>
     );
   } else if (view === "day") {
@@ -466,18 +461,7 @@ function CalendarApp({
   }
 
   return (
-    <div
-      className="flex h-dvh flex-col bg-background"
-      onTouchStart={(e) => {
-        if (e.touches[0]?.clientY < 80) pullStart.current = e.touches[0].clientY;
-      }}
-      onTouchEnd={(e) => {
-        if (pullStart.current != null && e.changedTouches[0]) {
-          if (e.changedTouches[0].clientY - pullStart.current > 70) sync().catch(() => undefined);
-        }
-        pullStart.current = null;
-      }}
-    >
+    <div className="flex h-dvh flex-col bg-background">
       <div className="flex min-h-0 flex-1">
         <aside className="hidden w-72 shrink-0 flex-col gap-6 overflow-auto border-r border-border p-4 lg:flex">
           <AppSwitcher value={module} onChange={onModule} />
@@ -508,13 +492,7 @@ function CalendarApp({
           />
           <div className="mt-auto flex min-h-11 items-center justify-between gap-3 pt-4">
             <Label className="text-muted-foreground">Dunkel</Label>
-            <Switch
-              checked={
-                theme === "dark" ||
-                (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches)
-              }
-              onCheckedChange={(v) => setTheme(v ? "dark" : "light")}
-            />
+            <Switch checked={dark} onCheckedChange={(v) => setTheme(v ? "dark" : "light")} />
           </div>
         </aside>
         <div className="flex min-w-0 flex-1 flex-col">
@@ -524,7 +502,13 @@ function CalendarApp({
               <ViewSwitcher value={view === "agenda" ? "month" : view} onChange={setView} />
             </div>
           ) : null}
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{main}</div>
+          <PullToRefresh
+            className="min-h-0 flex-1 overflow-hidden"
+            onRefresh={() => sync()}
+            disabled={syncing}
+          >
+            {main}
+          </PullToRefresh>
         </div>
       </div>
       <Button
@@ -567,13 +551,37 @@ export function App() {
   const [me, setMe] = useState<Me | null | undefined>(undefined);
   const [module, setModule] = useState<AppModule>(() => {
     if (typeof window === "undefined") return "calendar";
+    const q = new URLSearchParams(window.location.search).get("module");
+    if (q === "mail" || q === "calendar") return q;
     return window.localStorage.getItem("app-module") === "mail" ? "mail" : "calendar";
+  });
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [threaded, setThreaded] = useState(() => {
+    if (typeof window === "undefined") return true;
+    return window.localStorage.getItem("mail-threaded") !== "false";
   });
 
   function onModule(next: AppModule) {
     setModule(next);
     window.localStorage.setItem("app-module", next);
   }
+
+  function onThreadedChange(next: boolean) {
+    setThreaded(next);
+    window.localStorage.setItem("mail-threaded", String(next));
+  }
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const q = params.get("module");
+    if (q === "mail" || q === "calendar") {
+      window.localStorage.setItem("app-module", q);
+    }
+    if (!params.has("module")) return;
+    params.delete("module");
+    const qs = params.toString();
+    window.history.replaceState({}, "", `${window.location.pathname}${qs ? `?${qs}` : ""}${window.location.hash}`);
+  }, []);
 
   useEffect(() => {
     apiClient
@@ -587,6 +595,11 @@ export function App() {
         }
       });
   }, []);
+
+  useEffect(() => {
+    if (!me?.id) return;
+    syncExistingPushSubscription().catch(() => undefined);
+  }, [me?.id]);
 
   if (me === undefined) {
     return (
@@ -606,10 +619,31 @@ export function App() {
   return (
     <>
       {module === "mail" ? (
-        <MailApp me={me} onLogout={() => setMe(null)} module={module} onModule={onModule} />
+        <MailApp
+          me={me}
+          onLogout={() => setMe(null)}
+          module={module}
+          onModule={onModule}
+          threaded={threaded}
+          onOpenSettings={() => setSettingsOpen(true)}
+        />
       ) : (
-        <CalendarApp me={me} onLogout={() => setMe(null)} module={module} onModule={onModule} />
+        <CalendarApp
+          me={me}
+          onLogout={() => setMe(null)}
+          module={module}
+          onModule={onModule}
+          onOpenSettings={() => setSettingsOpen(true)}
+        />
       )}
+      <SettingsDialog
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        me={me}
+        onMeChange={setMe}
+        threaded={threaded}
+        onThreadedChange={onThreadedChange}
+      />
       <Toaster />
     </>
   );

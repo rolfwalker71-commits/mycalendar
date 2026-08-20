@@ -4,6 +4,7 @@ import { eventOverlapsDay, isSameDay, now, startOfWeek, weekdayLabels } from "@/
 import type { CalendarEvent } from "@/lib/types";
 import { EventChip } from "@/components/EventChip";
 import { Button } from "@/components/ui/button";
+import { DayWeather } from "@/components/WeatherMark";
 
 export function MonthView({
   cursor,
@@ -48,17 +49,20 @@ export function MonthView({
                 !inMonth && "bg-muted/30",
               )}
             >
-              <Button
-                variant="ghost"
-                size="icon"
-                className={cn(
-                  "mb-1 size-8 self-start rounded-full text-sm",
-                  isSameDay(day, today) && "bg-today text-today-foreground hover:bg-today/90",
-                )}
-                onClick={() => onSelectDay(day)}
-              >
-                {day.day}
-              </Button>
+              <div className="mb-1 flex items-center justify-between gap-0.5">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={cn(
+                    "size-8 shrink-0 rounded-full text-sm",
+                    isSameDay(day, today) && "bg-today text-today-foreground hover:bg-today/90",
+                  )}
+                  onClick={() => onSelectDay(day)}
+                >
+                  {day.day}
+                </Button>
+                <DayWeather iso={day.toISODate()} />
+              </div>
               <div className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-hidden">
                 {dayEvents.slice(0, maxChips).map((e) => (
                   <EventChip key={e.id} event={e} compact onClick={() => onOpen(e)} />

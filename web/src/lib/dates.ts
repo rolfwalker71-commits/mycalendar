@@ -55,7 +55,16 @@ export function monthTitle(dt: DateTime): string {
 }
 
 export function dayTitle(dt: DateTime): string {
-  return dt.setLocale("de").toFormat("cccc, d. LLLL");
+  const parts = dayTitleParts(dt);
+  return `${parts.weekday}, ${parts.date}`;
+}
+
+export function dayTitleParts(dt: DateTime): { weekday: string; date: string } {
+  const d = dt.setLocale("de");
+  return {
+    weekday: d.toFormat("cccc"),
+    date: d.toFormat("d. LLLL"),
+  };
 }
 
 export function formatTime(dt: DateTime): string {

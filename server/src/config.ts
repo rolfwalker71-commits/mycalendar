@@ -27,10 +27,21 @@ export const GOOGLE_REDIRECT_URI =
   process.env.GOOGLE_REDIRECT_URI ??
   "http://localhost:3366/api/auth/google/callback";
 
+export const GEMINI_API_KEY = (process.env.GEMINI_API_KEY ?? "").trim();
+
 export const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL ?? "").replace(
   /\/$/,
   "",
 );
+
+export function publicOrigin(): string {
+  if (PUBLIC_BASE_URL) return PUBLIC_BASE_URL;
+  try {
+    return new URL(GOOGLE_REDIRECT_URI).origin;
+  } catch {
+    return `http://localhost:${APP_PORT}`;
+  }
+}
 
 export const ALLOWED_GOOGLE_EMAILS = (process.env.ALLOWED_GOOGLE_EMAILS ?? "")
   .split(",")

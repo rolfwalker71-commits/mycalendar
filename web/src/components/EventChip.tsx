@@ -27,7 +27,7 @@ export function EventChip({
       type="button"
       onClick={onClick}
       className={cn(
-        "flex w-full min-h-0 items-center gap-1 overflow-hidden rounded-md px-1.5 text-left text-xs leading-tight",
+        "flex w-full min-h-0 items-center gap-1 overflow-hidden rounded-[3px] px-1.5 text-left text-xs leading-tight",
         compact ? "h-5 py-0" : "min-h-6 py-0.5",
         declined && "opacity-50 line-through",
         className,

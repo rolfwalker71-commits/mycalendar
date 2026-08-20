@@ -8,6 +8,9 @@ export type UserRow = {
   token_expiry: Date | null;
   week_start: number;
   last_sync_at: Date | null;
+  gmail_history_id: string | null;
+  notify_calendar: boolean;
+  notify_mail: boolean;
   created_at: Date;
   last_login_at: Date | null;
 };

@@ -71,7 +71,7 @@ export function TimeGrid({
                 onOpen(e);
               }}
               className={cn(
-                "absolute overflow-hidden rounded-md px-1.5 py-0.5 text-left text-xs leading-tight",
+                "absolute overflow-hidden rounded-[3px] px-1.5 py-0.5 text-left text-xs leading-tight",
                 isDeclined(e) && "opacity-50 line-through",
               )}
               style={{

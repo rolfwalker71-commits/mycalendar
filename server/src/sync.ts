@@ -9,6 +9,7 @@ import {
   isGoneError,
   GoogleAuthError,
 } from "./google.js";
+import { notifyNewCalendarEvent } from "./notify.js";
 import type { AttendeeJson, CalendarRow, EventRow, UserRow } from "./types.js";
 
 function asDate(value: string | null | undefined): string | null {
@@ -87,8 +88,10 @@ function mapGoogleEvent(
   };
 }
 
-async function upsertEvent(row: Omit<EventRow, "id" | "updated_at">): Promise<void> {
-  await query(
+async function upsertEvent(
+  row: Omit<EventRow, "id" | "updated_at">,
+): Promise<{ inserted: boolean; id: string } | null> {
+  const { rows } = await query<{ id: string; inserted: boolean }>(
     `INSERT INTO events (
        user_id, calendar_id, google_event_id, ical_uid, summary, description,
        location, status, html_link, hangout_link, start_at, end_at, all_day,
@@ -117,7 +120,8 @@ async function upsertEvent(row: Omit<EventRow, "id" | "updated_at">): Promise<vo
        transparency = EXCLUDED.transparency,
        visibility = EXCLUDED.visibility,
        conference_data = EXCLUDED.conference_data,
-       updated_at = NOW()`,
+       updated_at = NOW()
+     RETURNING id, (xmax = 0) AS inserted`,
     [
       row.user_id,
       row.calendar_id,
@@ -143,6 +147,8 @@ async function upsertEvent(row: Omit<EventRow, "id" | "updated_at">): Promise<vo
       row.conference_data ? JSON.stringify(row.conference_data) : null,
     ],
   );
+  const rowOut = rows[0];
+  return rowOut ? { inserted: rowOut.inserted, id: rowOut.id } : null;
 }
 
 async function deleteCachedEvent(
@@ -215,7 +221,7 @@ export async function syncCalendarList(user: UserRow): Promise<CalendarRow[]> {
 }
 
 async function applyEventPage(
-  userId: string,
+  user: UserRow,
   calendar: CalendarRow,
   items: calendar_v3.Schema$Event[] | undefined,
 ): Promise<void> {
@@ -225,8 +231,23 @@ async function applyEventPage(
       await deleteCachedEvent(calendar.id, item.id);
       continue;
     }
-    const mapped = mapGoogleEvent(item, userId, calendar.id);
-    if (mapped) await upsertEvent(mapped);
+    const mapped = mapGoogleEvent(item, user.id, calendar.id);
+    if (!mapped) continue;
+    const saved = await upsertEvent(mapped);
+    if (saved?.inserted && user.last_sync_at) {
+      await notifyNewCalendarEvent(user, {
+        id: saved.id,
+        summary: mapped.summary,
+        location: mapped.location,
+        description: mapped.description,
+        attendees: mapped.attendees,
+        start_at: mapped.start_at,
+        end_at: mapped.end_at,
+        all_day: mapped.all_day,
+        hangout_link: mapped.hangout_link,
+        calendar_summary: calendar.summary,
+      });
+    }
   }
 }
 
@@ -249,7 +270,7 @@ async function rangeSync(
       maxResults: 2500,
       pageToken,
     });
-    await applyEventPage(user.id, calendar, res.data.items);
+    await applyEventPage(user, calendar, res.data.items);
     pageToken = res.data.nextPageToken ?? undefined;
     if (res.data.nextSyncToken) nextSyncToken = res.data.nextSyncToken;
   } while (pageToken);
@@ -277,7 +298,7 @@ async function incrementalSync(
       pageToken,
       maxResults: 2500,
     });
-    await applyEventPage(user.id, calendar, res.data.items);
+    await applyEventPage(user, calendar, res.data.items);
     pageToken = res.data.nextPageToken ?? undefined;
     syncToken = undefined;
     if (res.data.nextSyncToken) {
