@@ -51,7 +51,15 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { SwipeableRow } from "@/components/SwipeableRow";
 
 const MAIL_LIST_CACHE = "mail-list-v1";
-const MAIL_LABELS_CACHE = "mail-labels-v1";
+const MAIL_LABELS_CACHE = "mail-labels-v2";
+
+function labelBadgeCount(label: MailLabel, threaded: boolean): number {
+  if (label.id === "DRAFT") return label.messagesTotal || label.threadsTotal;
+  if (label.id === "SENT" || label.id === "TRASH") return 0;
+  return threaded
+    ? label.threadsUnread || label.messagesUnread
+    : label.messagesUnread || label.threadsUnread;
+}
 
 function readJsonCache<T>(key: string, maxAgeMs: number): T | null {
   try {
@@ -102,14 +110,15 @@ const BOX_ICONS: Record<string, typeof Inbox> = {
 function MailboxRow({
   label,
   active,
+  badge,
   onClick,
 }: {
   label: MailLabel;
   active: boolean;
+  badge: number;
   onClick: () => void;
 }) {
   const Icon = BOX_ICONS[label.id] ?? Mail;
-  const unread = label.threadsUnread || label.messagesUnread;
   return (
     <button
       type="button"
@@ -127,10 +136,8 @@ function MailboxRow({
         />
       ) : null}
       <span className="min-w-0 flex-1 truncate font-medium">{label.name}</span>
-      {unread ? (
-        <span className={cn("text-[0.6875rem] tabular-nums", active ? "text-mail" : "text-muted-foreground")}>
-          {unread}
-        </span>
+      {badge > 0 ? (
+        <span className="shrink-0 text-[0.75rem] font-semibold tabular-nums text-mail">{badge}</span>
       ) : null}
     </button>
   );
@@ -626,6 +633,32 @@ export function MailApp({
     setNeedsScope(false);
   }, []);
 
+  function bumpUnread(folderIds: string[], delta: number) {
+    if (!delta) return;
+    const ids = new Set(folderIds);
+    setLabels((prev) => {
+      const next = prev.map((l) =>
+        ids.has(l.id)
+          ? {
+              ...l,
+              threadsUnread: Math.max(0, l.threadsUnread + delta),
+              messagesUnread: Math.max(0, l.messagesUnread + delta),
+            }
+          : l,
+      );
+      writeJsonCache(MAIL_LABELS_CACHE, next);
+      return next;
+    });
+  }
+
+  function unreadFolders(current: string): string[] {
+    if (current === "INBOX") return ["INBOX"];
+    if (current === "SPAM" || current === "TRASH" || current === "DRAFT" || current === "SENT") {
+      return [current];
+    }
+    return [current, "INBOX"];
+  }
+
   const loadThreads = useCallback(
     async (pageToken?: string) => {
       const cacheKey = mailListCacheKey(labelId, appliedQuery, threaded);
@@ -697,6 +730,7 @@ export function MailApp({
       if (!desktop) setMobilePane("thread");
       setThread(next);
       if (next.unread) {
+        bumpUnread(unreadFolders(labelId), -1);
         await apiClient.mailModify(id, [], ["UNREAD"], threaded);
         setThreads((ts) => ts.map((t) => (t.id === id ? { ...t, unread: false } : t)));
         setThread({ ...next, unread: false, messages: next.messages.map((m) => ({ ...m, unread: false })) });
@@ -743,16 +777,20 @@ export function MailApp({
 
   async function archiveIds(ids: string[]) {
     if (!ids.length) return;
+    const unreadN = ids.filter((id) => threads.find((t) => t.id === id)?.unread).length;
     await Promise.all(ids.map((id) => apiClient.mailModify(id, [], ["INBOX"], threaded)));
+    bumpUnread(["INBOX"], -unreadN);
     await removeFromList(ids);
   }
 
   async function trashIds(ids: string[]) {
     if (!ids.length) return;
+    const unreadN = ids.filter((id) => threads.find((t) => t.id === id)?.unread).length;
     if (labelId === "TRASH") {
       await Promise.all(ids.map((id) => apiClient.mailUntrash(id, threaded)));
     } else {
       await Promise.all(ids.map((id) => apiClient.mailTrash(id, threaded)));
+      bumpUnread(unreadFolders(labelId), -unreadN);
     }
     await removeFromList(ids);
   }
@@ -778,6 +816,7 @@ export function MailApp({
   async function markUnread() {
     if (!selectedId) return;
     await apiClient.mailModify(selectedId, ["UNREAD"], [], threaded);
+    bumpUnread(unreadFolders(labelId), 1);
     setThreads((ts) => ts.map((t) => (t.id === selectedId ? { ...t, unread: true } : t)));
     setThread((th) => (th ? { ...th, unread: true } : th));
     toast.success("Als ungelesen markiert.");
@@ -882,6 +921,7 @@ export function MailApp({
           key={label.id}
           label={label}
           active={labelId === label.id}
+          badge={labelBadgeCount(label, threaded)}
           onClick={() => {
             setLabelId(label.id);
             setFoldersOpen(false);
@@ -900,6 +940,7 @@ export function MailApp({
                 <MailboxRow
                   label={label}
                   active={labelId === label.id}
+                  badge={labelBadgeCount(label, threaded)}
                   onClick={() => {
                     setLabelId(label.id);
                     setFoldersOpen(false);
@@ -953,7 +994,12 @@ export function MailApp({
             size="icon"
             aria-label={foldersOpen ? "Ordner schliessen" : "Ordner öffnen"}
             aria-expanded={foldersOpen}
-            onClick={() => setFoldersOpen((v) => !v)}
+            onClick={() => {
+              setFoldersOpen((v) => {
+                if (!v) loadLabels().catch(() => undefined);
+                return !v;
+              });
+            }}
           >
             <ChevronRight
               className={cn(

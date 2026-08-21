@@ -178,26 +178,57 @@ async function gmailFor(req: Request) {
   return getAuthedGmail(req.user!);
 }
 
+type LabelCounts = {
+  messagesTotal: number;
+  messagesUnread: number;
+  threadsTotal: number;
+  threadsUnread: number;
+};
+
+function countsFrom(label?: gmail_v1.Schema$Label | null): LabelCounts {
+  return {
+    messagesTotal: label?.messagesTotal ?? 0,
+    messagesUnread: label?.messagesUnread ?? 0,
+    threadsTotal: label?.threadsTotal ?? 0,
+    threadsUnread: label?.threadsUnread ?? 0,
+  };
+}
+
+async function fetchLabelCounts(
+  gmail: Awaited<ReturnType<typeof gmailFor>>,
+  ids: string[],
+): Promise<Map<string, LabelCounts>> {
+  const unique = [...new Set(ids.filter(Boolean))];
+  const rows = await mapPool(unique, 8, async (id) => {
+    try {
+      const { data } = await gmail.users.labels.get({ userId: "me", id });
+      return [id, countsFrom(data)] as const;
+    } catch {
+      return [id, countsFrom(null)] as const;
+    }
+  });
+  return new Map(rows);
+}
+
 mailRouter.get("/labels", async (req, res) => {
   try {
     const gmail = await gmailFor(req);
     const { data } = await gmail.users.labels.list({ userId: "me" });
-    const byId = new Map((data.labels ?? []).map((l) => [l.id ?? "", l]));
-    const system = SYSTEM_LABELS.map((s) => {
-      const label = byId.get(s.id);
-      return {
-        id: s.id,
-        name: s.name,
-        type: "system" as const,
-        color: null as { backgroundColor: string; textColor: string } | null,
-        messagesTotal: label?.messagesTotal ?? 0,
-        messagesUnread: label?.messagesUnread ?? 0,
-        threadsTotal: label?.threadsTotal ?? 0,
-        threadsUnread: label?.threadsUnread ?? 0,
-      };
-    });
-    const user = (data.labels ?? [])
-      .filter((l) => l.type === "user" && l.id && l.name)
+    const listed = data.labels ?? [];
+    const userRaw = listed.filter((l) => l.type === "user" && l.id && l.name);
+    const counts = await fetchLabelCounts(gmail, [
+      ...SYSTEM_LABELS.map((s) => s.id),
+      ...userRaw.map((l) => l.id as string),
+    ]);
+    const system = SYSTEM_LABELS.map((s) => ({
+      id: s.id,
+      name: s.name,
+      type: "system" as const,
+      color: null as { backgroundColor: string; textColor: string } | null,
+      ...countsFrom(null),
+      ...(counts.get(s.id) ?? {}),
+    }));
+    const user = userRaw
       .map((l) => ({
         id: l.id as string,
         name: l.name as string,
@@ -208,10 +239,8 @@ mailRouter.get("/labels", async (req, res) => {
               textColor: l.color.textColor ?? "#000000",
             }
           : null,
-        messagesTotal: l.messagesTotal ?? 0,
-        messagesUnread: l.messagesUnread ?? 0,
-        threadsTotal: l.threadsTotal ?? 0,
-        threadsUnread: l.threadsUnread ?? 0,
+        ...countsFrom(null),
+        ...(counts.get(l.id as string) ?? {}),
       }))
       .sort((a, b) => a.name.localeCompare(b.name, "de"));
     res.json({ labels: [...system, ...user] });

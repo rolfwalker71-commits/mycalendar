@@ -1,4 +1,5 @@
 import { DateTime } from "luxon";
+import { CalendarDays, CalendarRange } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -100,8 +101,14 @@ export function MiniNavigator({
     <div className="flex flex-col gap-3">
       <Tabs value={range} onValueChange={(v) => onRangeChange(v as MiniRange)}>
         <TabsList className="w-full">
-          <TabsTrigger value="week">Woche</TabsTrigger>
-          <TabsTrigger value="month">Monat</TabsTrigger>
+          <TabsTrigger value="week">
+            <CalendarRange />
+            Woche
+          </TabsTrigger>
+          <TabsTrigger value="month">
+            <CalendarDays />
+            Monat
+          </TabsTrigger>
         </TabsList>
       </Tabs>
       <MiniMonth
