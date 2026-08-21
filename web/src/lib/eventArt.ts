@@ -11,6 +11,8 @@ export type EventArtKind =
   | "hotel"
   | "doctor"
   | "sport"
+  | "run"
+  | "hockey"
   | "swim"
   | "ski"
   | "hike"
@@ -86,6 +88,24 @@ export const EVENT_ART_RULES: Rule[] = [
   { kind: "swim", words: ["schwimmen", "hallenbad", "schwimmbad", "badi"] },
   { kind: "ski", words: ["skifahren", "skitag", "snowboard", "skiurlaub"] },
   { kind: "hike", words: ["wanderung", "wandern", "bergtour", "hoehenweg"] },
+  {
+    kind: "run",
+    words: [
+      "laufanlass",
+      "volkslauf",
+      "marathon",
+      "halbmarathon",
+      "trailrun",
+      "jogging",
+      "laufen",
+      "rennen",
+      "lauf",
+    ],
+  },
+  {
+    kind: "hockey",
+    words: ["eishockey", "hockey", "hcap", "ambri", "nl-spiel", "nationalleague"],
+  },
   { kind: "camping", words: ["camping", "zeltlager", "biwak"] },
   { kind: "boat", words: ["segeln", "schiff", "bootstour", "schifffahrt"] },
   { kind: "garden", words: ["garten", "gaertnern", "pflanzung"] },
@@ -147,7 +167,6 @@ export const EVENT_ART_RULES: Rule[] = [
       "fitness",
       "fussball",
       "tennis",
-      "jogging",
       "kraftraum",
       "yoga",
       "pilates",
@@ -217,6 +236,13 @@ export function eventArtKind(input: {
   if (/arbeitsplan/.test(fold(input.calendarSummary || "")) && /valentyna/.test(fold(input.calendarSummary || ""))) {
     return "nurse";
   }
+  if (/\b(hcap|ambri)\b/.test(text) || /ambri-piotta/.test(text)) return "hockey";
+  if (
+    /(lauf|rennen|marathon|jogging|trailrun)/.test(text) &&
+    !/(verlauf|ablauf|auflauf|kreislauf)/.test(text)
+  ) {
+    return "run";
+  }
   for (const rule of EVENT_ART_RULES) {
     if (rule.words.some((word) => hasWord(text, word))) return rule.kind;
   }
@@ -243,6 +269,8 @@ const ART_FILE: Record<EventArtKind, string> = {
   doctor: "doctor",
   nurse: "nurse",
   sport: "sport",
+  run: "run",
+  hockey: "hockey",
   game: "sport",
   dance: "sport",
   ski: "ski",
@@ -280,5 +308,5 @@ export function eventArtSrc(
   kind: EventArtKind,
   variant: "side" | "header",
 ): string {
-  return `/event-art/${ART_FILE[kind]}-${variant}.jpg?v=illust3`;
+  return `/event-art/${ART_FILE[kind]}-${variant}.jpg?v=illust4`;
 }

@@ -313,8 +313,9 @@ export const apiClient = {
     api<{ lat: number | null; lon: number | null; label?: string }>(
       `/api/maps/preview?q=${encodeURIComponent(q)}`,
     ),
-  mapsSuggest: (q: string) =>
+  mapsSuggest: (q: string, init?: RequestInit) =>
     api<{ places: { label: string; lat: number; lon: number }[] }>(
       `/api/maps/suggest?q=${encodeURIComponent(q)}`,
+      init,
     ),
 };

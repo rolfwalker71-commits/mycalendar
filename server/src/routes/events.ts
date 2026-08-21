@@ -302,6 +302,49 @@ eventsRouter.patch("/:id", async (req, res) => {
     return;
   }
 
+  let activeCalendar = calendar;
+  const destCalendarId = typeof body.calendarId === "string" ? body.calendarId : "";
+  if (destCalendarId && destCalendarId !== event.calendar_id) {
+    const dest = await getOwnedCalendar(req.user!.id, destCalendarId);
+    if (!dest) {
+      res.status(404).json({ error: "Zielkalender nicht gefunden." });
+      return;
+    }
+    const canWrite = (role: string | null) => ["owner", "writer"].includes(role ?? "");
+    if (!canWrite(dest.access_role)) {
+      res.status(403).json({ error: "In diesen Kalender kannst du Termine nicht verschieben." });
+      return;
+    }
+    if (!canWrite(calendar.access_role)) {
+      res.status(403).json({ error: "Diesen Termin kannst du nicht in einen anderen Kalender schieben." });
+      return;
+    }
+    try {
+      const api = await getAuthedCalendar(req.user!);
+      const moveId = event.recurring_event_id || event.google_event_id;
+      await api.events.move({
+        calendarId: calendar.google_cal_id,
+        eventId: moveId,
+        destination: dest.google_cal_id,
+      });
+      await query(
+        `UPDATE events
+            SET calendar_id = $1, updated_at = NOW()
+          WHERE user_id = $2
+            AND calendar_id = $3
+            AND (google_event_id = $4 OR recurring_event_id = $4 OR id = $5)`,
+        [dest.id, req.user!.id, calendar.id, moveId, event.id],
+      );
+      event.calendar_id = dest.id;
+      activeCalendar = dest;
+    } catch (err) {
+      if (handleGoogleError(res, err)) return;
+      console.error(err);
+      res.status(502).json({ error: "Termin konnte nicht in den anderen Kalender verschoben werden." });
+      return;
+    }
+  }
+
   const scope = body.scope ?? "this";
   const patchBody = eventToGoogleBody({
     summary: (body.summary ?? event.summary ?? "").trim() || "(Ohne Titel)",
@@ -310,7 +353,7 @@ eventsRouter.patch("/:id", async (req, res) => {
     allDay: body.allDay ?? event.all_day,
     start: body.start ?? (event.all_day ? event.all_day_start ?? "" : event.start_at?.toISOString() ?? ""),
     end: body.end ?? (event.all_day ? event.all_day_end ?? "" : event.end_at?.toISOString() ?? ""),
-    timezone: body.timezone || event.timezone || calendar.timezone || TZ,
+    timezone: body.timezone || event.timezone || activeCalendar.timezone || TZ,
     attendees: body.attendees,
     recurrence: body.recurrence === undefined ? undefined : body.recurrence ?? undefined,
     visibility: body.visibility !== undefined ? body.visibility : event.visibility,
@@ -330,7 +373,7 @@ eventsRouter.patch("/:id", async (req, res) => {
     if (scope === "all" && event.recurring_event_id) {
       targetId = event.recurring_event_id;
       const master = await api.events.get({
-        calendarId: calendar.google_cal_id,
+        calendarId: activeCalendar.google_cal_id,
         eventId: targetId,
       });
       if (master.data.recurrence && body.recurrence === undefined) {
@@ -344,7 +387,7 @@ eventsRouter.patch("/:id", async (req, res) => {
 
     if (scope === "thisAndFollowing" && event.recurring_event_id) {
       const master = await api.events.get({
-        calendarId: calendar.google_cal_id,
+        calendarId: activeCalendar.google_cal_id,
         eventId: event.recurring_event_id,
       });
       const instanceStart = event.all_day
@@ -353,12 +396,12 @@ eventsRouter.patch("/:id", async (req, res) => {
       const until = untilFromInstanceStart(instanceStart, event.all_day);
       const rules = withUntil(master.data.recurrence ?? ["RRULE:FREQ=DAILY"], until);
       await api.events.patch({
-        calendarId: calendar.google_cal_id,
+        calendarId: activeCalendar.google_cal_id,
         eventId: event.recurring_event_id,
         requestBody: { recurrence: rules },
       });
       const inserted = await api.events.insert({
-        calendarId: calendar.google_cal_id,
+        calendarId: activeCalendar.google_cal_id,
         requestBody: {
           ...patchBody,
           recurrence: body.recurrence ?? master.data.recurrence,
@@ -368,7 +411,7 @@ eventsRouter.patch("/:id", async (req, res) => {
         sendUpdates: "all",
       });
       if (inserted.data.id) {
-        await refreshCachedEvent(req.user!, calendar, inserted.data.id);
+        await refreshCachedEvent(req.user!, activeCalendar, inserted.data.id);
       }
       await syncUserEvents(req.user!);
       const { rows } = await query<
@@ -388,14 +431,14 @@ eventsRouter.patch("/:id", async (req, res) => {
     }
 
     await api.events.patch({
-      calendarId: calendar.google_cal_id,
+      calendarId: activeCalendar.google_cal_id,
       eventId: targetId,
       requestBody: patchBody,
       conferenceDataVersion: body.createMeet ? 1 : undefined,
       supportsAttachments: patchBody.attachments?.length ? true : undefined,
       sendUpdates: "all",
     });
-    await refreshCachedEvent(req.user!, calendar, targetId);
+    await refreshCachedEvent(req.user!, activeCalendar, targetId);
     if (targetId !== event.google_event_id) {
       await syncUserEvents(req.user!);
     }

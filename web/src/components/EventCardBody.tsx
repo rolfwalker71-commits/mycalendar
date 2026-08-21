@@ -4,7 +4,6 @@ import { eventArtKind } from "@/lib/eventArt";
 import { parseFlightRoute } from "@/lib/flights";
 import type { CalendarEvent } from "@/lib/types";
 import { isDeclined } from "@/components/EventChip";
-import { EventMapSnippet } from "@/components/EventMap";
 import { EventArtBanner } from "@/components/EventArt";
 import { cn } from "@/lib/utils";
 
@@ -63,17 +62,14 @@ export function EventCardBody({
             </p>
             <p className="mt-0.5 text-sm text-muted-foreground">{subtitle}</p>
             {event.location ? (
-              <>
-                <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
-                  {route ? <Plane className="size-3.5 shrink-0" /> : <MapPin className="size-3.5 shrink-0" />}
-                  {route ? (
-                    <FlightPathLabel from={route.from} to={route.to} />
-                  ) : (
-                    <span className="break-words">{event.location}</span>
-                  )}
-                </p>
-                <EventMapSnippet location={event.location} summary={event.summary} />
-              </>
+              <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
+                {route ? <Plane className="size-3.5 shrink-0" /> : <MapPin className="size-3.5 shrink-0" />}
+                {route ? (
+                  <FlightPathLabel from={route.from} to={route.to} />
+                ) : (
+                  <span className="break-words">{event.location}</span>
+                )}
+              </p>
             ) : null}
             {event.hangoutLink ? (
               <p className="mt-1 flex items-center gap-1 text-sm text-muted-foreground">

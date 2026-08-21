@@ -304,7 +304,11 @@ export function EventEditor({
     try {
       if (event) {
         await apiClient.patchEvent(event.id, payload());
-        toast.success("Termin gespeichert.");
+        toast.success(
+          calendarId !== event.calendarId
+            ? "Termin in den anderen Kalender verschoben."
+            : "Termin gespeichert.",
+        );
       } else {
         await apiClient.createEvent(payload());
         toast.success("Termin erstellt.");

@@ -79,6 +79,7 @@ export function AgendaView({
                 return (
                   <li key={event.id}>
                     <SwipeableEventCard
+                      onOpen={() => onOpen(event)}
                       onEdit={() => onOpen(event)}
                       onDelete={() => onDelete(event)}
                       onDuplicate={() => onDuplicate(event)}

@@ -41,6 +41,8 @@ export function TimeGrid({
   const nowTop = ((today.hour * 60 + today.minute) / 60) * HOUR_HEIGHT;
   const gridRef = useRef<HTMLDivElement>(null);
   const [ghost, setGhost] = useState<{ top: number; height: number; left: string; width: string } | null>(null);
+  const holdTimer = useRef(0);
+  const openedHold = useRef(false);
   const drag = useRef<{
     event: CalendarEvent;
     mode: "move" | "resize";
@@ -86,6 +88,8 @@ export function TimeGrid({
     e.stopPropagation();
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     const durationMin = Math.max(15, Math.round((height / HOUR_HEIGHT) * 60 / 15) * 15);
+    openedHold.current = false;
+    window.clearTimeout(holdTimer.current);
     drag.current = {
       event,
       mode,
@@ -95,13 +99,21 @@ export function TimeGrid({
       durationMin,
       moved: false,
     };
+    holdTimer.current = window.setTimeout(() => {
+      if (drag.current?.moved) return;
+      openedHold.current = true;
+      onOpen(event);
+    }, 480);
   }
 
   function onPointerMove(e: ReactPointerEvent) {
     const d = drag.current;
     if (!d) return;
     const dy = e.clientY - d.startY;
-    if (Math.abs(dy) > 4) d.moved = true;
+    if (Math.abs(dy) > 4) {
+      d.moved = true;
+      window.clearTimeout(holdTimer.current);
+    }
     if (d.mode === "move") {
       const top = Math.max(0, Math.min(24 * HOUR_HEIGHT - 16, d.origTop + dy));
       const snapped = (minutesFromClick(top) / 60) * HOUR_HEIGHT;
@@ -125,11 +137,12 @@ export function TimeGrid({
 
   function onPointerUp(e: ReactPointerEvent) {
     const d = drag.current;
+    window.clearTimeout(holdTimer.current);
     setGhost(null);
     drag.current = null;
     if (!d || !onMove) return;
     if (!d.moved) {
-      onOpen(d.event);
+      if (!openedHold.current && e.pointerType === "mouse") onOpen(d.event);
       return;
     }
     const dropDay = d.mode === "move" ? dayFromPoint(e.clientX, e.clientY) : day;
@@ -216,10 +229,7 @@ export function TimeGrid({
             <button
               key={e.id}
               type="button"
-              onClick={(ev) => {
-                ev.stopPropagation();
-                if (!drag.current?.moved) onOpen(e);
-              }}
+              onClick={(ev) => ev.stopPropagation()}
               onPointerDown={(ev) => onPointerDown(ev, e, "move", e.top, e.height)}
               onPointerMove={onPointerMove}
               onPointerUp={onPointerUp}

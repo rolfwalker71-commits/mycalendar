@@ -23,6 +23,7 @@ export function SwipeableEventCard({
     <SwipeableRow
       className={className}
       onOpen={onOpen}
+      longPressToOpen
       actions={[
         ...(onEdit
           ? [

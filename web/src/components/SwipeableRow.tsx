@@ -2,6 +2,8 @@ import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from "
 import { cn } from "@/lib/utils";
 
 const ACTION_W = 64;
+const LONG_PRESS_MS = 480;
+const MOVE_PX = 8;
 
 export type SwipeAction = {
   key: string;
@@ -17,12 +19,14 @@ export function SwipeableRow({
   onOpen,
   className,
   disabled,
+  longPressToOpen = false,
 }: {
   children: ReactNode;
   actions: SwipeAction[];
   onOpen?: () => void;
   className?: string;
   disabled?: boolean;
+  longPressToOpen?: boolean;
 }) {
   const openX = -(ACTION_W * actions.length);
   const [x, setX] = useState(0);
@@ -34,12 +38,22 @@ export function SwipeableRow({
   const axis = useRef<"h" | "v" | null>(null);
   const dragged = useRef(false);
   const pointerId = useRef<number | null>(null);
+  const pointerType = useRef("");
   const xRef = useRef(0);
   const onOpenRef = useRef(onOpen);
   const openXRef = useRef(openX);
+  const holdTimer = useRef(0);
+  const openedHold = useRef(false);
+  const longPressRef = useRef(longPressToOpen);
   xRef.current = x;
   onOpenRef.current = onOpen;
   openXRef.current = openX;
+  longPressRef.current = longPressToOpen;
+
+  function clearHold() {
+    window.clearTimeout(holdTimer.current);
+    holdTimer.current = 0;
+  }
 
   function finish(openEvent: boolean) {
     if (pointerId.current == null) return;
@@ -48,9 +62,13 @@ export function SwipeableRow({
     const wasDrag = dragged.current;
     const from = origin.current;
     const snap = openXRef.current;
+    const held = openedHold.current;
+    const mouse = pointerType.current === "mouse";
     pointerId.current = null;
     axis.current = null;
     dragged.current = false;
+    openedHold.current = false;
+    clearHold();
     const el = surfaceRef.current;
     if (el?.hasPointerCapture(id)) {
       try {
@@ -68,7 +86,9 @@ export function SwipeableRow({
       setX(0);
       return;
     }
-    if (openEvent && !wasDrag) onOpenRef.current?.();
+    if (held) return;
+    if (!openEvent || wasDrag) return;
+    if (!longPressRef.current || mouse) onOpenRef.current?.();
   }
 
   const finishRef = useRef(finish);
@@ -77,11 +97,22 @@ export function SwipeableRow({
   function onPointerDown(e: PointerEvent<HTMLDivElement>) {
     if (disabled || e.button !== 0) return;
     pointerId.current = e.pointerId;
+    pointerType.current = e.pointerType;
     startX.current = e.clientX;
     startY.current = e.clientY;
     origin.current = xRef.current;
     axis.current = null;
     dragged.current = false;
+    openedHold.current = false;
+    clearHold();
+    if (longPressRef.current && origin.current === 0 && onOpenRef.current) {
+      holdTimer.current = window.setTimeout(() => {
+        if (pointerId.current == null || dragged.current || axis.current === "h") return;
+        openedHold.current = true;
+        clearHold();
+        onOpenRef.current?.();
+      }, LONG_PRESS_MS);
+    }
   }
 
   function onPointerMove(e: PointerEvent<HTMLDivElement>) {
@@ -89,7 +120,8 @@ export function SwipeableRow({
     const dx = e.clientX - startX.current;
     const dy = e.clientY - startY.current;
     if (!axis.current) {
-      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+      if (Math.abs(dx) < MOVE_PX && Math.abs(dy) < MOVE_PX) return;
+      clearHold();
       axis.current = Math.abs(dx) > Math.abs(dy) ? "h" : "v";
       if (axis.current === "h") {
         e.currentTarget.setPointerCapture(e.pointerId);
@@ -156,6 +188,7 @@ export function SwipeableRow({
         style={{ transform: `translateX(${x}px)` }}
         onPointerDown={onPointerDown}
         onPointerMove={disabled ? undefined : onPointerMove}
+        onContextMenu={longPressToOpen ? (e) => e.preventDefault() : undefined}
         onClick={disabled ? () => onOpenRef.current?.() : undefined}
         onLostPointerCapture={() => finishRef.current(false)}
         onDragStart={(e) => e.preventDefault()}

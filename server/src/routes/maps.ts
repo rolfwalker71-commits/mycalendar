@@ -86,6 +86,22 @@ function isSwiss(country?: string): boolean {
   return c === "ch" || c === "schweiz" || c === "switzerland" || c === "suisse";
 }
 
+function limitMs<T>(p: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return new Promise((resolve) => {
+    const t = setTimeout(() => resolve(fallback), ms);
+    p.then(
+      (v) => {
+        clearTimeout(t);
+        resolve(v);
+      },
+      () => {
+        clearTimeout(t);
+        resolve(fallback);
+      },
+    );
+  });
+}
+
 async function photonSearch(
   q: string,
   limit: number,
@@ -102,7 +118,7 @@ async function photonSearch(
   url.searchParams.set("location_bias_scale", "0.08");
   const res = await fetch(url, {
     headers: { "User-Agent": UA, Accept: "application/json" },
-    signal: AbortSignal.timeout(6000),
+    signal: AbortSignal.timeout(1500),
   });
   if (!res.ok) return [];
   const data = (await res.json()) as {
@@ -151,12 +167,12 @@ async function nominatimSearch(q: string, limit: number): Promise<RankedHit[]> {
     url.searchParams.set("countrycodes", "ch,li,at,de,it,fr");
     url.searchParams.set("viewbox", "5.9,47.9,10.6,45.8");
     url.searchParams.set("bounded", "0");
-    const res = await fetch(url, {
-      headers: { "User-Agent": UA, Accept: "application/json" },
-      signal: AbortSignal.timeout(6000),
-    });
-    if (!res.ok) return [];
-    const rows = (await res.json()) as {
+  const res = await fetch(url, {
+    headers: { "User-Agent": UA, Accept: "application/json" },
+    signal: AbortSignal.timeout(2500),
+  });
+  if (!res.ok) return [];
+  const rows = (await res.json()) as {
       lat?: string;
       lon?: string;
       display_name?: string;
@@ -202,23 +218,64 @@ function overpassFilters(namePart: string): string[] {
     .split(/\s+/)
     .map((w) => w.replace(/[^\p{L}\p{N}-]/gu, ""))
     .filter((w) => w.length >= 4);
-  if (words.length) {
+  if (words.length && !filters.length) {
     filters.push(`["name"~"${words.map(escapeOverpassRe).join("|")}",i]`);
   }
   return [...new Set(filters)];
 }
 
+async function openMeteoSearch(q: string, limit: number): Promise<RankedHit[]> {
+  const url = new URL("https://geocoding-api.open-meteo.com/v1/search");
+  url.searchParams.set("name", q);
+  url.searchParams.set("count", String(Math.min(20, Math.max(1, limit))));
+  url.searchParams.set("language", "de");
+  url.searchParams.set("format", "json");
+  const res = await fetch(url, {
+    headers: { "User-Agent": UA, Accept: "application/json" },
+    signal: AbortSignal.timeout(2500),
+  });
+  if (!res.ok) return [];
+  const data = (await res.json()) as {
+    results?: {
+      name?: string;
+      latitude?: number;
+      longitude?: number;
+      country?: string;
+      country_code?: string;
+      admin1?: string;
+      admin3?: string;
+      postcodes?: string[];
+    }[];
+  };
+  const hits: RankedHit[] = [];
+  for (const row of data.results ?? []) {
+    const lat = Number(row.latitude);
+    const lon = Number(row.longitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon) || !row.name) continue;
+    const city = row.admin3 && row.admin3 !== row.name ? row.admin3 : "";
+    const label = [row.name, city, row.admin1, row.country || "Schweiz"].filter(Boolean).join(", ");
+    hits.push({
+      label,
+      lat,
+      lon,
+      name: row.name,
+      country: row.country_code || row.country,
+    });
+  }
+  return hits;
+}
+
 async function overpassPois(
   around: { lat: number; lon: number },
   namePart: string,
+  radiusM = 14000,
 ): Promise<RankedHit[]> {
   const filters = overpassFilters(namePart);
   if (!filters.length) return [];
-  const radius = 14000;
   const body = `
 [out:json][timeout:8];
 (
-${filters.map((f) => `  nwr${f}(around:${radius},${around.lat.toFixed(5)},${around.lon.toFixed(5)});`).join("\n")}
+${filters.map((f) => `  nwr${f}(around:${radiusM},${around.lat.toFixed(5)},${around.lon.toFixed(5)});`).join("\n")}
 );
 out center tags 24;
 `;
@@ -230,7 +287,7 @@ out center tags 24;
       "Content-Type": "application/x-www-form-urlencoded",
     },
     body: new URLSearchParams({ data: body }),
-    signal: AbortSignal.timeout(10000),
+    signal: AbortSignal.timeout(5000),
   });
   if (!res.ok) return [];
   const data = (await res.json()) as {
@@ -258,6 +315,15 @@ out center tags 24;
   return hits;
 }
 
+function pickLocalityHit(hits: RankedHit[], place: string): RankedHit | undefined {
+  const p = place.toLowerCase();
+  return hits.find((h) => {
+    const name = (h.name || h.label).split(",")[0]?.trim().toLowerCase() ?? "";
+    if (name !== p && !name.startsWith(p) && !p.startsWith(name)) return false;
+    return haversineKm(HOME, h) < 250 && isSwiss(h.country);
+  });
+}
+
 async function resolveLocality(q: string): Promise<{ hit: RankedHit; remainder: string } | null> {
   const tokens = q.trim().split(/\s+/).filter(Boolean);
   if (tokens.length < 2) return null;
@@ -267,17 +333,14 @@ async function resolveLocality(q: string): Promise<{ hit: RankedHit; remainder: 
     if (place.length < 3) continue;
     let hits: RankedHit[] = [];
     try {
-      hits = await photonSearch(place, 5, HOME, 7);
+      hits = await openMeteoSearch(place, 8);
     } catch {
       hits = [];
     }
-    const local = hits.find((h) => {
-      const name = (h.name || h.label).split(",")[0]?.trim() ?? "";
-      const n = name.toLowerCase();
-      const p = place.toLowerCase();
-      if (n !== p && !n.startsWith(p)) return false;
-      return haversineKm(HOME, h) < 250 && isSwiss(h.country);
-    });
+    if (!hits.length) {
+      hits = await limitMs(photonSearch(place, 5, HOME, 7).catch(() => []), 1200, []);
+    }
+    const local = pickLocalityHit(hits, place);
     if (!local) continue;
     const remainder = q.replace(new RegExp(`\\b${escapeOverpassRe(place)}\\b`, "i"), "").trim();
     if (remainder.length < 3) continue;
@@ -313,45 +376,38 @@ function dedupeHits(hits: RankedHit[]): RankedHit[] {
 }
 
 async function suggestPlaces(q: string): Promise<PlaceHit[]> {
-  const key = `v4:${geoKey(q)}`;
+  const key = `v6:${geoKey(q)}`;
   const cached = suggestCache.get(key);
   if (cached && Date.now() - cached.at < 10 * 60 * 1000) return cached.data;
 
   const locality = await resolveLocality(q).catch(() => null);
   const around = locality?.hit ?? HOME;
-  const photonQ = locality?.remainder || q;
-  const photonZoom = locality ? 12 : 8;
+  const poiQuery = locality?.remainder || q;
+  const hasPoiFilter = overpassFilters(poiQuery).length > 0;
 
-  const tasks: Promise<RankedHit[]>[] = [photonSearch(q, 8, around, photonZoom).catch(() => [])];
-  if (locality && locality.remainder !== q) {
-    tasks.push(photonSearch(photonQ, 8, around, 13).catch(() => []));
+  const tasks: Promise<RankedHit[]>[] = [
+    openMeteoSearch(locality?.hit.name || q, 6).catch(() => []),
+    limitMs(photonSearch(q, 8, around, locality ? 12 : 8).catch(() => []), 1200, []),
+  ];
+  if (hasPoiFilter) {
+    const radius = locality ? 16000 : 70000;
+    tasks.push(overpassPois(around, poiQuery, radius).catch(() => []));
   }
   if (locality) {
-    tasks.push(overpassPois(around, locality.remainder).catch(() => []));
-    tasks.push(
-      Promise.resolve([
-        {
-          label: locality.hit.label,
-          lat: locality.hit.lat,
-          lon: locality.hit.lon,
-          name: locality.hit.name,
-          country: locality.hit.country,
-        },
-      ]),
-    );
-  } else {
-    tasks.push(nominatimSearch(q, 5).catch(() => []));
+    tasks.push(Promise.resolve([locality.hit]));
   }
 
-  const batches = await Promise.all(tasks);
-  let merged = dedupeHits(batches.flat());
+  let merged = dedupeHits((await Promise.all(tasks)).flat());
+  if (!merged.length) {
+    merged = await limitMs(nominatimSearch(q, 5).catch(() => []), 2000, []);
+  }
   if (locality) {
-    const nearby = merged.filter((h) => haversineKm(around, h) <= 35);
+    const nearby = merged.filter((h) => haversineKm(around, h) <= 40);
     if (nearby.length) merged = nearby;
   }
   merged.sort((a, b) => scoreHit(b, q, around) - scoreHit(a, q, around));
   const data = merged.slice(0, 8).map(({ label, lat, lon }) => ({ label, lat, lon }));
-  suggestCache.set(key, { at: Date.now(), data });
+  if (data.length) suggestCache.set(key, { at: Date.now(), data });
   return data;
 }
 
