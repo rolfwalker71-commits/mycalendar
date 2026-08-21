@@ -15,7 +15,6 @@ import {
   Sheet,
   SheetContent,
   SheetDescription,
-  SheetFooter,
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
@@ -862,23 +861,23 @@ export function EventEditor({
     </div>
   );
 
-  const footer = (
+  const footer = (includeSwipeActions: boolean) => (
     <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-      {event ? (
-        <>
-          <Button variant="outline" onClick={() => void duplicate()} disabled={saving}>
-            <Copy className="size-4" />
-            Duplizieren
-          </Button>
-          <a href={`/api/events/${event.id}/ics`}>
-            <Button variant="outline" type="button">
-              <Download className="size-4" />
-              ICS
-            </Button>
-          </a>
-        </>
+      {event && includeSwipeActions ? (
+        <Button variant="outline" onClick={() => void duplicate()} disabled={saving}>
+          <Copy className="size-4" />
+          Duplizieren
+        </Button>
       ) : null}
       {event ? (
+        <a href={`/api/events/${event.id}/ics`}>
+          <Button variant="outline" type="button">
+            <Download className="size-4" />
+            ICS
+          </Button>
+        </a>
+      ) : null}
+      {event && includeSwipeActions ? (
         confirmDelete ? (
           <Button variant="destructive" onClick={remove} disabled={saving}>
             Wirklich löschen
@@ -917,7 +916,7 @@ export function EventEditor({
             </DialogHeader>
             <div className="mt-4">{form}</div>
           </div>
-          <DialogFooter className="shrink-0 px-4 py-4">{footer}</DialogFooter>
+          <DialogFooter className="shrink-0 px-4 py-4">{footer(true)}</DialogFooter>
         </DialogContent>
       </Dialog>
     );
@@ -925,23 +924,23 @@ export function EventEditor({
 
   return (
     <Sheet open={state.open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="gap-0 overflow-hidden p-0">
+      <SheetContent side="bottom" className="gap-0 overflow-y-auto p-0">
         <EventArtBanner
           variant="header"
-          className="h-44 w-full shrink-0 rounded-t-2xl"
+          className="h-28 w-full rounded-t-2xl"
           summary={summary}
           description={description || event?.description}
           eventType={eventType}
           calendarSummary={event?.calendarSummary}
         />
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          <SheetHeader>
-            <SheetTitle>{event ? "Termin bearbeiten" : "Neuer Termin"}</SheetTitle>
-            <SheetDescription>Änderungen werden mit Google Calendar synchronisiert.</SheetDescription>
-          </SheetHeader>
-          <div className="px-4 pb-4">{form}</div>
+        <SheetHeader>
+          <SheetTitle>{event ? "Termin bearbeiten" : "Neuer Termin"}</SheetTitle>
+          <SheetDescription>Änderungen werden mit Google Calendar synchronisiert.</SheetDescription>
+        </SheetHeader>
+        <div className="px-4 pb-4">{form}</div>
+        <div className="border-t border-border px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+          {footer(false)}
         </div>
-        <SheetFooter className="shrink-0">{footer}</SheetFooter>
       </SheetContent>
     </Sheet>
   );

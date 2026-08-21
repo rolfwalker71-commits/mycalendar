@@ -50,7 +50,7 @@ export function LocationField({
         id={id}
         value={value}
         onValueChange={onValueChange}
-        placeholder="Adresse oder Ort suchen"
+        placeholder="Adresse, Ort oder Firma"
         autoComplete="off"
         onFocus={() => setOpen(true)}
         onBlur={() => window.setTimeout(() => setOpen(false), 160)}

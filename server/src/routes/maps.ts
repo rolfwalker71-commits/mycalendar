@@ -46,6 +46,21 @@ function geoKey(q: string): string {
   return q.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
+/** Uri / Altdorf — Nutzer sind in der Zentralschweiz. */
+const HOME = { lat: 46.8806, lon: 8.6444 };
+
+type RankedHit = PlaceHit & { country?: string; name?: string };
+
+function haversineKm(a: { lat: number; lon: number }, b: { lat: number; lon: number }): number {
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLon = toRad(b.lon - a.lon);
+  const s =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLon / 2) ** 2;
+  return 2 * 6371 * Math.asin(Math.sqrt(s));
+}
+
 function formatPhoton(props: {
   name?: string;
   street?: string;
@@ -56,19 +71,35 @@ function formatPhoton(props: {
   county?: string;
   state?: string;
   country?: string;
+  postcode?: string;
+  countrycode?: string;
 }): string {
   const city = props.city || props.locality || props.district || props.county || "";
   const street = [props.street, props.housenumber].filter(Boolean).join(" ");
-  return [props.name, street, city, props.country].filter(Boolean).join(", ");
+  const place = [props.postcode, city].filter(Boolean).join(" ");
+  const country = props.country || (props.countrycode === "CH" ? "Schweiz" : "");
+  return [props.name, street, place, country].filter(Boolean).join(", ");
 }
 
-async function photonSearch(q: string, limit: number): Promise<PlaceHit[]> {
+function isSwiss(country?: string): boolean {
+  const c = (country ?? "").trim().toLowerCase();
+  return c === "ch" || c === "schweiz" || c === "switzerland" || c === "suisse";
+}
+
+async function photonSearch(
+  q: string,
+  limit: number,
+  bias: { lat: number; lon: number } = HOME,
+  zoom = 8,
+): Promise<RankedHit[]> {
   const url = new URL("https://photon.komoot.io/api/");
   url.searchParams.set("q", q);
   url.searchParams.set("limit", String(limit));
   url.searchParams.set("lang", "de");
-  url.searchParams.set("lat", "46.8806");
-  url.searchParams.set("lon", "8.6444");
+  url.searchParams.set("lat", String(bias.lat));
+  url.searchParams.set("lon", String(bias.lon));
+  url.searchParams.set("zoom", String(zoom));
+  url.searchParams.set("location_bias_scale", "0.08");
   const res = await fetch(url, {
     headers: { "User-Agent": UA, Accept: "application/json" },
     signal: AbortSignal.timeout(6000),
@@ -86,21 +117,30 @@ async function photonSearch(q: string, limit: number): Promise<PlaceHit[]> {
         district?: string;
         county?: string;
         country?: string;
+        postcode?: string;
+        countrycode?: string;
       };
     }[];
   };
-  const hits: PlaceHit[] = [];
+  const hits: RankedHit[] = [];
   for (const f of data.features ?? []) {
     const [lon, lat] = f.geometry?.coordinates ?? [];
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
-    const label = formatPhoton(f.properties ?? {});
+    const props = f.properties ?? {};
+    const label = formatPhoton(props);
     if (!label) continue;
-    hits.push({ label, lat, lon });
+    hits.push({
+      label,
+      lat,
+      lon,
+      name: props.name,
+      country: props.countrycode || props.country,
+    });
   }
   return hits;
 }
 
-async function nominatimSearch(q: string, limit: number): Promise<PlaceHit[]> {
+async function nominatimSearch(q: string, limit: number): Promise<RankedHit[]> {
   return enqueueNominatim(async () => {
     const url = new URL("https://nominatim.openstreetmap.org/search");
     url.searchParams.set("q", q);
@@ -108,6 +148,9 @@ async function nominatimSearch(q: string, limit: number): Promise<PlaceHit[]> {
     url.searchParams.set("limit", String(limit));
     url.searchParams.set("addressdetails", "1");
     url.searchParams.set("accept-language", "de");
+    url.searchParams.set("countrycodes", "ch,li,at,de,it,fr");
+    url.searchParams.set("viewbox", "5.9,47.9,10.6,45.8");
+    url.searchParams.set("bounded", "0");
     const res = await fetch(url, {
       headers: { "User-Agent": UA, Accept: "application/json" },
       signal: AbortSignal.timeout(6000),
@@ -118,35 +161,196 @@ async function nominatimSearch(q: string, limit: number): Promise<PlaceHit[]> {
       lon?: string;
       display_name?: string;
       name?: string;
+      address?: { country?: string; country_code?: string };
     }[];
-    return rows
-      .map((row) => {
-        const lat = Number(row.lat);
-        const lon = Number(row.lon);
-        if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
-        return { label: row.display_name || row.name || q, lat, lon };
-      })
-      .filter((x): x is PlaceHit => Boolean(x));
+    const hits: RankedHit[] = [];
+    for (const row of rows) {
+      const lat = Number(row.lat);
+      const lon = Number(row.lon);
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+      hits.push({
+        label: row.display_name || row.name || q,
+        lat,
+        lon,
+        name: row.name,
+        country: row.address?.country_code || row.address?.country,
+      });
+    }
+    return hits;
   });
 }
 
-async function suggestPlaces(q: string): Promise<PlaceHit[]> {
-  const key = geoKey(q);
-  const hit = suggestCache.get(key);
-  if (hit && Date.now() - hit.at < 10 * 60 * 1000) return hit.data;
-  let data: PlaceHit[] = [];
-  try {
-    data = await photonSearch(q, 6);
-  } catch {
-    data = [];
+function escapeOverpassRe(text: string): string {
+  return text.replace(/[\\.[\]^$()*+?{}|]/g, "\\$&").replaceAll('"', "");
+}
+
+function overpassFilters(namePart: string): string[] {
+  const t = namePart.toLowerCase();
+  const filters: string[] = [];
+  if (/zahnarzt|dentist/.test(t)) {
+    filters.push('["amenity"="dentist"]', '["healthcare"="dentist"]');
   }
-  if (!data.length) {
+  if (/\b(arzt|ärztin|doktor)\b/.test(t) && !/zahnarzt/.test(t)) {
+    filters.push('["amenity"="doctors"]', '["healthcare"="doctor"]');
+  }
+  if (/apotheke|pharmacy/.test(t)) filters.push('["amenity"="pharmacy"]');
+  if (/restaurant|gasthaus|beiz/.test(t)) filters.push('["amenity"="restaurant"]');
+  if (/caf[eé]|kaffee/.test(t)) filters.push('["amenity"="cafe"]');
+  if (/hotel|gasthof/.test(t)) filters.push('["tourism"="hotel"]');
+  if (/garage|autowerk|werkstatt/.test(t)) filters.push('["shop"="car_repair"]');
+  const words = namePart
+    .split(/\s+/)
+    .map((w) => w.replace(/[^\p{L}\p{N}-]/gu, ""))
+    .filter((w) => w.length >= 4);
+  if (words.length) {
+    filters.push(`["name"~"${words.map(escapeOverpassRe).join("|")}",i]`);
+  }
+  return [...new Set(filters)];
+}
+
+async function overpassPois(
+  around: { lat: number; lon: number },
+  namePart: string,
+): Promise<RankedHit[]> {
+  const filters = overpassFilters(namePart);
+  if (!filters.length) return [];
+  const radius = 14000;
+  const body = `
+[out:json][timeout:8];
+(
+${filters.map((f) => `  nwr${f}(around:${radius},${around.lat.toFixed(5)},${around.lon.toFixed(5)});`).join("\n")}
+);
+out center tags 24;
+`;
+  const res = await fetch("https://overpass-api.de/api/interpreter", {
+    method: "POST",
+    headers: {
+      "User-Agent": UA,
+      Accept: "application/json",
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: new URLSearchParams({ data: body }),
+    signal: AbortSignal.timeout(10000),
+  });
+  if (!res.ok) return [];
+  const data = (await res.json()) as {
+    elements?: {
+      lat?: number;
+      lon?: number;
+      center?: { lat: number; lon: number };
+      tags?: Record<string, string>;
+    }[];
+  };
+  const hits: RankedHit[] = [];
+  for (const el of data.elements ?? []) {
+    const lat = el.lat ?? el.center?.lat;
+    const lon = el.lon ?? el.center?.lon;
+    const tags = el.tags ?? {};
+    const name = tags.name || tags["name:de"];
+    if (!Number.isFinite(lat) || !Number.isFinite(lon) || !name) continue;
+    const street = [tags["addr:street"], tags["addr:housenumber"]].filter(Boolean).join(" ");
+    const city = tags["addr:city"] || tags["addr:place"] || tags["addr:suburb"] || "";
+    const label = [name, street, [tags["addr:postcode"], city].filter(Boolean).join(" "), "Schweiz"]
+      .filter(Boolean)
+      .join(", ");
+    hits.push({ label, lat: lat as number, lon: lon as number, name, country: "CH" });
+  }
+  return hits;
+}
+
+async function resolveLocality(q: string): Promise<{ hit: RankedHit; remainder: string } | null> {
+  const tokens = q.trim().split(/\s+/).filter(Boolean);
+  if (tokens.length < 2) return null;
+  const tries = [tokens[tokens.length - 1]];
+  if (tokens.length >= 3) tries.unshift(tokens.slice(-2).join(" "));
+  for (const place of tries) {
+    if (place.length < 3) continue;
+    let hits: RankedHit[] = [];
     try {
-      data = await nominatimSearch(q, 5);
+      hits = await photonSearch(place, 5, HOME, 7);
     } catch {
-      data = [];
+      hits = [];
     }
+    const local = hits.find((h) => {
+      const name = (h.name || h.label).split(",")[0]?.trim() ?? "";
+      const n = name.toLowerCase();
+      const p = place.toLowerCase();
+      if (n !== p && !n.startsWith(p)) return false;
+      return haversineKm(HOME, h) < 250 && isSwiss(h.country);
+    });
+    if (!local) continue;
+    const remainder = q.replace(new RegExp(`\\b${escapeOverpassRe(place)}\\b`, "i"), "").trim();
+    if (remainder.length < 3) continue;
+    return { hit: local, remainder };
   }
+  return null;
+}
+
+function scoreHit(hit: RankedHit, q: string, around: { lat: number; lon: number }): number {
+  const dist = haversineKm(around, hit);
+  const tokens = q.toLowerCase().split(/\s+/).filter((t) => t.length >= 3);
+  const hay = hit.label.toLowerCase();
+  let score = 40 - dist / 4;
+  if (isSwiss(hit.country)) score += 22;
+  for (const t of tokens) {
+    if (hay.includes(t.toLowerCase())) score += 6;
+  }
+  if (dist > 80) score -= 25;
+  if (dist > 160) score -= 40;
+  return score;
+}
+
+function dedupeHits(hits: RankedHit[]): RankedHit[] {
+  const seen = new Set<string>();
+  const out: RankedHit[] = [];
+  for (const hit of hits) {
+    const key = `${hit.lat.toFixed(4)},${hit.lon.toFixed(4)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(hit);
+  }
+  return out;
+}
+
+async function suggestPlaces(q: string): Promise<PlaceHit[]> {
+  const key = `v4:${geoKey(q)}`;
+  const cached = suggestCache.get(key);
+  if (cached && Date.now() - cached.at < 10 * 60 * 1000) return cached.data;
+
+  const locality = await resolveLocality(q).catch(() => null);
+  const around = locality?.hit ?? HOME;
+  const photonQ = locality?.remainder || q;
+  const photonZoom = locality ? 12 : 8;
+
+  const tasks: Promise<RankedHit[]>[] = [photonSearch(q, 8, around, photonZoom).catch(() => [])];
+  if (locality && locality.remainder !== q) {
+    tasks.push(photonSearch(photonQ, 8, around, 13).catch(() => []));
+  }
+  if (locality) {
+    tasks.push(overpassPois(around, locality.remainder).catch(() => []));
+    tasks.push(
+      Promise.resolve([
+        {
+          label: locality.hit.label,
+          lat: locality.hit.lat,
+          lon: locality.hit.lon,
+          name: locality.hit.name,
+          country: locality.hit.country,
+        },
+      ]),
+    );
+  } else {
+    tasks.push(nominatimSearch(q, 5).catch(() => []));
+  }
+
+  const batches = await Promise.all(tasks);
+  let merged = dedupeHits(batches.flat());
+  if (locality) {
+    const nearby = merged.filter((h) => haversineKm(around, h) <= 35);
+    if (nearby.length) merged = nearby;
+  }
+  merged.sort((a, b) => scoreHit(b, q, around) - scoreHit(a, q, around));
+  const data = merged.slice(0, 8).map(({ label, lat, lon }) => ({ label, lat, lon }));
   suggestCache.set(key, { at: Date.now(), data });
   return data;
 }
