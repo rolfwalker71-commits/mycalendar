@@ -2,6 +2,7 @@ import { Router } from "express";
 import { requireAuth } from "../auth.js";
 import { query } from "../db.js";
 import type { EventRow } from "../types.js";
+import { coverUrlFor } from "../shiftCover.js";
 
 export const searchRouter = Router();
 searchRouter.use(requireAuth);
@@ -57,6 +58,7 @@ searchRouter.get("/", async (req, res) => {
       calendarSummary: e.calendar_summary,
       calendarTimezone: e.calendar_timezone,
       recurringEventId: e.recurring_event_id,
+      coverUrl: coverUrlFor(e),
     })),
   });
 });

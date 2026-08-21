@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { google } from "googleapis";
-import type { Auth, calendar_v3, gmail_v1, people_v1, tasks_v1 } from "googleapis";
+import type { Auth, calendar_v3, drive_v3, gmail_v1, people_v1, tasks_v1 } from "googleapis";
 import {
   GOOGLE_CLIENT_ID,
   GOOGLE_CLIENT_SECRET,
@@ -117,6 +117,11 @@ export async function getAuthedTasks(user: UserRow): Promise<tasks_v1.Tasks> {
   return google.tasks({ version: "v1", auth: client });
 }
 
+export async function getAuthedDrive(user: UserRow): Promise<drive_v3.Drive> {
+  const client = await getAuthedOAuthClient(user);
+  return google.drive({ version: "v3", auth: client });
+}
+
 export function isGoneError(err: unknown): boolean {
   const e = err as { code?: number; status?: number };
   return e.code === 410 || e.status === 410;
@@ -174,6 +179,8 @@ const API_DISABLED_HINT: Record<string, string> = {
     "Die Gmail API ist nicht vollständig freigegeben. In der Cloud Console die Gmail API aktivieren und Google erneut verbinden.",
   calendar:
     "Die Google Calendar API ist nicht vollständig freigegeben. In der Cloud Console die Calendar API aktivieren und Google erneut verbinden.",
+  drive:
+    "Die Google Drive API ist nicht aktiviert. In der Cloud Console die Drive API einschalten, danach Google erneut verbinden.",
 };
 
 const SCOPE_HINT: Record<string, { message: string; code: GoogleErrorCode }> = {
@@ -193,11 +200,15 @@ const SCOPE_HINT: Record<string, { message: string; code: GoogleErrorCode }> = {
     message: "Bitte Google erneut verbinden, um den Kalender vollständig freizugeben.",
     code: "calendar_scope",
   },
+  drive: {
+    message: "Bitte Google erneut verbinden, um Drive-Anhänge zu laden.",
+    code: "calendar_scope",
+  },
 };
 
 export function describeGoogleApiError(
   err: unknown,
-  api: "people" | "tasks" | "gmail" | "calendar",
+  api: "people" | "tasks" | "gmail" | "calendar" | "drive",
 ): { status: number; error: string; code: string } | null {
   if (err instanceof GoogleAuthError) {
     return { status: err.code === "reauth" ? 401 : 403, error: err.message, code: err.code };

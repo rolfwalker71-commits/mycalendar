@@ -63,6 +63,7 @@ export function EventCardBody({
         description={event.description}
         calendarSummary={event.calendarSummary}
         eventType={event.eventType}
+        coverUrl={event.coverUrl}
       />
     </div>
   );

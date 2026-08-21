@@ -3,7 +3,7 @@ import { DateTime } from "luxon";
 import { TZ } from "../config.js";
 import { requireAuth, clearSessionCookie } from "../auth.js";
 import { query } from "../db.js";
-import { GoogleAuthError, describeGoogleApiError, getAuthedCalendar, isAuthError } from "../google.js";
+import { GoogleAuthError, describeGoogleApiError, getAuthedCalendar, getAuthedDrive, isAuthError } from "../google.js";
 import {
   eventToGoogleBody,
   refreshCachedEvent,
@@ -11,6 +11,7 @@ import {
 } from "../sync.js";
 import type { CalendarRow, EventRow } from "../types.js";
 import { buildVcalendar } from "../ics.js";
+import { coverUrlFor, loadCoverFile } from "../shiftCover.js";
 
 export const eventsRouter = Router();
 eventsRouter.use(requireAuth);
@@ -66,6 +67,7 @@ function serializeEvent(e: EventRow & { background_color?: string | null; calend
     calendarSummary: e.calendar_summary ?? null,
     calendarTimezone: e.calendar_timezone ?? null,
     updatedAt: e.updated_at,
+    coverUrl: coverUrlFor(e),
   };
 }
 
@@ -558,6 +560,48 @@ eventsRouter.post("/:id/rsvp", async (req, res) => {
     if (handleGoogleError(res, err)) return;
     console.error(err);
     res.status(502).json({ error: "Zusage konnte nicht gespeichert werden." });
+  }
+});
+
+eventsRouter.get("/:id/cover", async (req, res) => {
+  const event = await getOwnedEvent(req.user!.id, req.params.id);
+  if (!event) {
+    res.status(404).end();
+    return;
+  }
+  try {
+    const file = await loadCoverFile(
+      {
+        googleEventId: event.google_event_id,
+        summary: event.summary,
+        calendarSummary: event.calendar_summary,
+        attachments: event.attachments,
+      },
+      async (fileId) => {
+        try {
+          const drive = await getAuthedDrive(req.user!);
+          const got = await drive.files.get(
+            { fileId, alt: "media" },
+            { responseType: "arraybuffer" },
+          );
+          const mime =
+            (got.headers as { "content-type"?: string })["content-type"] || "image/png";
+          return { buffer: Buffer.from(got.data as ArrayBuffer), mimeType: mime };
+        } catch {
+          return null;
+        }
+      },
+    );
+    if (!file) {
+      res.status(404).end();
+      return;
+    }
+    res.setHeader("Content-Type", file.mimeType);
+    res.setHeader("Cache-Control", "private, max-age=86400");
+    res.send(file.buffer);
+  } catch (err) {
+    console.error(err);
+    res.status(404).end();
   }
 });
 

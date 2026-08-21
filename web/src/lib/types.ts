@@ -69,6 +69,7 @@ export type CalendarEvent = {
   calendarSummary: string | null;
   calendarTimezone: string | null;
   updatedAt?: string;
+  coverUrl?: string | null;
 };
 
 export type TaskItem = {

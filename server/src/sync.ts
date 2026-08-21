@@ -311,7 +311,8 @@ async function rangeSync(
       singleEvents: true,
       maxResults: 2500,
       pageToken,
-    });
+      supportsAttachments: true,
+    } as calendar_v3.Params$Resource$Events$List);
     await applyEventPage(user, calendar, res.data.items);
     pageToken = res.data.nextPageToken ?? undefined;
     if (res.data.nextSyncToken) nextSyncToken = res.data.nextSyncToken;
@@ -339,7 +340,8 @@ async function incrementalSync(
       syncToken,
       pageToken,
       maxResults: 2500,
-    });
+      supportsAttachments: true,
+    } as calendar_v3.Params$Resource$Events$List);
     await applyEventPage(user, calendar, res.data.items);
     pageToken = res.data.nextPageToken ?? undefined;
     syncToken = undefined;
@@ -511,7 +513,8 @@ export async function refreshCachedEvent(
     const res = await api.events.get({
       calendarId: calendar.google_cal_id,
       eventId: googleEventId,
-    });
+      supportsAttachments: true,
+    } as calendar_v3.Params$Resource$Events$Get);
     if (res.data.status === "cancelled") {
       await deleteCachedEvent(calendar.id, googleEventId);
       return;

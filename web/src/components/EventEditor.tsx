@@ -912,6 +912,7 @@ export function EventEditor({
             description={description || event?.description}
             eventType={eventType}
             calendarSummary={event?.calendarSummary}
+            coverUrl={event?.coverUrl}
           />
           <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-4">
             <DialogHeader>
@@ -936,6 +937,7 @@ export function EventEditor({
           description={description || event?.description}
           eventType={eventType}
           calendarSummary={event?.calendarSummary}
+          coverUrl={event?.coverUrl}
         />
         <SheetHeader>
           <SheetTitle>{event ? "Termin bearbeiten" : "Neuer Termin"}</SheetTitle>

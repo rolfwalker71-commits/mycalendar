@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { eventArtKind, eventArtSrc } from "@/lib/eventArt";
 
@@ -6,6 +7,7 @@ export function EventArtBanner({
   description,
   calendarSummary,
   eventType,
+  coverUrl,
   variant = "side",
   className,
 }: {
@@ -13,12 +15,17 @@ export function EventArtBanner({
   description?: string | null;
   calendarSummary?: string | null;
   eventType?: string | null;
+  coverUrl?: string | null;
   variant?: "side" | "header";
   className?: string;
 }) {
   const kind = eventArtKind({ summary, description, calendarSummary, eventType });
-  if (!kind) return null;
-  const src = eventArtSrc(kind, variant);
+  const fallback = kind ? eventArtSrc(kind, variant) : null;
+  const [src, setSrc] = useState(coverUrl || fallback);
+  useEffect(() => {
+    setSrc(coverUrl || fallback);
+  }, [coverUrl, fallback]);
+  if (!src) return null;
   return (
     <div
       className={cn(
@@ -28,7 +35,15 @@ export function EventArtBanner({
       )}
       aria-hidden
     >
-      <img src={src} alt="" draggable={false} className="h-full w-full object-cover object-center" />
+      <img
+        src={src}
+        alt=""
+        draggable={false}
+        className="h-full w-full object-cover object-center"
+        onError={() => {
+          if (fallback && src !== fallback) setSrc(fallback);
+        }}
+      />
     </div>
   );
 }
