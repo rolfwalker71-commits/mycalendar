@@ -1,6 +1,5 @@
 import { MapPin, Plane, Video } from "lucide-react";
 import { eventChipStyle } from "@/lib/colors";
-import { eventArtKind } from "@/lib/eventArt";
 import { parseFlightRoute } from "@/lib/flights";
 import type { CalendarEvent } from "@/lib/types";
 import { isDeclined } from "@/components/EventChip";
@@ -27,67 +26,44 @@ export function EventCardBody({
   subtitle: string;
 }) {
   const declined = isDeclined(event);
-  const kind = eventArtKind({
-    summary: event.summary,
-    description: event.description,
-    calendarSummary: event.calendarSummary,
-    eventType: event.eventType,
-  });
-  const hasPlace = Boolean(event.location?.trim());
-  const headerArt = Boolean(kind && hasPlace);
-  const sideArt = Boolean(kind && !hasPlace);
   const route = parseFlightRoute(event.location, event.summary);
 
   return (
-    <div className="flex min-h-0 w-full flex-col overflow-hidden bg-card text-left leading-snug">
-      {headerArt ? (
-        <EventArtBanner
-          variant="header"
-          className="h-24 w-full rounded-none"
-          summary={event.summary}
-          description={event.description}
-          calendarSummary={event.calendarSummary}
-          eventType={event.eventType}
+    <div className="flex min-h-0 w-full flex-row items-stretch overflow-hidden bg-card text-left leading-snug">
+      <div className="flex min-w-0 flex-1 items-start gap-3 px-4 py-3">
+        <span
+          className="mt-1 size-2.5 shrink-0 rounded-full"
+          style={{ backgroundColor: eventChipStyle(event.backgroundColor).backgroundColor }}
         />
-      ) : null}
-      <div className="flex min-h-0 w-full flex-row items-stretch">
-        <div className="flex min-w-0 flex-1 items-start gap-3 px-4 py-3">
-          <span
-            className="mt-1 size-2.5 shrink-0 rounded-full"
-            style={{ backgroundColor: eventChipStyle(event.backgroundColor).backgroundColor }}
-          />
-          <div className="min-w-0 flex-1">
-            <p className={cn("font-medium break-words", declined && "text-muted-foreground line-through")}>
-              {event.summary || "Ohne Titel"}
+        <div className="min-w-0 flex-1">
+          <p className={cn("font-medium break-words", declined && "text-muted-foreground line-through")}>
+            {event.summary || "Ohne Titel"}
+          </p>
+          <p className="mt-0.5 text-sm text-muted-foreground">{subtitle}</p>
+          {event.location ? (
+            <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
+              {route ? <Plane className="size-3.5 shrink-0" /> : <MapPin className="size-3.5 shrink-0" />}
+              {route ? (
+                <FlightPathLabel from={route.from} to={route.to} />
+              ) : (
+                <span className="break-words">{event.location}</span>
+              )}
             </p>
-            <p className="mt-0.5 text-sm text-muted-foreground">{subtitle}</p>
-            {event.location ? (
-              <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
-                {route ? <Plane className="size-3.5 shrink-0" /> : <MapPin className="size-3.5 shrink-0" />}
-                {route ? (
-                  <FlightPathLabel from={route.from} to={route.to} />
-                ) : (
-                  <span className="break-words">{event.location}</span>
-                )}
-              </p>
-            ) : null}
-            {event.hangoutLink ? (
-              <p className="mt-1 flex items-center gap-1 text-sm text-muted-foreground">
-                <Video className="size-3.5" />
-                Meet
-              </p>
-            ) : null}
-          </div>
+          ) : null}
+          {event.hangoutLink ? (
+            <p className="mt-1 flex items-center gap-1 text-sm text-muted-foreground">
+              <Video className="size-3.5" />
+              Meet
+            </p>
+          ) : null}
         </div>
-        {sideArt ? (
-          <EventArtBanner
-            summary={event.summary}
-            description={event.description}
-            calendarSummary={event.calendarSummary}
-            eventType={event.eventType}
-          />
-        ) : null}
       </div>
+      <EventArtBanner
+        summary={event.summary}
+        description={event.description}
+        calendarSummary={event.calendarSummary}
+        eventType={event.eventType}
+      />
     </div>
   );
 }

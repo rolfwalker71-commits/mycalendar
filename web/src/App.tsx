@@ -107,7 +107,6 @@ function CalendarApp({
   const [calendars, setCalendars] = useState<CalendarItem[]>([]);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [syncing, setSyncing] = useState(false);
-  const [lastSync, setLastSync] = useState<string | null>(me.lastSyncAt);
   const [editor, setEditor] = useState<EditorState>({ open: false });
   const [miniRange, setMiniRange] = useState<MiniRange>(
     () => (localStorage.getItem("kalender-mini-range") as MiniRange) || "month",
@@ -176,7 +175,6 @@ function CalendarApp({
           range.from.toUTC().toISO() ?? undefined,
           range.to.toUTC().toISO() ?? undefined,
         );
-        setLastSync(res.lastSyncAt);
         await loadCalendars();
         await loadEvents();
         await loadTasks();
@@ -445,10 +443,6 @@ function CalendarApp({
           <span className="flex items-center gap-1 text-xs text-muted-foreground">
             <LoaderCircle className="size-3.5 animate-spin" />
             Aktualisiert…
-          </span>
-        ) : lastSync ? (
-          <span className="hidden text-xs text-muted-foreground sm:inline">
-            {DateTime.fromISO(lastSync).setZone(ZONE).toFormat("HH:mm")}
           </span>
         ) : null}
       </div>
