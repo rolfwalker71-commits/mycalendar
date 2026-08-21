@@ -2,12 +2,14 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import {
   Archive,
   ArrowLeft,
+  CheckSquare,
   ChevronRight,
   Forward,
   Inbox,
   LoaderCircle,
   Mail,
   MailOpen,
+  MessagesSquare,
   MoreHorizontal,
   Paperclip,
   Pencil,
@@ -21,6 +23,7 @@ import {
   Star,
   Tag,
   Trash2,
+  Undo2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { AppSwitcher } from "@/components/AppSwitcher";
@@ -45,6 +48,34 @@ import { GMAIL_LABEL_COLORS } from "./gmailColors";
 import { PullToRefresh } from "@/components/PullToRefresh";
 import { GeminiCard, HighlightCards } from "@/components/AiSummary";
 import { Checkbox } from "@/components/ui/checkbox";
+import { SwipeableRow } from "@/components/SwipeableRow";
+
+const MAIL_LIST_CACHE = "mail-list-v1";
+const MAIL_LABELS_CACHE = "mail-labels-v1";
+
+function readJsonCache<T>(key: string, maxAgeMs: number): T | null {
+  try {
+    const raw = sessionStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { at: number; data: T };
+    if (!parsed?.at || Date.now() - parsed.at > maxAgeMs) return null;
+    return parsed.data ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function writeJsonCache<T>(key: string, data: T): void {
+  try {
+    sessionStorage.setItem(key, JSON.stringify({ at: Date.now(), data }));
+  } catch {
+    /* quota */
+  }
+}
+
+function mailListCacheKey(labelId: string, q: string, threaded: boolean): string {
+  return `${MAIL_LIST_CACHE}:${threaded ? "t" : "m"}:${labelId}:${q}`;
+}
 
 function handleAuthError(err: unknown, onReauth: () => void, onScope?: () => void) {
   if (err instanceof ApiError && err.code === "gmail_scope") {
@@ -169,40 +200,69 @@ function FolderDrawer({
 function ThreadRow({
   thread,
   active,
+  selected,
+  selecting,
   selfEmail,
   selfPhoto,
   threaded,
-  onClick,
+  onToggleSelect,
 }: {
   thread: MailThreadSummary;
   active: boolean;
+  selected: boolean;
+  selecting: boolean;
   selfEmail?: string;
   selfPhoto?: string | null;
   threaded: boolean;
-  onClick: () => void;
+  onToggleSelect: () => void;
 }) {
+  const isThread = threaded && thread.messageCount > 1;
   return (
-    <button
-      type="button"
-      onClick={onClick}
+    <div
       className={cn(
-        "flex w-full gap-3 border-b border-border px-4 py-3 text-left",
+        "flex w-full gap-3 px-4 py-3 text-left",
         active ? "bg-muted" : "hover:bg-muted/70",
-        thread.unread ? "bg-card" : "",
+        selected ? "bg-mail/10" : thread.unread ? "bg-card" : "bg-card",
       )}
     >
-      <span
-        className={cn(
-          "mt-4 size-2.5 shrink-0 rounded-full",
-          thread.unread ? "bg-mail" : "bg-transparent",
-        )}
-      />
-      <MailAvatar
-        addr={thread.from}
-        selfEmail={selfEmail}
-        selfPhoto={selfPhoto}
-        className="mt-0.5 size-9 text-xs"
-      />
+      {selecting ? (
+        <span
+          className="mt-3 shrink-0"
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Checkbox checked={selected} onCheckedChange={() => onToggleSelect()} aria-label="Auswählen" />
+        </span>
+      ) : (
+        <span
+          className={cn(
+            "mt-4 size-2.5 shrink-0 rounded-full",
+            thread.unread ? "bg-mail" : "bg-transparent",
+          )}
+        />
+      )}
+      <button
+        type="button"
+        className="relative mt-0.5 shrink-0"
+        aria-label="Nachricht auswählen"
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggleSelect();
+        }}
+      >
+        <MailAvatar
+          addr={thread.from}
+          selfEmail={selfEmail}
+          selfPhoto={selfPhoto}
+          className="size-9 text-xs"
+        />
+        {isThread ? (
+          <span className="absolute -right-1 -bottom-1 flex size-4 items-center justify-center rounded-full bg-mail text-[9px] font-bold text-mail-foreground ring-2 ring-card">
+            {thread.messageCount > 9 ? "9+" : thread.messageCount}
+          </span>
+        ) : null}
+      </button>
       <span className="min-w-0 flex-1">
         <span className="flex items-baseline justify-between gap-3">
           <span className={cn("truncate text-[0.9375rem]", thread.unread ? "font-semibold" : "font-medium")}>
@@ -212,10 +272,13 @@ function ThreadRow({
             {formatMailDate(thread.date, thread.internalDate)}
           </span>
         </span>
-        <span className={cn("mt-0.5 block truncate text-sm", thread.unread ? "font-medium" : "")}>
-          {thread.subject || "(kein Betreff)"}
-          {threaded && thread.messageCount > 1 ? (
-            <span className="ml-1 text-muted-foreground font-normal">{thread.messageCount}</span>
+        <span className={cn("mt-0.5 flex min-w-0 items-center gap-1.5", thread.unread ? "font-medium" : "")}>
+          <span className="min-w-0 truncate text-sm">{thread.subject || "(kein Betreff)"}</span>
+          {isThread ? (
+            <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-mail/12 px-1.5 py-0.5 text-[0.6875rem] font-semibold text-mail">
+              <MessagesSquare className="size-3" />
+              {thread.messageCount}
+            </span>
           ) : null}
         </span>
         <span className="mt-0.5 block truncate text-sm text-muted-foreground">{thread.snippet}</span>
@@ -224,7 +287,7 @@ function ThreadRow({
         <span className="mt-1 shrink-0 text-[0.6875rem] font-medium text-mail">Entwurf</span>
       ) : null}
       {thread.starred ? <Star className="mt-1 size-4 shrink-0 fill-amber-400 text-amber-400" /> : null}
-    </button>
+    </div>
   );
 }
 
@@ -522,21 +585,35 @@ export function MailApp({
   onOpenSettings: () => void;
 }) {
   const desktop = useDesktop();
-  const [labels, setLabels] = useState<MailLabel[]>([]);
+  const [labels, setLabels] = useState<MailLabel[]>(
+    () => readJsonCache<MailLabel[]>(MAIL_LABELS_CACHE, 30 * 60 * 1000) ?? [],
+  );
   const [labelId, setLabelId] = useState("INBOX");
-  const [threads, setThreads] = useState<MailThreadSummary[]>([]);
+  const [threads, setThreads] = useState<MailThreadSummary[]>(
+    () =>
+      readJsonCache<MailThreadSummary[]>(mailListCacheKey("INBOX", "", threaded), 30 * 60 * 1000) ??
+      [],
+  );
   const [nextPage, setNextPage] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [appliedQuery, setAppliedQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [thread, setThread] = useState<MailThread | null>(null);
-  const [loadingList, setLoadingList] = useState(true);
+  const [loadingList, setLoadingList] = useState(() => {
+    const cached = readJsonCache<MailThreadSummary[]>(
+      mailListCacheKey("INBOX", "", threaded),
+      30 * 60 * 1000,
+    );
+    return !cached?.length;
+  });
   const [loadingThread, setLoadingThread] = useState(false);
   const [needsScope, setNeedsScope] = useState(false);
   const [compose, setCompose] = useState<ComposeState>({ open: false });
   const [mobilePane, setMobilePane] = useState<"list" | "thread">("list");
   const [foldersOpen, setFoldersOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
 
   const activeLabel = labels.find((l) => l.id === labelId);
   const systemLabels = labels.filter((l) => l.type === "system");
@@ -545,12 +622,24 @@ export function MailApp({
   const loadLabels = useCallback(async () => {
     const { labels: next } = await apiClient.mailLabels();
     setLabels(next);
+    writeJsonCache(MAIL_LABELS_CACHE, next);
     setNeedsScope(false);
   }, []);
 
   const loadThreads = useCallback(
     async (pageToken?: string) => {
-      setLoadingList(true);
+      const cacheKey = mailListCacheKey(labelId, appliedQuery, threaded);
+      if (!pageToken) {
+        const cached = readJsonCache<MailThreadSummary[]>(cacheKey, 30 * 60 * 1000);
+        if (cached?.length) {
+          setThreads(cached);
+          setLoadingList(false);
+        } else {
+          setLoadingList(true);
+        }
+      } else {
+        setLoadingList(true);
+      }
       try {
         const res = await apiClient.mailThreads({
           labelId,
@@ -560,6 +649,7 @@ export function MailApp({
         });
         setThreads((prev) => (pageToken ? [...prev, ...res.threads] : res.threads));
         setNextPage(res.nextPageToken);
+        if (!pageToken) writeJsonCache(cacheKey, res.threads);
         setNeedsScope(false);
       } finally {
         setLoadingList(false);
@@ -579,6 +669,8 @@ export function MailApp({
   useEffect(() => {
     setSelectedId(null);
     setThread(null);
+    setSelectMode(false);
+    setSelectedIds(new Set());
     loadThreads().catch((err) => {
       if (!handleAuthError(err, onLogout, () => setNeedsScope(true))) {
         toast.error(err instanceof ApiError ? err.message : "Nachrichten fehlgeschlagen.");
@@ -618,23 +710,61 @@ export function MailApp({
     }
   }
 
+  function toggleSelect(id: string) {
+    setSelectMode(true);
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function exitSelect() {
+    setSelectMode(false);
+    setSelectedIds(new Set());
+  }
+
+  function selectAllVisible() {
+    setSelectMode(true);
+    setSelectedIds(new Set(threads.map((t) => t.id)));
+  }
+
+  async function removeFromList(ids: string[]) {
+    const drop = new Set(ids);
+    setThreads((ts) => ts.filter((t) => !drop.has(t.id)));
+    if (selectedId && drop.has(selectedId)) {
+      setThread(null);
+      setSelectedId(null);
+      if (!desktop) setMobilePane("list");
+    }
+    exitSelect();
+  }
+
+  async function archiveIds(ids: string[]) {
+    if (!ids.length) return;
+    await Promise.all(ids.map((id) => apiClient.mailModify(id, [], ["INBOX"], threaded)));
+    await removeFromList(ids);
+  }
+
+  async function trashIds(ids: string[]) {
+    if (!ids.length) return;
+    if (labelId === "TRASH") {
+      await Promise.all(ids.map((id) => apiClient.mailUntrash(id, threaded)));
+    } else {
+      await Promise.all(ids.map((id) => apiClient.mailTrash(id, threaded)));
+    }
+    await removeFromList(ids);
+  }
+
   async function archive() {
     if (!selectedId) return;
-    await apiClient.mailModify(selectedId, [], ["INBOX"], threaded);
-    setThreads((ts) => ts.filter((t) => t.id !== selectedId));
-    setThread(null);
-    setSelectedId(null);
-    if (!desktop) setMobilePane("list");
+    await archiveIds([selectedId]);
   }
 
   async function trash() {
     if (!selectedId) return;
-    if (labelId === "TRASH") await apiClient.mailUntrash(selectedId, threaded);
-    else await apiClient.mailTrash(selectedId, threaded);
-    setThreads((ts) => ts.filter((t) => t.id !== selectedId));
-    setThread(null);
-    setSelectedId(null);
-    if (!desktop) setMobilePane("list");
+    await trashIds([selectedId]);
   }
 
   async function toggleStar() {
@@ -834,8 +964,30 @@ export function MailApp({
           </Button>
         ) : null}
         <h1 className="min-w-0 flex-1 truncate text-xl font-semibold tracking-tight">
-          {activeLabel?.name ?? "Posteingang"}
+          {selectMode
+            ? `${selectedIds.size} ausgewählt`
+            : (activeLabel?.name ?? "Posteingang")}
         </h1>
+        {selectMode ? (
+          <>
+            <Button variant="ghost" className="text-mail" onClick={selectAllVisible}>
+              Alle
+            </Button>
+            <Button variant="ghost" className="text-mail" onClick={exitSelect}>
+              Fertig
+            </Button>
+          </>
+        ) : (
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Auswählen"
+            aria-pressed={selectMode}
+            onClick={() => setSelectMode(true)}
+          >
+            <CheckSquare className="size-5" />
+          </Button>
+        )}
         <Button
           variant="ghost"
           size="icon"
@@ -915,7 +1067,7 @@ export function MailApp({
         }}
         disabled={loadingList}
       >
-        <div className="min-h-0 flex-1 overflow-auto">
+        <div className={cn("min-h-0 flex-1 overflow-auto", selectMode && "pb-24")}>
           {loadingList && !threads.length ? (
             <div className="flex items-center justify-center gap-2 p-8 text-sm text-muted-foreground">
               <LoaderCircle className="size-4 animate-spin" />
@@ -924,17 +1076,83 @@ export function MailApp({
           ) : !threads.length ? (
             <p className="p-8 text-center text-sm text-muted-foreground">Keine Nachrichten.</p>
           ) : (
-            threads.map((item) => (
-              <ThreadRow
-                key={item.id}
-                thread={item}
-                active={item.id === selectedId}
-                selfEmail={me.email}
-                selfPhoto={me.pictureUrl}
-                threaded={threaded}
-                onClick={() => openThread(item.id)}
-              />
-            ))
+            threads.map((item) => {
+              const isThread = threaded && item.messageCount > 1;
+              const canArchive = labelId !== "TRASH" && labelId !== "DRAFT" && labelId !== "SENT" && labelId !== "SPAM";
+              return (
+                <div key={item.id} className={cn("relative", isThread && "mb-1")}>
+                  {isThread ? (
+                    <div
+                      aria-hidden
+                      className="pointer-events-none absolute inset-x-3 top-[5px] h-[calc(100%-2px)] rounded-lg bg-muted ring-1 ring-border"
+                    />
+                  ) : null}
+                  <SwipeableRow
+                    className={cn(
+                      "rounded-none border-b border-border",
+                      isThread && "relative rounded-lg ring-1 ring-border",
+                    )}
+                    disabled={selectMode}
+                    onOpen={() => {
+                      if (selectMode) toggleSelect(item.id);
+                      else void openThread(item.id);
+                    }}
+                    actions={[
+                      ...(canArchive
+                        ? [
+                            {
+                              key: "archive",
+                              label: "Archiv",
+                              icon: <Archive className="size-5" />,
+                              className: "bg-sky-600",
+                              onClick: () =>
+                                void archiveIds([item.id]).catch((err) =>
+                                  toast.error(err instanceof ApiError ? err.message : "Archivieren fehlgeschlagen."),
+                                ),
+                            },
+                          ]
+                        : []),
+                      ...(labelId === "TRASH"
+                        ? [
+                            {
+                              key: "restore",
+                              label: "Zurück",
+                              icon: <Undo2 className="size-5" />,
+                              className: "bg-sky-600",
+                              onClick: () =>
+                                void trashIds([item.id]).catch((err) =>
+                                  toast.error(err instanceof ApiError ? err.message : "Wiederherstellen fehlgeschlagen."),
+                                ),
+                            },
+                          ]
+                        : [
+                            {
+                              key: "delete",
+                              label: "Löschen",
+                              icon: <Trash2 className="size-5" />,
+                              className: "bg-red-600",
+                              onClick: () =>
+                                void trashIds([item.id]).catch((err) =>
+                                  toast.error(err instanceof ApiError ? err.message : "Löschen fehlgeschlagen."),
+                                ),
+                            },
+                          ]),
+                    ]}
+                  >
+                    <ThreadRow
+                      thread={item}
+                      active={item.id === selectedId}
+                      selected={selectedIds.has(item.id)}
+                      selecting={selectMode}
+                      selfEmail={me.email}
+                      selfPhoto={me.pictureUrl}
+                      threaded={threaded}
+                      onToggleSelect={() => toggleSelect(item.id)}
+                    />
+                  </SwipeableRow>
+                </div>
+              );
+            })
           )}
           {nextPage ? (
             <div className="p-3">
@@ -1013,14 +1231,54 @@ export function MailApp({
           {boxes}
         </FolderDrawer>
       </div>
-      <Button
-        className="fixed right-4 bottom-6 z-40 size-14 rounded-full bg-mail text-mail-foreground shadow-lg hover:bg-mail/90"
-        size="icon"
-        aria-label="Neue Nachricht"
-        onClick={() => setCompose({ open: true, mode: "new" })}
-      >
-        <Pencil className="size-6" />
-      </Button>
+      {selectMode ? (
+        <div className="fixed inset-x-0 bottom-0 z-40 flex items-center gap-2 border-t border-border bg-card px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-8px_24px_rgba(0,0,0,0.12)]">
+          <span className="min-w-0 flex-1 truncate text-sm font-medium">
+            {selectedIds.size ? `${selectedIds.size} ausgewählt` : "Nachrichten antippen"}
+          </span>
+          {labelId !== "TRASH" && labelId !== "DRAFT" && labelId !== "SENT" && labelId !== "SPAM" ? (
+            <Button
+              variant="outline"
+              disabled={!selectedIds.size}
+              onClick={() =>
+                void archiveIds([...selectedIds]).catch((err) =>
+                  toast.error(err instanceof ApiError ? err.message : "Archivieren fehlgeschlagen."),
+                )
+              }
+            >
+              <Archive className="size-4" />
+              Archiv
+            </Button>
+          ) : null}
+          <Button
+            variant="destructive"
+            disabled={!selectedIds.size}
+            onClick={() =>
+              void trashIds([...selectedIds]).catch((err) =>
+                toast.error(
+                  err instanceof ApiError
+                    ? err.message
+                    : labelId === "TRASH"
+                      ? "Wiederherstellen fehlgeschlagen."
+                      : "Löschen fehlgeschlagen.",
+                ),
+              )
+            }
+          >
+            {labelId === "TRASH" ? <Undo2 className="size-4" /> : <Trash2 className="size-4" />}
+            {labelId === "TRASH" ? "Zurück" : "Löschen"}
+          </Button>
+        </div>
+      ) : (
+        <Button
+          className="fixed right-4 bottom-6 z-40 size-14 rounded-full bg-mail text-mail-foreground shadow-lg hover:bg-mail/90"
+          size="icon"
+          aria-label="Neue Nachricht"
+          onClick={() => setCompose({ open: true, mode: "new" })}
+        >
+          <Pencil className="size-6" />
+        </Button>
+      )}
       {compose.open ? (
         <ComposeSheet
           key={`${compose.mode}-${compose.replyTo?.id ?? "new"}-${compose.draftId ?? ""}`}

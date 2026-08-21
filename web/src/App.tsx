@@ -61,7 +61,6 @@ import { MailApp } from "@/mail/MailApp";
 import type { AppModule } from "@/mail/types";
 import { useTheme } from "@/components/ThemeProvider";
 import { PullToRefresh } from "@/components/PullToRefresh";
-import { HeaderWeather } from "@/components/WeatherMark";
 import { DateField, TimeField } from "@/components/DateTimeFields";
 
 function useDesktop() {
@@ -393,25 +392,41 @@ function CalendarApp({
   }, [cursor, dayHeading, tasksTab, view, weekStart]);
 
   const header = (
-    <header className="flex flex-col gap-3 border-b border-border px-3 py-3 lg:flex-row lg:items-center lg:px-6">
+    <header className="flex flex-col gap-2 border-b border-border px-3 py-2 lg:flex-row lg:items-center lg:gap-3 lg:px-6 lg:py-3">
       <div className="flex items-center gap-2 lg:hidden">
         <AppSwitcher value={module} onChange={onModule} />
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1 lg:gap-2">
         {tasksTab ? null : (
           <>
-            <Button variant="outline" onClick={() => setCursor(now())}>
+            <Button
+              variant="outline"
+              className="h-8 min-h-8 px-2.5 text-[0.8125rem] lg:h-11 lg:min-h-11 lg:px-4 lg:text-sm"
+              onClick={() => setCursor(now())}
+            >
               Heute
             </Button>
-            <Button variant="ghost" size="icon" aria-label="Zurück" onClick={() => shift(-1)}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-8 lg:size-11"
+              aria-label="Zurück"
+              onClick={() => shift(-1)}
+            >
               <ChevronLeft className="size-5" />
             </Button>
-            <Button variant="ghost" size="icon" aria-label="Weiter" onClick={() => shift(1)}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-8 lg:size-11"
+              aria-label="Weiter"
+              onClick={() => shift(1)}
+            >
               <ChevronRight className="size-5" />
             </Button>
           </>
         )}
-        <h1 className="min-w-0 flex-1 text-xl font-semibold tracking-tight capitalize leading-tight lg:text-2xl">
+        <h1 className="min-w-0 flex-1 text-base font-semibold tracking-tight capitalize leading-tight lg:text-2xl">
           {typeof title === "string" ? (
             title
           ) : agendaHeading ? (
@@ -426,7 +441,6 @@ function CalendarApp({
             </>
           )}
         </h1>
-        {desktop || !agendaHeading ? <HeaderWeather /> : null}
         {syncing ? (
           <span className="flex items-center gap-1 text-xs text-muted-foreground">
             <LoaderCircle className="size-3.5 animate-spin" />
@@ -690,7 +704,7 @@ function CalendarApp({
         <div className="flex min-w-0 flex-1 flex-col">
           {header}
           {!desktop && mobileTab === "calendar" ? (
-            <div className="px-3 py-2">
+            <div className="px-3 py-1.5">
               <ViewSwitcher value={view === "agenda" ? "month" : view} onChange={setView} />
             </div>
           ) : null}

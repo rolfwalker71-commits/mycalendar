@@ -16,11 +16,13 @@ export function SwipeableRow({
   actions,
   onOpen,
   className,
+  disabled,
 }: {
   children: ReactNode;
   actions: SwipeAction[];
   onOpen?: () => void;
   className?: string;
+  disabled?: boolean;
 }) {
   const openX = -(ACTION_W * actions.length);
   const [x, setX] = useState(0);
@@ -73,7 +75,7 @@ export function SwipeableRow({
   finishRef.current = finish;
 
   function onPointerDown(e: PointerEvent<HTMLDivElement>) {
-    if (e.button !== 0) return;
+    if (disabled || e.button !== 0) return;
     pointerId.current = e.pointerId;
     startX.current = e.clientX;
     startY.current = e.clientY;
@@ -153,7 +155,8 @@ export function SwipeableRow({
         className="relative touch-pan-y select-none bg-card transition-transform duration-150 ease-out [&_img]:pointer-events-none [&_img]:[-webkit-user-drag:none]"
         style={{ transform: `translateX(${x}px)` }}
         onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
+        onPointerMove={disabled ? undefined : onPointerMove}
+        onClick={disabled ? () => onOpenRef.current?.() : undefined}
         onLostPointerCapture={() => finishRef.current(false)}
         onDragStart={(e) => e.preventDefault()}
       >

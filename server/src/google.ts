@@ -50,6 +50,8 @@ export function authUrl(state: string): string {
   });
 }
 
+const tokenCache = new Map<string, { access_token: string; expiry_date: number }>();
+
 async function getAuthedOAuthClient(
   user: UserRow,
 ): Promise<Auth.OAuth2Client> {
@@ -57,13 +59,28 @@ async function getAuthedOAuthClient(
     throw new GoogleAuthError("Bitte erneut anmelden.", "reauth");
   }
   const client = createOAuthClient();
+  const cached = tokenCache.get(user.id);
+  if (cached && cached.expiry_date > Date.now() + 60_000) {
+    client.setCredentials({
+      refresh_token: decrypt(user.refresh_token_enc),
+      access_token: cached.access_token,
+      expiry_date: cached.expiry_date,
+    });
+    return client;
+  }
   client.setCredentials({ refresh_token: decrypt(user.refresh_token_enc) });
   try {
     const token = await client.getAccessToken();
     if (!token.token) {
+      tokenCache.delete(user.id);
       throw new GoogleAuthError("Bitte erneut anmelden.", "reauth");
     }
+    tokenCache.set(user.id, {
+      access_token: token.token,
+      expiry_date: client.credentials.expiry_date ?? Date.now() + 45 * 60 * 1000,
+    });
   } catch (err) {
+    tokenCache.delete(user.id);
     const status =
       (err as { status?: number; code?: number }).status ??
       (err as { code?: number }).code;

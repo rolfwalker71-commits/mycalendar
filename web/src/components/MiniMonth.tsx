@@ -99,19 +99,9 @@ export function MiniNavigator({
   return (
     <div className="flex flex-col gap-3">
       <Tabs value={range} onValueChange={(v) => onRangeChange(v as MiniRange)}>
-        <TabsList className="h-14 min-h-14 w-full rounded-full bg-muted p-1.5 group-data-horizontal/tabs:h-14">
-          <TabsTrigger
-            value="week"
-            className="h-full min-h-0 max-h-full items-center rounded-full px-3 py-0 leading-none data-active:bg-background data-active:shadow-sm"
-          >
-            Woche
-          </TabsTrigger>
-          <TabsTrigger
-            value="month"
-            className="h-full min-h-0 max-h-full items-center rounded-full px-3 py-0 leading-none data-active:bg-background data-active:shadow-sm"
-          >
-            Monat
-          </TabsTrigger>
+        <TabsList className="w-full">
+          <TabsTrigger value="week">Woche</TabsTrigger>
+          <TabsTrigger value="month">Monat</TabsTrigger>
         </TabsList>
       </Tabs>
       <MiniMonth

@@ -291,45 +291,65 @@ async function draftIdMap(gmail: Awaited<ReturnType<typeof gmailFor>>) {
   return map;
 }
 
+async function summarizeListedThread(
+  gmail: Awaited<ReturnType<typeof gmailFor>>,
+  threadId: string,
+  listSnippet?: string | null,
+  drafts?: Map<string, string>,
+) {
+  const { data } = await gmail.users.threads.get({
+    userId: "me",
+    id: threadId,
+    format: "minimal",
+  });
+  const messages = data.messages ?? [];
+  const lastMeta = messages[messages.length - 1];
+  const lastId = lastMeta?.id ?? "";
+  const last = lastId
+    ? (
+        await gmail.users.messages.get({
+          userId: "me",
+          id: lastId,
+          format: "metadata",
+          metadataHeaders: ["From", "To", "Subject", "Date"],
+        })
+      ).data
+    : {};
+  const summary = summarizeMessage(last);
+  const unread = messages.some((m) => (m.labelIds ?? []).includes("UNREAD"));
+  const starred = messages.some((m) => (m.labelIds ?? []).includes("STARRED"));
+  const id = data.id ?? threadId;
+  return {
+    ...summary,
+    id,
+    snippet: listSnippet || data.snippet || summary.snippet,
+    messageCount: messages.length,
+    unread,
+    starred,
+    draftId: drafts?.get(id) ?? null,
+    labelIds: last.labelIds ?? summary.labelIds,
+  };
+}
+
 mailRouter.get("/threads", async (req, res) => {
   const labelId = String(req.query.labelId ?? "INBOX");
   const q = typeof req.query.q === "string" ? req.query.q : "";
   const pageToken = typeof req.query.pageToken === "string" ? req.query.pageToken : undefined;
-  const maxResults = Math.min(50, Math.max(10, Number(req.query.maxResults ?? 30) || 30));
+  const maxResults = Math.min(50, Math.max(10, Number(req.query.maxResults ?? 20) || 20));
   try {
     const gmail = await gmailFor(req);
-    const drafts = await draftIdMap(gmail);
-    const list = await gmail.users.threads.list({
+    const listP = gmail.users.threads.list({
       userId: "me",
       labelIds: q ? undefined : labelId ? [labelId] : undefined,
       q: q || undefined,
       pageToken,
       maxResults,
     });
-    const threads = await mapPool(list.data.threads ?? [], 6, async (t) => {
-      const { data } = await gmail.users.threads.get({
-        userId: "me",
-        id: t.id ?? "",
-        format: "metadata",
-        metadataHeaders: ["From", "To", "Subject", "Date"],
-      });
-      const messages = data.messages ?? [];
-      const last = messages[messages.length - 1] ?? {};
-      const summary = summarizeMessage(last);
-      const unread = messages.some((m) => (m.labelIds ?? []).includes("UNREAD"));
-      const starred = messages.some((m) => (m.labelIds ?? []).includes("STARRED"));
-      const id = data.id ?? t.id ?? "";
-      return {
-        ...summary,
-        id,
-        snippet: data.snippet ?? t.snippet ?? summary.snippet,
-        messageCount: messages.length,
-        unread,
-        starred,
-        draftId: drafts.get(id) ?? null,
-        labelIds: last.labelIds ?? summary.labelIds,
-      };
-    });
+    const draftsP = labelId === "DRAFT" ? draftIdMap(gmail) : Promise.resolve(new Map<string, string>());
+    const [list, drafts] = await Promise.all([listP, draftsP]);
+    const threads = await mapPool(list.data.threads ?? [], 12, async (t) =>
+      summarizeListedThread(gmail, t.id ?? "", t.snippet, drafts),
+    );
     res.json({
       threads,
       nextPageToken: list.data.nextPageToken ?? null,
@@ -420,18 +440,19 @@ mailRouter.get("/messages", async (req, res) => {
   const labelId = String(req.query.labelId ?? "INBOX");
   const q = typeof req.query.q === "string" ? req.query.q : "";
   const pageToken = typeof req.query.pageToken === "string" ? req.query.pageToken : undefined;
-  const maxResults = Math.min(50, Math.max(10, Number(req.query.maxResults ?? 30) || 30));
+  const maxResults = Math.min(50, Math.max(10, Number(req.query.maxResults ?? 20) || 20));
   try {
     const gmail = await gmailFor(req);
-    const drafts = await draftIdMap(gmail);
-    const list = await gmail.users.messages.list({
+    const listP = gmail.users.messages.list({
       userId: "me",
       labelIds: q ? undefined : labelId ? [labelId] : undefined,
       q: q || undefined,
       pageToken,
       maxResults,
     });
-    const threads = await mapPool(list.data.messages ?? [], 6, async (m) => {
+    const draftsP = labelId === "DRAFT" ? draftIdMap(gmail) : Promise.resolve(new Map<string, string>());
+    const [list, drafts] = await Promise.all([listP, draftsP]);
+    const threads = await mapPool(list.data.messages ?? [], 12, async (m) => {
       const { data } = await gmail.users.messages.get({
         userId: "me",
         id: m.id ?? "",

@@ -198,8 +198,8 @@ export function SettingsDialog({
           <h2 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Darstellung
           </h2>
-          <div className="rounded-xl bg-muted/60 p-1">
-            <div className="grid grid-cols-3 gap-1">
+          <div className="rounded-full bg-muted p-0.5">
+            <div className="grid grid-cols-3 gap-0.5">
               {(
                 [
                   ["light", "Hell"],
@@ -211,7 +211,7 @@ export function SettingsDialog({
                   key={value}
                   type="button"
                   className={cn(
-                    "h-10 rounded-lg text-sm font-medium",
+                    "h-8 rounded-full text-sm font-medium leading-none",
                     theme === value ? "bg-background text-foreground shadow-sm" : "text-muted-foreground",
                   )}
                   onClick={() => setTheme(value)}

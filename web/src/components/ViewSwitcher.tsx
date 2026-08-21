@@ -21,13 +21,9 @@ export function ViewSwitcher({
   const current = !withAgenda && value === "agenda" ? "month" : value;
   return (
     <Tabs value={current} onValueChange={(v) => onChange(v as ViewId)}>
-      <TabsList className="h-14 min-h-14 w-full max-w-xl rounded-full bg-muted p-1.5 group-data-horizontal/tabs:h-14">
+      <TabsList className="w-full max-w-xl">
         {items.map((v) => (
-          <TabsTrigger
-            key={v.id}
-            value={v.id}
-            className="h-full min-h-0 max-h-full items-center rounded-full px-2.5 py-0 leading-none data-active:bg-background data-active:shadow-sm sm:px-3"
-          >
+          <TabsTrigger key={v.id} value={v.id}>
             {v.label}
           </TabsTrigger>
         ))}
