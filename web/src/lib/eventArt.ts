@@ -44,6 +44,7 @@ export type EventArtKind =
   | "sleep"
   | "photo"
   | "work"
+  | "meeting"
   | "kids"
   | "legal"
   | "money"
@@ -223,6 +224,10 @@ export const EVENT_ART_RULES: Rule[] = [
   { kind: "package", words: ["paket", "lieferung", "postfiliale", "dhl"] },
   { kind: "shopping", words: ["einkaufen", "shopping", "ikea", "markt"] },
   { kind: "sleep", words: ["schlafen", "mittagsschlaf", "power nap"] },
+  {
+    kind: "meeting",
+    words: ["sitzung", "besprechung", "meeting", "jour fixe", "teams-call"],
+  },
   { kind: "work", words: ["offsite", "workshop", "konferenz", "kickoff"] },
   { kind: "legal", words: ["notar", "anwalt", "gemeinde", "passbuero"] },
   { kind: "money", words: ["steuer", "treuhaender", "versicherung", "banktermin"] },
@@ -270,6 +275,7 @@ export function eventArtKind(input: {
   if (/\b(hcap|ambri)\b/.test(text) || /ambri-piotta/.test(text)) return "hockey";
   if (/(frauenarzt|frauenaerztin|gynaekolog)/.test(text)) return "gyno";
   if (/(u(e)?bersetz|dolmetsch|\btranslate\b|\btranslation\b)/.test(text)) return "translate";
+  if (/(sitzung|besprechung|\bmeeting\b)/.test(text)) return "meeting";
   if (
     /(lauf|rennen|marathon|jogging|trailrun)/.test(text) &&
     !/(verlauf|ablauf|auflauf|kreislauf)/.test(text)
@@ -321,6 +327,7 @@ const ART_FILE: Record<EventArtKind, string> = {
   christmas: "christmas",
   easter: "christmas",
   work: "work",
+  meeting: "meeting",
   school: "work",
   legal: "work",
   money: "work",
@@ -344,5 +351,5 @@ export function eventArtSrc(
   kind: EventArtKind,
   variant: "side" | "header",
 ): string {
-  return `/event-art/${ART_FILE[kind]}-${variant}.jpg?v=illust6`;
+  return `/event-art/${ART_FILE[kind]}-${variant}.jpg?v=illust7`;
 }
