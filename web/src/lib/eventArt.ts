@@ -269,5 +269,5 @@ export function eventArtSrc(
   kind: EventArtKind,
   variant: "side" | "header",
 ): string {
-  return `/event-art/${ART_FILE[kind]}-${variant}.jpg`;
+  return `/event-art/${ART_FILE[kind]}-${variant}.jpg?v=illust2`;
 }

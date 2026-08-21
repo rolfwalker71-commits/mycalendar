@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { apiClient, ApiError } from "@/lib/api";
 import { formatDate, formatIsoDate, formatTime, fromISO } from "@/lib/dates";
 import type { CalendarEvent } from "@/lib/types";
@@ -9,11 +8,18 @@ import { eventChipStyle } from "@/lib/colors";
 import { toast } from "sonner";
 import { EventMapSnippet } from "@/components/EventMap";
 import { EventArtBanner } from "@/components/EventArt";
+import { SwipeableEventCard } from "@/components/SwipeableEventCard";
 
 export function SearchView({
   onOpen,
+  onDelete,
+  onDuplicate,
+  onMove,
 }: {
   onOpen: (e: CalendarEvent) => void;
+  onDelete: (e: CalendarEvent) => void;
+  onDuplicate: (e: CalendarEvent) => void;
+  onMove: (e: CalendarEvent) => void;
 }) {
   const [q, setQ] = useState("");
   const [results, setResults] = useState<CalendarEvent[]>([]);
@@ -63,41 +69,45 @@ export function SearchView({
         {results.map((event) => {
           const start = fromISO(event.startAt);
           return (
-            <Button
+            <SwipeableEventCard
               key={event.id}
-              variant="ghost"
-              onClick={() => onOpen(event)}
-              className="h-auto min-h-0 w-full flex-row items-stretch overflow-hidden whitespace-normal rounded-2xl bg-card p-0 text-left leading-snug shadow-lg shadow-black/10 ring-1 ring-border hover:bg-muted"
+              onOpen={() => onOpen(event)}
+              onDelete={() => onDelete(event)}
+              onDuplicate={() => onDuplicate(event)}
+              onMove={() => onMove(event)}
+              className="shadow-lg shadow-black/10 ring-1 ring-border"
             >
-              <div className="flex min-w-0 flex-1 items-start gap-3 px-4 py-3">
-                <span
-                  className="mt-1 size-2.5 shrink-0 rounded-full"
-                  style={{ backgroundColor: eventChipStyle(event.backgroundColor).backgroundColor }}
-                />
-                <div className="min-w-0 flex-1">
-                  <p className="font-medium break-words">{event.summary || "Ohne Titel"}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {event.allDay
-                      ? formatIsoDate(event.allDayStart)
-                      : start
-                        ? `${formatDate(start)} · ${formatTime(start)}`
-                        : ""}
-                  </p>
-                  {event.location ? (
-                    <>
-                      <p className="mt-1 text-sm text-muted-foreground break-words">{event.location}</p>
-                      <EventMapSnippet location={event.location} />
-                    </>
-                  ) : null}
+              <div className="flex min-h-0 w-full flex-row items-stretch overflow-hidden bg-card text-left leading-snug">
+                <div className="flex min-w-0 flex-1 items-start gap-3 px-4 py-3">
+                  <span
+                    className="mt-1 size-2.5 shrink-0 rounded-full"
+                    style={{ backgroundColor: eventChipStyle(event.backgroundColor).backgroundColor }}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium break-words">{event.summary || "Ohne Titel"}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {event.allDay
+                        ? formatIsoDate(event.allDayStart)
+                        : start
+                          ? `${formatDate(start)} · ${formatTime(start)}`
+                          : ""}
+                    </p>
+                    {event.location ? (
+                      <>
+                        <p className="mt-1 text-sm text-muted-foreground break-words">{event.location}</p>
+                        <EventMapSnippet location={event.location} />
+                      </>
+                    ) : null}
+                  </div>
                 </div>
+                <EventArtBanner
+                  summary={event.summary}
+                  description={event.description}
+                  calendarSummary={event.calendarSummary}
+                  eventType={event.eventType}
+                />
               </div>
-              <EventArtBanner
-                summary={event.summary}
-                description={event.description}
-                calendarSummary={event.calendarSummary}
-                eventType={event.eventType}
-              />
-            </Button>
+            </SwipeableEventCard>
           );
         })}
       </div>

@@ -33,6 +33,7 @@ import { syncExistingPushSubscription } from "@/lib/push";
 import {
   dayTitleParts,
   eventOverlapsDay,
+  fromISO,
   monthTitle,
   now,
   startOfWeek,
@@ -61,6 +62,7 @@ import type { AppModule } from "@/mail/types";
 import { useTheme } from "@/components/ThemeProvider";
 import { PullToRefresh } from "@/components/PullToRefresh";
 import { HeaderWeather } from "@/components/WeatherMark";
+import { DateField, TimeField } from "@/components/DateTimeFields";
 
 function useDesktop() {
   const [desktop, setDesktop] = useState(() =>
@@ -120,6 +122,10 @@ function CalendarApp({
     end: string;
   } | null>(null);
   const [moveScope, setMoveScope] = useState<RecurrenceScope>("this");
+  const [pendingDelete, setPendingDelete] = useState<CalendarEvent | null>(null);
+  const [reschedule, setReschedule] = useState<CalendarEvent | null>(null);
+  const [rescheduleDate, setRescheduleDate] = useState("");
+  const [rescheduleTime, setRescheduleTime] = useState("09:00");
 
   const effectiveView: ViewId = desktop
     ? searchOpen
@@ -259,6 +265,66 @@ function CalendarApp({
     }
   }
 
+  async function duplicateEvent(event: CalendarEvent) {
+    try {
+      await apiClient.createEvent({
+        summary: `Kopie: ${event.summary || "Ohne Titel"}`,
+        calendarId: event.calendarId,
+        allDay: event.allDay,
+        start: event.allDay ? event.allDayStart : event.startAt,
+        end: event.allDay ? event.allDayEnd : event.endAt,
+        timezone: event.timezone || ZONE,
+        location: event.location,
+        description: event.description,
+      });
+      toast.success("Kopie erstellt.");
+      await loadEvents();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Duplizieren fehlgeschlagen.");
+    }
+  }
+
+  async function deleteEvent(event: CalendarEvent) {
+    try {
+      await apiClient.deleteEvent(event.id, event.recurringEventId ? "this" : "this");
+      toast.success("Termin gelöscht.");
+      setPendingDelete(null);
+      await loadEvents();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Löschen fehlgeschlagen.");
+    }
+  }
+
+  function openReschedule(event: CalendarEvent) {
+    const start = event.allDay
+      ? DateTime.fromISO(event.allDayStart ?? "")
+      : fromISO(event.startAt);
+    setReschedule(event);
+    setRescheduleDate(start?.toISODate() ?? now().toISODate() ?? "");
+    setRescheduleTime(start && !event.allDay ? start.toFormat("HH:mm") : "09:00");
+  }
+
+  function confirmReschedule() {
+    if (!reschedule) return;
+    let start: DateTime;
+    let end: DateTime;
+    if (reschedule.allDay) {
+      const oldStart = DateTime.fromISO(reschedule.allDayStart ?? "");
+      const oldEnd = DateTime.fromISO(reschedule.allDayEnd ?? oldStart.plus({ days: 1 }).toISODate() ?? "");
+      const days = Math.max(1, oldEnd.diff(oldStart, "days").days);
+      start = DateTime.fromISO(rescheduleDate);
+      end = start.plus({ days });
+    } else {
+      const oldStart = fromISO(reschedule.startAt) ?? now();
+      const oldEnd = fromISO(reschedule.endAt) ?? oldStart.plus({ hours: 1 });
+      const duration = oldEnd.diff(oldStart);
+      start = DateTime.fromISO(`${rescheduleDate}T${rescheduleTime}`, { zone: ZONE });
+      end = start.plus(duration);
+    }
+    setReschedule(null);
+    onMove(reschedule, start, end);
+  }
+
   function onMove(event: CalendarEvent, start: DateTime, end: DateTime) {
     if (event.recurringEventId) {
       setPendingMove({
@@ -339,8 +405,8 @@ function CalendarApp({
             title
           ) : (
             <>
-              <span className="block">{title.weekday}</span>
-              <span className="block">{title.date}</span>
+              <span className="block font-bold">{title.weekday}</span>
+              <span className="block font-medium">{title.date}</span>
             </>
           )}
         </h1>
@@ -416,7 +482,7 @@ function CalendarApp({
 
   let main: ReactNode;
   if (!desktop && mobileTab === "search") {
-    main = <SearchView onOpen={onOpenEvent} />;
+    main = <SearchView onOpen={onOpenEvent} onDelete={setPendingDelete} onDuplicate={(e) => void duplicateEvent(e)} onMove={openReschedule} />;
   } else if (!desktop && mobileTab === "more") {
     main = (
       <div className="flex flex-col gap-6 px-4 py-4 pb-28">
@@ -473,7 +539,7 @@ function CalendarApp({
       </div>
     );
   } else if (desktop && searchOpen) {
-    main = <SearchView onOpen={onOpenEvent} />;
+    main = <SearchView onOpen={onOpenEvent} onDelete={setPendingDelete} onDuplicate={(e) => void duplicateEvent(e)} onMove={openReschedule} />;
   } else if (effectiveView === "agenda" || (!desktop && mobileTab === "today")) {
     main = (
       <div className="min-h-0 flex-1 overflow-auto">
@@ -495,6 +561,9 @@ function CalendarApp({
           events={visibleEvents}
           from={cursor}
           onOpen={onOpenEvent}
+          onDelete={setPendingDelete}
+          onDuplicate={(e) => void duplicateEvent(e)}
+          onMove={openReschedule}
           geminiAvailable={me.geminiAvailable}
           tasks={tasks}
         />
@@ -671,6 +740,45 @@ function CalendarApp({
             >
               Verschieben
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={Boolean(pendingDelete)} onOpenChange={(open) => { if (!open) setPendingDelete(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Termin löschen?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            {pendingDelete?.summary || "Ohne Titel"} wird in Google Calendar gelöscht.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPendingDelete(null)}>Abbrechen</Button>
+            <Button variant="destructive" onClick={() => pendingDelete && void deleteEvent(pendingDelete)}>
+              Löschen
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={Boolean(reschedule)} onOpenChange={(open) => { if (!open) setReschedule(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Termin verschieben</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-3">
+            <div className="flex flex-col gap-1.5">
+              <Label>Datum</Label>
+              <DateField value={rescheduleDate} onValueChange={setRescheduleDate} />
+            </div>
+            {reschedule && !reschedule.allDay ? (
+              <div className="flex flex-col gap-1.5">
+                <Label>Uhrzeit</Label>
+                <TimeField value={rescheduleTime} onValueChange={setRescheduleTime} />
+              </div>
+            ) : null}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReschedule(null)}>Abbrechen</Button>
+            <Button onClick={confirmReschedule}>Verschieben</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

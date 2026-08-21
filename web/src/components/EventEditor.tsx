@@ -34,6 +34,7 @@ import {
 import { apiClient, ApiError } from "@/lib/api";
 import { EventMapSnippet } from "@/components/EventMap";
 import { EventArtBanner } from "@/components/EventArt";
+import { LocationField } from "@/components/LocationField";
 import { nthWeekdayOfMonth, ZONE } from "@/lib/dates";
 import type { CalendarEvent, CalendarItem, RecurrenceScope } from "@/lib/types";
 
@@ -733,11 +734,8 @@ export function EventEditor({
           </Select>
         </div>
       ) : null}
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="location">Ort</Label>
-        <Input id="location" value={location} onValueChange={setLocation} />
-        <EventMapSnippet location={location} />
-      </div>
+      <LocationField id="location" value={location} onValueChange={setLocation} />
+      {location ? <EventMapSnippet location={location} /> : null}
       <div className="flex min-h-11 items-center justify-between gap-3">
         <Label htmlFor="meet" className="flex items-center gap-2">
           <Video className="size-4" />
@@ -903,20 +901,23 @@ export function EventEditor({
   if (desktop) {
     return (
       <Dialog open={state.open} onOpenChange={onOpenChange}>
-        <DialogContent className="gap-4 overflow-hidden p-0 sm:max-w-xl">
+        <DialogContent className="flex max-h-[min(90dvh,46rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-xl">
           <EventArtBanner
             variant="header"
-            className="h-44"
+            className="h-44 w-full shrink-0 rounded-t-xl"
             summary={summary}
+            description={description || event?.description}
             eventType={eventType}
             calendarSummary={event?.calendarSummary}
           />
-          <DialogHeader className="px-4">
-            <DialogTitle>{event ? "Termin bearbeiten" : "Neuer Termin"}</DialogTitle>
-            <DialogDescription>Änderungen werden mit Google Calendar synchronisiert.</DialogDescription>
-          </DialogHeader>
-          <div className="px-4">{form}</div>
-          <DialogFooter className="px-4 pb-4">{footer}</DialogFooter>
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-4">
+            <DialogHeader>
+              <DialogTitle>{event ? "Termin bearbeiten" : "Neuer Termin"}</DialogTitle>
+              <DialogDescription>Änderungen werden mit Google Calendar synchronisiert.</DialogDescription>
+            </DialogHeader>
+            <div className="mt-4">{form}</div>
+          </div>
+          <DialogFooter className="shrink-0 px-4 py-4">{footer}</DialogFooter>
         </DialogContent>
       </Dialog>
     );
@@ -924,20 +925,23 @@ export function EventEditor({
 
   return (
     <Sheet open={state.open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="gap-0 overflow-y-auto p-0">
+      <SheetContent side="bottom" className="gap-0 overflow-hidden p-0">
         <EventArtBanner
           variant="header"
-          className="h-44 rounded-t-2xl"
+          className="h-44 w-full shrink-0 rounded-t-2xl"
           summary={summary}
+          description={description || event?.description}
           eventType={eventType}
           calendarSummary={event?.calendarSummary}
         />
-        <SheetHeader>
-          <SheetTitle>{event ? "Termin bearbeiten" : "Neuer Termin"}</SheetTitle>
-          <SheetDescription>Änderungen werden mit Google Calendar synchronisiert.</SheetDescription>
-        </SheetHeader>
-        <div className="px-4 pb-4">{form}</div>
-        <SheetFooter>{footer}</SheetFooter>
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>{event ? "Termin bearbeiten" : "Neuer Termin"}</SheetTitle>
+            <SheetDescription>Änderungen werden mit Google Calendar synchronisiert.</SheetDescription>
+          </SheetHeader>
+          <div className="px-4 pb-4">{form}</div>
+        </div>
+        <SheetFooter className="shrink-0">{footer}</SheetFooter>
       </SheetContent>
     </Sheet>
   );

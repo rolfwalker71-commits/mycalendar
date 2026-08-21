@@ -131,3 +131,23 @@ export function DayWeather({
     />
   );
 }
+
+export function LineWeather({ iso }: { iso: string }) {
+  const { weather, day } = useWeather();
+  const hit = day(iso);
+  if (!hit || !weather) return null;
+  const todayIso = now().toISODate();
+  const temp = iso === todayIso ? weather.current.temp : hit.tMax;
+  const code = iso === todayIso ? weather.current.code : hit.code;
+  const Icon = weatherIcon(code);
+  return (
+    <span
+      className="inline-flex max-w-[55%] shrink-0 items-center gap-1 text-sm text-muted-foreground"
+      title={`${weather.name} ${temp}°`}
+    >
+      <Icon className={cn("size-3.5 shrink-0", weatherIconClass(code))} />
+      <span className="truncate">{weather.name}</span>
+      <span className="tabular-nums">{temp}°</span>
+    </span>
+  );
+}

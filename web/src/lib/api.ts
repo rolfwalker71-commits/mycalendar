@@ -310,7 +310,11 @@ export const apiClient = {
       method: "DELETE",
     }),
   mapsPreview: (q: string) =>
-    api<{ lat: number | null; lon: number | null }>(
+    api<{ lat: number | null; lon: number | null; label?: string }>(
       `/api/maps/preview?q=${encodeURIComponent(q)}`,
+    ),
+  mapsSuggest: (q: string) =>
+    api<{ places: { label: string; lat: number; lon: number }[] }>(
+      `/api/maps/suggest?q=${encodeURIComponent(q)}`,
     ),
 };
