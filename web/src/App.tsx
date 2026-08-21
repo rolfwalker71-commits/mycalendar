@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { DateTime } from "luxon";
-import { ChevronLeft, ChevronRight, LoaderCircle, Plus, Search } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, RefreshCw, Search } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -62,6 +62,7 @@ import type { AppModule } from "@/mail/types";
 import { useTheme } from "@/components/ThemeProvider";
 import { PullToRefresh } from "@/components/PullToRefresh";
 import { DateField, TimeField } from "@/components/DateTimeFields";
+import { cn } from "@/lib/utils";
 
 function useDesktop() {
   const [desktop, setDesktop] = useState(() =>
@@ -171,13 +172,15 @@ function CalendarApp({
     async (silent = false) => {
       if (!silent) setSyncing(true);
       try {
-        const res = await apiClient.sync(
-          range.from.toUTC().toISO() ?? undefined,
-          range.to.toUTC().toISO() ?? undefined,
+        await apiClient.sync(
+          silent ? range.from.toUTC().toISO() ?? undefined : undefined,
+          silent ? range.to.toUTC().toISO() ?? undefined : undefined,
+          !silent,
         );
         await loadCalendars();
         await loadEvents();
         await loadTasks();
+        if (!silent) toast.success("Kalender aktualisiert.");
       } catch (err) {
         if (!handleAuthError(err, onLogout) && !silent) {
           toast.error(err instanceof ApiError ? err.message : "Aktualisierung fehlgeschlagen.");
@@ -439,12 +442,16 @@ function CalendarApp({
             </>
           )}
         </h1>
-        {syncing ? (
-          <span className="flex items-center gap-1 text-xs text-muted-foreground">
-            <LoaderCircle className="size-3.5 animate-spin" />
-            Aktualisiert…
-          </span>
-        ) : null}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-8 lg:size-11"
+          aria-label="Aktualisieren"
+          disabled={syncing}
+          onClick={() => void sync()}
+        >
+          <RefreshCw className={cn("size-5", syncing && "animate-spin")} />
+        </Button>
       </div>
       <div className="hidden flex-1 justify-center lg:flex">
         <ViewSwitcher
@@ -547,6 +554,10 @@ function CalendarApp({
             />
           </div>
         </section>
+        <Button variant="outline" className="min-h-11" disabled={syncing} onClick={() => void sync()}>
+          <RefreshCw className={cn("size-4", syncing && "animate-spin")} />
+          Kalender aktualisieren
+        </Button>
         <Button variant="outline" onClick={onOpenSettings}>
           Einstellungen
         </Button>

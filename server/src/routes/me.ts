@@ -117,7 +117,7 @@ syncRouter.post("/", async (req, res) => {
   const timeMin = typeof req.body?.timeMin === "string" ? req.body.timeMin : undefined;
   const timeMax = typeof req.body?.timeMax === "string" ? req.body.timeMax : undefined;
   try {
-    const result = await syncUserEvents(req.user!, timeMin, timeMax);
+    const result = await syncUserEvents(req.user!, timeMin, timeMax, Boolean(req.body?.full));
     const { rows } = await query<{ last_sync_at: Date | null }>(
       "SELECT last_sync_at FROM users WHERE id = $1",
       [req.user!.id],

@@ -115,10 +115,10 @@ export const apiClient = {
     }),
   search: (q: string) =>
     api<{ events: CalendarEvent[] }>(`/api/search?q=${encodeURIComponent(q)}`),
-  sync: (timeMin?: string, timeMax?: string) =>
+  sync: (timeMin?: string, timeMax?: string, full = false) =>
     api<{ ok: boolean; lastSyncAt: string }>("/api/sync", {
       method: "POST",
-      body: JSON.stringify({ timeMin, timeMax }),
+      body: JSON.stringify({ timeMin, timeMax, full }),
     }),
   mailLabels: () => api<{ labels: MailLabel[] }>("/api/mail/labels"),
   mailThreads: (opts: {

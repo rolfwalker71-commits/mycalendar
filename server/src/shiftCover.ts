@@ -21,6 +21,10 @@ type CoverRef =
 
 let artsCache: { mtime: number; arts: ShiftArt[] } | null = null;
 
+export function invalidateShiftArtCache(): void {
+  artsCache = null;
+}
+
 function schichtklarRoot(): string | null {
   const fromEnv = (process.env.SCHICHTKLAR_DIR ?? "").trim();
   const candidates = [
@@ -119,7 +123,9 @@ export function imageAttachment(attachments: EventAttachmentJson[] | null | unde
     attachments.find((a) => {
       const mime = (a.mimeType ?? "").toLowerCase();
       if (mime.startsWith("image/") && !mime.includes("google-apps")) return true;
-      return /\.(png|jpe?g|gif|webp)$/i.test(a.title ?? a.fileUrl ?? "");
+      if (mime.includes("google-apps")) return false;
+      if (/\.(png|jpe?g|gif|webp)$/i.test(a.title ?? a.fileUrl ?? "")) return true;
+      return Boolean(a.fileId) && !mime;
     }) ?? null
   );
 }

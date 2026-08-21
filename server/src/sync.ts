@@ -10,6 +10,7 @@ import {
   GoogleAuthError,
 } from "./google.js";
 import { notifyNewCalendarEvent } from "./notify.js";
+import { invalidateShiftArtCache } from "./shiftCover.js";
 import type { AttendeeJson, CalendarRow, EventAttachmentJson, EventRow, ReminderJson, UserRow } from "./types.js";
 
 function asDate(value: string | null | undefined): string | null {
@@ -76,14 +77,17 @@ function mapGoogleEvent(
 
   const attachments: EventAttachmentJson[] | null = item.attachments?.length
     ? item.attachments
-        .filter((a): a is NonNullable<typeof a> & { fileUrl: string } => Boolean(a.fileUrl))
+        .filter((a): a is NonNullable<typeof a> => Boolean(a.fileUrl || a.fileId))
         .map((a) => ({
-          fileUrl: a.fileUrl,
+          fileUrl:
+            a.fileUrl ||
+            (a.fileId ? `https://drive.google.com/file/d/${a.fileId}/view` : ""),
           title: a.title ?? undefined,
           mimeType: a.mimeType ?? undefined,
           iconLink: a.iconLink ?? undefined,
           fileId: a.fileId ?? undefined,
         }))
+        .filter((a) => a.fileUrl)
     : null;
 
   return {
@@ -358,6 +362,7 @@ export async function syncUserEvents(
   user: UserRow,
   timeMin?: string,
   timeMax?: string,
+  full = false,
 ): Promise<{ calendars: number; error?: string }> {
   const now = DateTime.now().setZone(TZ);
   const from =
@@ -370,11 +375,17 @@ export async function syncUserEvents(
     throw new Error("Ungültiger Zeitraum");
   }
 
+  invalidateShiftArtCache();
+
   try {
     const calendars = await syncCalendarList(user);
+    if (full) {
+      await query("UPDATE calendars SET sync_token = NULL WHERE user_id = $1", [user.id]);
+    }
     const api = await getAuthedCalendar(user);
+    const list = full ? calendars.map((c) => ({ ...c, sync_token: null })) : calendars;
 
-    for (const calendar of calendars) {
+    for (const calendar of list) {
       try {
         if (calendar.sync_token) {
           try {
