@@ -7,7 +7,7 @@ export type EventArtKind =
   | "train"
   | "car"
   | "cruise"
-  | "nurse"
+  | "service"
   | "hotel"
   | "doctor"
   | "gyno"
@@ -270,7 +270,7 @@ export function eventArtKind(input: {
   if (!text.trim()) return "agenda";
   if (/geburtstag/.test(fold(input.calendarSummary || ""))) return "birthday";
   if (/arbeitsplan/.test(fold(input.calendarSummary || "")) && /valentyna/.test(fold(input.calendarSummary || ""))) {
-    return "nurse";
+    return "service";
   }
   if (/\b(hcap|ambri)\b/.test(text) || /ambri-piotta/.test(text)) return "hockey";
   if (/(frauenarzt|frauenaerztin|gynaekolog)/.test(text)) return "gyno";
@@ -309,7 +309,7 @@ const ART_FILE: Record<EventArtKind, string> = {
   doctor: "doctor",
   gyno: "gyno",
   translate: "translate",
-  nurse: "nurse",
+  service: "service",
   sport: "sport",
   run: "run",
   hockey: "hockey",
@@ -351,5 +351,5 @@ export function eventArtSrc(
   kind: EventArtKind,
   variant: "side" | "header",
 ): string {
-  return `/event-art/${ART_FILE[kind]}-${variant}.jpg?v=illust7`;
+  return `/event-art/${ART_FILE[kind]}-${variant}.jpg?v=illust8`;
 }
