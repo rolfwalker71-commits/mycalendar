@@ -264,14 +264,58 @@ function worldPx(lat: number, lon: number, zoom: number, tilePx: number): { x: n
   return { x: t.x * tilePx, y: t.y * tilePx };
 }
 
+function shorterLonDelta(from: number, to: number): number {
+  let d = to - from;
+  while (d > 180) d -= 360;
+  while (d < -180) d += 360;
+  return d;
+}
+
+function unwrapRoute(points: MapPoint[]): MapPoint[] {
+  if (points.length < 2) return points;
+  const a = points[0];
+  const b = points[1];
+  return [a, { ...b, lon: a.lon + shorterLonDelta(a.lon, b.lon) }];
+}
+
+function arcControl(
+  a: { x: number; y: number },
+  b: { x: number; y: number },
+  outH: number,
+): { x: number; y: number } {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const len = Math.max(1, Math.hypot(dx, dy));
+  const bulge = Math.min(len * 0.18, outH * 0.22);
+  return {
+    x: (a.x + b.x) / 2 - (dy / len) * bulge,
+    y: (a.y + b.y) / 2 + (dx / len) * bulge,
+  };
+}
+
+function routeBBox(
+  pts: { x: number; y: number }[],
+  outW: number,
+  outH: number,
+): { minX: number; maxX: number; minY: number; maxY: number } {
+  const a = pts[0];
+  const b = pts[1];
+  const c = arcControl(a, b, outH);
+  const padX = Math.max(72, outW * 0.1);
+  const padY = Math.max(80, outH * 0.14);
+  return {
+    minX: Math.min(a.x, b.x, c.x) - padX,
+    maxX: Math.max(a.x, b.x, c.x) + padX,
+    minY: Math.min(a.y, b.y, c.y) - padY,
+    maxY: Math.max(a.y, b.y, c.y) + padY,
+  };
+}
+
 function fitZoom(points: MapPoint[], outW: number, outH: number, tilePx: number): number {
-  for (let z = 8; z >= 2; z--) {
+  for (let z = 12; z >= 2; z--) {
     const pts = points.map((p) => worldPx(p.lat, p.lon, z, tilePx));
-    const minX = Math.min(...pts.map((p) => p.x));
-    const maxX = Math.max(...pts.map((p) => p.x));
-    const minY = Math.min(...pts.map((p) => p.y));
-    const maxY = Math.max(...pts.map((p) => p.y));
-    if (maxX - minX + 140 <= outW && maxY - minY + 120 <= outH) return z;
+    const box = routeBBox(pts, outW, outH);
+    if (box.maxX - box.minX <= outW && box.maxY - box.minY <= outH) return z;
   }
   return 2;
 }
@@ -317,7 +361,8 @@ async function fetchStaticMap(
   w: number,
   h: number,
 ): Promise<{ body: Buffer; type: string }> {
-  const key = `voyager@2x,${points.map((p) => `${p.lat.toFixed(4)},${p.lon.toFixed(4)},${p.label ?? ""}`).join("|")},${w}x${h}`;
+  const framed = points.length >= 2 ? unwrapRoute(points) : points;
+  const key = `voyager@2x,fit3,${framed.map((p) => `${p.lat.toFixed(4)},${p.lon.toFixed(4)},${p.label ?? ""}`).join("|")},${w}x${h}`;
   const hit = imgCache.get(key);
   if (hit && Date.now() - hit.at < IMG_TTL) return { body: hit.body, type: hit.type };
 
@@ -325,35 +370,34 @@ async function fetchStaticMap(
   const tilePx = 256 * scale;
   const outW = w * scale;
   const outH = h * scale;
-  const route = points.length >= 2;
-  const zoom = route ? fitZoom(points, outW, outH, tilePx) : 16;
-  const pts = points.map((p) => worldPx(p.lat, p.lon, zoom, tilePx));
-  const minX = Math.min(...pts.map((p) => p.x));
-  const maxX = Math.max(...pts.map((p) => p.x));
-  const minY = Math.min(...pts.map((p) => p.y));
-  const maxY = Math.max(...pts.map((p) => p.y));
-  const left = route ? (minX + maxX) / 2 - outW / 2 : pts[0].x - outW / 2;
-  const top = route ? (minY + maxY) / 2 - outH / 2 : pts[0].y - outH / 2;
+  const route = framed.length >= 2;
+  const zoom = route ? fitZoom(framed, outW, outH, tilePx) : 16;
+  const pts = framed.map((p) => worldPx(p.lat, p.lon, zoom, tilePx));
+  let left: number;
+  let top: number;
+  if (route) {
+    const box = routeBBox(pts, outW, outH);
+    left = (box.minX + box.maxX) / 2 - outW / 2;
+    top = (box.minY + box.maxY) / 2 - outH / 2;
+  } else {
+    left = pts[0].x - outW / 2;
+    top = pts[0].y - outH / 2;
+  }
   const images = await stitchTiles(zoom, left, top, outW, outH, tilePx);
 
   let overlay = "";
   if (route) {
     const a = { x: pts[0].x - left, y: pts[0].y - top };
     const b = { x: pts[1].x - left, y: pts[1].y - top };
-    const dx = b.x - a.x;
-    const dy = b.y - a.y;
-    const len = Math.max(1, Math.hypot(dx, dy));
-    const bulge = Math.min(len * 0.22, outH * 0.3);
-    const cx = (a.x + b.x) / 2 - (dy / len) * bulge;
-    const cy = (a.y + b.y) / 2 + (dx / len) * bulge;
-    const mid = quadPoint(0.55, a.x, a.y, cx, cy, b.x, b.y);
-    const near = quadPoint(0.62, a.x, a.y, cx, cy, b.x, b.y);
+    const c = arcControl(a, b, outH);
+    const mid = quadPoint(0.55, a.x, a.y, c.x, c.y, b.x, b.y);
+    const near = quadPoint(0.62, a.x, a.y, c.x, c.y, b.x, b.y);
     const angle = (Math.atan2(near.y - mid.y, near.x - mid.x) * 180) / Math.PI;
     overlay = `
-      <path d="M ${a.x.toFixed(1)} ${a.y.toFixed(1)} Q ${cx.toFixed(1)} ${cy.toFixed(1)} ${b.x.toFixed(1)} ${b.y.toFixed(1)}" fill="none" stroke="#1d4ed8" stroke-width="5" stroke-dasharray="14 10" stroke-linecap="round" opacity="0.92"/>
+      <path d="M ${a.x.toFixed(1)} ${a.y.toFixed(1)} Q ${c.x.toFixed(1)} ${c.y.toFixed(1)} ${b.x.toFixed(1)} ${b.y.toFixed(1)}" fill="none" stroke="#1d4ed8" stroke-width="5" stroke-dasharray="14 10" stroke-linecap="round" opacity="0.92"/>
       ${planeSvg(mid.x, mid.y, angle)}
-      ${airportDotSvg(a.x, a.y, points[0].label ?? "A")}
-      ${airportDotSvg(b.x, b.y, points[1].label ?? "B")}
+      ${airportDotSvg(a.x, a.y, framed[0].label ?? "A")}
+      ${airportDotSvg(b.x, b.y, framed[1].label ?? "B")}
     `;
   } else {
     overlay = mapPinSvg(outW / 2, outH / 2 + 8);

@@ -55,7 +55,7 @@ export function AgendaView({
         const day = DateTime.fromISO(iso).setLocale("de");
         return (
           <section key={iso}>
-            <h2 className="flex items-baseline justify-between gap-3 px-3 pb-2 text-sm">
+            <h2 className="flex items-baseline justify-between gap-3 px-3 pb-2 text-[0.75rem]">
               <span className="min-w-0 truncate">
                 {isSameDay(day, today) ? (
                   <span className="font-bold">Heute</span>
@@ -79,7 +79,7 @@ export function AgendaView({
                 return (
                   <li key={event.id}>
                     <SwipeableEventCard
-                      onOpen={() => onOpen(event)}
+                      onEdit={() => onOpen(event)}
                       onDelete={() => onDelete(event)}
                       onDuplicate={() => onDuplicate(event)}
                       onMove={() => onMove(event)}

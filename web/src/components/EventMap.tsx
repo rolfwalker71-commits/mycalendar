@@ -60,7 +60,7 @@ export function EventMapSnippet({
   }, [query, summary]);
 
   if (route) {
-    const src = `/api/maps/static?from=${encodeURIComponent(route.from)}&to=${encodeURIComponent(route.to)}&w=640&h=200&v=flight`;
+    const src = `/api/maps/static?from=${encodeURIComponent(route.from)}&to=${encodeURIComponent(route.to)}&w=640&h=280&v=flight3`;
     return (
       <a
         href={flightHref(route.from, route.to)}
@@ -73,7 +73,7 @@ export function EventMapSnippet({
         )}
         aria-label={`Flugroute ${route.from} nach ${route.to}`}
       >
-        <img src={src} alt="" draggable={false} className="h-36 w-full object-cover" loading="lazy" />
+        <img src={src} alt="" draggable={false} className="h-auto w-full" loading="lazy" />
       </a>
     );
   }

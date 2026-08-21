@@ -379,6 +379,7 @@ function CalendarApp({
   });
 
   const dayHeading = view === "day" || view === "agenda" || (!desktop && mobileTab === "today");
+  const agendaHeading = view === "agenda" || (!desktop && mobileTab === "today");
   const tasksTab = !desktop && mobileTab === "tasks";
   const title = useMemo(() => {
     if (tasksTab) return "Aufgaben";
@@ -413,6 +414,11 @@ function CalendarApp({
         <h1 className="min-w-0 flex-1 text-xl font-semibold tracking-tight capitalize leading-tight lg:text-2xl">
           {typeof title === "string" ? (
             title
+          ) : agendaHeading ? (
+            <>
+              <span className="block text-[0.95rem] font-bold leading-tight lg:text-lg">{title.weekday}</span>
+              <span className="block text-[0.75rem] font-medium leading-snug lg:text-sm">{title.date}</span>
+            </>
           ) : (
             <>
               <span className="block font-bold">{title.weekday}</span>

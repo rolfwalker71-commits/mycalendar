@@ -1,17 +1,19 @@
 import type { ReactNode } from "react";
-import { Copy, CalendarClock, Trash2 } from "lucide-react";
+import { Copy, CalendarClock, Pencil, Trash2 } from "lucide-react";
 import { SwipeableRow } from "@/components/SwipeableRow";
 
 export function SwipeableEventCard({
   children,
   onOpen,
+  onEdit,
   onDelete,
   onDuplicate,
   onMove,
   className,
 }: {
   children: ReactNode;
-  onOpen: () => void;
+  onOpen?: () => void;
+  onEdit?: () => void;
   onDelete: () => void;
   onDuplicate: () => void;
   onMove: () => void;
@@ -22,6 +24,17 @@ export function SwipeableEventCard({
       className={className}
       onOpen={onOpen}
       actions={[
+        ...(onEdit
+          ? [
+              {
+                key: "edit",
+                label: "Bearbeiten",
+                icon: <Pencil className="size-5" />,
+                className: "bg-amber-600",
+                onClick: onEdit,
+              },
+            ]
+          : []),
         {
           key: "move",
           label: "Verschieben",
