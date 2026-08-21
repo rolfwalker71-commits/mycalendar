@@ -10,6 +10,8 @@ export type EventArtKind =
   | "nurse"
   | "hotel"
   | "doctor"
+  | "gyno"
+  | "translate"
   | "sport"
   | "run"
   | "hockey"
@@ -50,7 +52,8 @@ export type EventArtKind =
   | "game"
   | "repair"
   | "church"
-  | "museum";
+  | "museum"
+  | "agenda";
 
 type Rule = { kind: EventArtKind; words: string[] };
 
@@ -144,6 +147,34 @@ export const EVENT_ART_RULES: Rule[] = [
   { kind: "car", words: ["mfk", "garage", "autowerkstatt", "tanken", "fahrstunde"] },
   { kind: "hotel", words: ["check-in", "checkin", "hotel", "uebernachtung"] },
   {
+    kind: "translate",
+    words: [
+      "uebersetzen",
+      "ubersetzen",
+      "uebersetzung",
+      "dolmetschen",
+      "dolmetscher",
+      "dolmetscherin",
+      "translate",
+      "translation",
+      "interpreter",
+    ],
+  },
+  {
+    kind: "gyno",
+    words: [
+      "gynaekologie",
+      "gynaekologe",
+      "gynaekologin",
+      "frauenarzt",
+      "frauenaerztin",
+      "frauenklinik",
+      "gynecology",
+      "gynaecology",
+      "gynecologist",
+    ],
+  },
+  {
     kind: "doctor",
     words: [
       "zahnarzt",
@@ -223,7 +254,7 @@ export function eventArtKind(input: {
   description?: string | null;
   calendarSummary?: string | null;
   eventType?: string | null;
-}): EventArtKind | null {
+}): EventArtKind {
   if (input.eventType === "outOfOffice") return "ooo";
   if (input.eventType === "focusTime") return "work";
   const text = fold(
@@ -231,12 +262,14 @@ export function eventArtKind(input: {
       .filter(Boolean)
       .join(" "),
   );
-  if (!text.trim()) return null;
+  if (!text.trim()) return "agenda";
   if (/geburtstag/.test(fold(input.calendarSummary || ""))) return "birthday";
   if (/arbeitsplan/.test(fold(input.calendarSummary || "")) && /valentyna/.test(fold(input.calendarSummary || ""))) {
     return "nurse";
   }
   if (/\b(hcap|ambri)\b/.test(text) || /ambri-piotta/.test(text)) return "hockey";
+  if (/(frauenarzt|frauenaerztin|gynaekolog)/.test(text)) return "gyno";
+  if (/(u(e)?bersetz|dolmetsch|\btranslate\b|\btranslation\b)/.test(text)) return "translate";
   if (
     /(lauf|rennen|marathon|jogging|trailrun)/.test(text) &&
     !/(verlauf|ablauf|auflauf|kreislauf)/.test(text)
@@ -246,7 +279,7 @@ export function eventArtKind(input: {
   for (const rule of EVENT_ART_RULES) {
     if (rule.words.some((word) => hasWord(text, word))) return rule.kind;
   }
-  return null;
+  return "agenda";
 }
 
 const ART_FILE: Record<EventArtKind, string> = {
@@ -266,7 +299,10 @@ const ART_FILE: Record<EventArtKind, string> = {
   flight: "flight",
   train: "train",
   car: "car",
+  agenda: "agenda",
   doctor: "doctor",
+  gyno: "gyno",
+  translate: "translate",
   nurse: "nurse",
   sport: "sport",
   run: "run",
@@ -308,5 +344,5 @@ export function eventArtSrc(
   kind: EventArtKind,
   variant: "side" | "header",
 ): string {
-  return `/event-art/${ART_FILE[kind]}-${variant}.jpg?v=illust4`;
+  return `/event-art/${ART_FILE[kind]}-${variant}.jpg?v=illust6`;
 }
