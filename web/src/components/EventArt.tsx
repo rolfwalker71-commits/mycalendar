@@ -1,12 +1,16 @@
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { eventArtKind, eventArtSrc } from "@/lib/eventArt";
+import { driveThumbUrl, eventImageFileId } from "@/lib/driveFile";
+import type { EventAttachment } from "@/lib/types";
 
 export function EventArtBanner({
   summary,
   description,
   calendarSummary,
   eventType,
+  eventId,
+  attachments,
   coverUrl,
   variant = "side",
   className,
@@ -15,16 +19,26 @@ export function EventArtBanner({
   description?: string | null;
   calendarSummary?: string | null;
   eventType?: string | null;
+  eventId?: string | null;
+  attachments?: EventAttachment[] | null;
   coverUrl?: string | null;
   variant?: "side" | "header";
   className?: string;
 }) {
   const kind = eventArtKind({ summary, description, calendarSummary, eventType });
   const fallback = kind ? eventArtSrc(kind, variant) : null;
-  const [src, setSrc] = useState(coverUrl || fallback);
+  const fileId = eventImageFileId(attachments);
+  const proxy = coverUrl || (eventId && fileId ? `/api/events/${eventId}/cover?v=${encodeURIComponent(fileId)}` : null);
+  const thumb = fileId ? driveThumbUrl(fileId) : null;
+  const preferred = proxy || thumb || fallback;
+  const [src, setSrc] = useState(preferred);
+  const [failed, setFailed] = useState<string[]>([]);
+
   useEffect(() => {
-    setSrc(coverUrl || fallback);
-  }, [coverUrl, fallback]);
+    setSrc(preferred);
+    setFailed([]);
+  }, [preferred]);
+
   if (!src) return null;
   return (
     <div
@@ -41,7 +55,11 @@ export function EventArtBanner({
         draggable={false}
         className="h-full w-full object-cover object-center"
         onError={() => {
-          if (fallback && src !== fallback) setSrc(fallback);
+          const nextFailed = failed.includes(src) ? failed : [...failed, src];
+          setFailed(nextFailed);
+          const candidates = [proxy, thumb, fallback].filter((u): u is string => Boolean(u));
+          const pick = candidates.find((u) => !nextFailed.includes(u));
+          if (pick) setSrc(pick);
         }}
       />
     </div>

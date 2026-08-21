@@ -35,7 +35,8 @@ import { EventMapSnippet } from "@/components/EventMap";
 import { EventArtBanner } from "@/components/EventArt";
 import { LocationField } from "@/components/LocationField";
 import { nthWeekdayOfMonth, ZONE } from "@/lib/dates";
-import type { CalendarEvent, CalendarItem, RecurrenceScope } from "@/lib/types";
+import type { CalendarEvent, CalendarItem, EventAttachment, RecurrenceScope } from "@/lib/types";
+import { driveFileId, mimeFromName } from "@/lib/driveFile";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -149,7 +150,7 @@ export function EventEditor({
   ]);
   const [driveUrl, setDriveUrl] = useState("");
   const [driveTitle, setDriveTitle] = useState("");
-  const [attachments, setAttachments] = useState<{ fileUrl: string; title?: string; mimeType?: string }[]>([]);
+  const [attachments, setAttachments] = useState<EventAttachment[]>([]);
   const [rooms, setRooms] = useState<{ id: string; summary: string | null }[]>([]);
   const [roomsHint, setRoomsHint] = useState<string | null>(null);
   const [busyHint, setBusyHint] = useState<string | null>(null);
@@ -419,11 +420,20 @@ export function EventEditor({
     const url = driveUrl.trim();
     if (!url) return;
     let fileUrl = url;
-    const idMatch = url.match(/[-\w]{25,}/);
-    if (!url.startsWith("http") && idMatch) {
-      fileUrl = `https://drive.google.com/file/d/${idMatch[0]}/view`;
+    const id = driveFileId({ fileUrl: url, fileId: url.startsWith("http") ? undefined : url });
+    if (!url.startsWith("http") && id) {
+      fileUrl = `https://drive.google.com/file/d/${id}/view`;
     }
-    setAttachments((a) => [...a, { fileUrl, title: driveTitle.trim() || "Drive-Datei" }]);
+    const title = driveTitle.trim() || "Drive-Datei";
+    setAttachments((a) => [
+      ...a,
+      {
+        fileUrl,
+        title,
+        fileId: driveFileId({ fileUrl, fileId: id }) ?? undefined,
+        mimeType: mimeFromName(title),
+      },
+    ]);
     setDriveUrl("");
     setDriveTitle("");
   }
@@ -912,6 +922,8 @@ export function EventEditor({
             description={description || event?.description}
             eventType={eventType}
             calendarSummary={event?.calendarSummary}
+            eventId={event?.id}
+            attachments={attachments}
             coverUrl={event?.coverUrl}
           />
           <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-4">
@@ -937,6 +949,8 @@ export function EventEditor({
           description={description || event?.description}
           eventType={eventType}
           calendarSummary={event?.calendarSummary}
+          eventId={event?.id}
+          attachments={attachments}
           coverUrl={event?.coverUrl}
         />
         <SheetHeader>

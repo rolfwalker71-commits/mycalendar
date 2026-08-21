@@ -3,7 +3,7 @@ import { DateTime } from "luxon";
 import { TZ } from "../config.js";
 import { requireAuth, clearSessionCookie } from "../auth.js";
 import { query } from "../db.js";
-import { GoogleAuthError, describeGoogleApiError, getAuthedCalendar, getAuthedDrive, isAuthError } from "../google.js";
+import { GoogleAuthError, describeGoogleApiError, getAuthedCalendar, downloadDriveBytes, isAuthError } from "../google.js";
 import {
   eventToGoogleBody,
   refreshCachedEvent,
@@ -577,20 +577,7 @@ eventsRouter.get("/:id/cover", async (req, res) => {
         calendarSummary: event.calendar_summary,
         attachments: event.attachments,
       },
-      async (fileId) => {
-        try {
-          const drive = await getAuthedDrive(req.user!);
-          const got = await drive.files.get(
-            { fileId, alt: "media" },
-            { responseType: "arraybuffer" },
-          );
-          const mime =
-            (got.headers as { "content-type"?: string })["content-type"] || "image/png";
-          return { buffer: Buffer.from(got.data as ArrayBuffer), mimeType: mime };
-        } catch {
-          return null;
-        }
-      },
+      async (fileId) => downloadDriveBytes(req.user!, fileId),
     );
     if (!file) {
       res.status(404).end();

@@ -122,6 +122,67 @@ export async function getAuthedDrive(user: UserRow): Promise<drive_v3.Drive> {
   return google.drive({ version: "v3", auth: client });
 }
 
+export async function downloadDriveBytes(
+  user: UserRow,
+  fileId: string,
+): Promise<{ buffer: Buffer; mimeType: string } | null> {
+  const client = await getAuthedOAuthClient(user);
+  const drive = google.drive({ version: "v3", auth: client });
+
+  try {
+    const got = await drive.files.get(
+      { fileId, alt: "media", supportsAllDrives: true },
+      { responseType: "arraybuffer" },
+    );
+    const mime =
+      (got.headers as { "content-type"?: string })["content-type"] || "image/png";
+    if (mime.startsWith("image/") || mime === "application/octet-stream") {
+      return { buffer: Buffer.from(got.data as ArrayBuffer), mimeType: mime.startsWith("image/") ? mime : "image/png" };
+    }
+  } catch (err) {
+    console.warn("Drive-Datei (media) nicht lesbar:", fileId, (err as Error).message);
+  }
+
+  try {
+    const meta = await drive.files.get({
+      fileId,
+      supportsAllDrives: true,
+      fields: "thumbnailLink,webContentLink,mimeType",
+    });
+    const token = (await client.getAccessToken()).token;
+    for (const url of [meta.data.webContentLink, meta.data.thumbnailLink]) {
+      if (!url) continue;
+      const res = await fetch(url, {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        redirect: "follow",
+      });
+      const mime = res.headers.get("content-type") || meta.data.mimeType || "image/png";
+      if (res.ok && mime.startsWith("image/")) {
+        return { buffer: Buffer.from(await res.arrayBuffer()), mimeType: mime };
+      }
+    }
+  } catch (err) {
+    console.warn("Drive-Datei (meta) nicht lesbar:", fileId, (err as Error).message);
+  }
+
+  for (const url of [
+    `https://lh3.googleusercontent.com/d/${fileId}=s800`,
+    `https://drive.google.com/thumbnail?id=${encodeURIComponent(fileId)}&sz=w800`,
+    `https://drive.google.com/uc?export=download&id=${encodeURIComponent(fileId)}`,
+  ]) {
+    try {
+      const res = await fetch(url, { redirect: "follow" });
+      const mime = res.headers.get("content-type") || "";
+      if (res.ok && mime.startsWith("image/")) {
+        return { buffer: Buffer.from(await res.arrayBuffer()), mimeType: mime };
+      }
+    } catch {
+      /* next */
+    }
+  }
+  return null;
+}
+
 export function isGoneError(err: unknown): boolean {
   const e = err as { code?: number; status?: number };
   return e.code === 410 || e.status === 410;

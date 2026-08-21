@@ -63,6 +63,8 @@ export function EventCardBody({
         description={event.description}
         calendarSummary={event.calendarSummary}
         eventType={event.eventType}
+        eventId={event.id}
+        attachments={event.attachments}
         coverUrl={event.coverUrl}
       />
     </div>

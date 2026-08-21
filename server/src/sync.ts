@@ -10,7 +10,7 @@ import {
   GoogleAuthError,
 } from "./google.js";
 import { notifyNewCalendarEvent } from "./notify.js";
-import { invalidateShiftArtCache } from "./shiftCover.js";
+import { invalidateShiftArtCache, driveFileId } from "./shiftCover.js";
 import type { AttendeeJson, CalendarRow, EventAttachmentJson, EventRow, ReminderJson, UserRow } from "./types.js";
 
 function asDate(value: string | null | undefined): string | null {
@@ -78,15 +78,18 @@ function mapGoogleEvent(
   const attachments: EventAttachmentJson[] | null = item.attachments?.length
     ? item.attachments
         .filter((a): a is NonNullable<typeof a> => Boolean(a.fileUrl || a.fileId))
-        .map((a) => ({
-          fileUrl:
+        .map((a) => {
+          const fileUrl =
             a.fileUrl ||
-            (a.fileId ? `https://drive.google.com/file/d/${a.fileId}/view` : ""),
-          title: a.title ?? undefined,
-          mimeType: a.mimeType ?? undefined,
-          iconLink: a.iconLink ?? undefined,
-          fileId: a.fileId ?? undefined,
-        }))
+            (a.fileId ? `https://drive.google.com/file/d/${a.fileId}/view` : "");
+          return {
+            fileUrl,
+            title: a.title ?? undefined,
+            mimeType: a.mimeType ?? undefined,
+            iconLink: a.iconLink ?? undefined,
+            fileId: a.fileId ?? driveFileId({ fileId: a.fileId, fileUrl }) ?? undefined,
+          };
+        })
         .filter((a) => a.fileUrl)
     : null;
 
@@ -487,6 +490,7 @@ export function eventToGoogleBody(input: {
       fileUrl: a.fileUrl,
       title: a.title,
       mimeType: a.mimeType,
+      fileId: a.fileId,
     }));
   }
   const eventType = input.eventType && input.eventType !== "default" ? input.eventType : undefined;

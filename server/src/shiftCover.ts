@@ -117,16 +117,34 @@ function loadShiftArts(): ShiftArt[] {
   }
 }
 
+export function driveFileId(input: { fileId?: string | null; fileUrl?: string | null }): string | null {
+  if (input.fileId && /^[\w-]{10,}$/.test(input.fileId)) return input.fileId;
+  const url = input.fileUrl ?? "";
+  const fromPath = url.match(/\/d\/([-\w]{10,})/);
+  if (fromPath?.[1]) return fromPath[1];
+  const fromQuery = url.match(/[?&]id=([-\w]{10,})/);
+  if (fromQuery?.[1]) return fromQuery[1];
+  return null;
+}
+
 export function imageAttachment(attachments: EventAttachmentJson[] | null | undefined): EventAttachmentJson | null {
   if (!attachments?.length) return null;
+  const usable = attachments.filter((a) => {
+    const mime = (a.mimeType ?? "").toLowerCase();
+    const name = `${a.title ?? ""} ${a.fileUrl ?? ""}`;
+    if (mime.includes("google-apps") && !mime.includes("photo")) return false;
+    if (/\.(pdf|docx?|xlsx?|pptx?|txt)$/i.test(name)) return false;
+    if (mime.startsWith("image/")) return true;
+    if (/\.(png|jpe?g|gif|webp|bmp)$/i.test(name)) return true;
+    return Boolean(driveFileId(a));
+  });
   return (
-    attachments.find((a) => {
+    usable.find((a) => {
       const mime = (a.mimeType ?? "").toLowerCase();
-      if (mime.startsWith("image/") && !mime.includes("google-apps")) return true;
-      if (mime.includes("google-apps")) return false;
-      if (/\.(png|jpe?g|gif|webp)$/i.test(a.title ?? a.fileUrl ?? "")) return true;
-      return Boolean(a.fileId) && !mime;
-    }) ?? null
+      return mime.startsWith("image/") || /\.(png|jpe?g|gif|webp|bmp)$/i.test(`${a.title ?? ""} ${a.fileUrl ?? ""}`);
+    }) ??
+    usable[0] ??
+    null
   );
 }
 
@@ -174,8 +192,9 @@ function coverRef(input: {
   attachments?: EventAttachmentJson[] | null;
 }): CoverRef | null {
   const att = imageAttachment(input.attachments);
-  if (att?.fileId) {
-    return { kind: "drive", fileId: att.fileId, mimeType: att.mimeType, version: att.fileId };
+  const fileId = att ? driveFileId(att) : null;
+  if (fileId) {
+    return { kind: "drive", fileId, mimeType: att?.mimeType, version: fileId };
   }
   const art = matchShiftArt(input);
   if (art) {
@@ -223,12 +242,13 @@ export async function loadCoverFile(
   fetchDrive?: (fileId: string) => Promise<{ buffer: Buffer; mimeType: string } | null>,
 ): Promise<{ buffer: Buffer; mimeType: string } | null> {
   const att = imageAttachment(input.attachments);
-  if (att?.fileId && fetchDrive) {
-    const cached = join(coversDir(), `${att.fileId.replace(/[^a-zA-Z0-9_-]/g, "")}.bin`);
+  const fileId = att ? driveFileId(att) : null;
+  if (fileId && fetchDrive) {
+    const cached = join(coversDir(), `${fileId.replace(/[^a-zA-Z0-9_-]/g, "")}.bin`);
     if (existsSync(cached)) {
-      return { buffer: readFileSync(cached), mimeType: att.mimeType || "image/png" };
+      return { buffer: readFileSync(cached), mimeType: att?.mimeType || "image/png" };
     }
-    const got = await fetchDrive(att.fileId);
+    const got = await fetchDrive(fileId);
     if (got) {
       try {
         writeFileSync(cached, got.buffer);
