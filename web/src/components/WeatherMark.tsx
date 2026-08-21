@@ -71,7 +71,7 @@ export function WeatherMark({
     <span
       className={cn(
         "inline-flex items-center gap-0.5",
-        compact ? "text-[11px]" : "text-sm",
+        compact ? "text-[0.6875rem]" : "text-sm",
         className,
       )}
       title={name}
@@ -97,11 +97,11 @@ export function HeaderWeather() {
   return (
     <span className="flex shrink-0 flex-col items-end leading-tight">
       <WeatherMark code={code} temp={temp} name={weather.name} />
-      <span className="max-w-[7.5rem] truncate text-[11px] text-muted-foreground">
+      <span className="max-w-[7.5rem] truncate text-[0.6875rem] text-muted-foreground">
         {weather.name}
       </span>
       {today && today.tMax !== temp ? (
-        <span className="text-[10px] text-muted-foreground tabular-nums">
+        <span className="text-[0.625rem] text-muted-foreground tabular-nums">
           {today.tMin}–{today.tMax}°
         </span>
       ) : null}

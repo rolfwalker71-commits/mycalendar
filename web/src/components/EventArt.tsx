@@ -28,7 +28,7 @@ export function EventArtBanner({
       )}
       aria-hidden
     >
-      <img src={src} alt="" className="h-full w-full object-cover object-center" />
+      <img src={src} alt="" draggable={false} className="h-full w-full object-cover object-center" />
     </div>
   );
 }

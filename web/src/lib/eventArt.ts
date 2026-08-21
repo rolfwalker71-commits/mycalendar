@@ -6,6 +6,8 @@ export type EventArtKind =
   | "flight"
   | "train"
   | "car"
+  | "cruise"
+  | "nurse"
   | "hotel"
   | "doctor"
   | "sport"
@@ -114,6 +116,10 @@ export const EVENT_ART_RULES: Rule[] = [
     ],
   },
   { kind: "flight", words: ["flughafen", "airport", "abflug", "boarding", "flug"] },
+  {
+    kind: "cruise",
+    words: ["kreuzfahrt", "kreuzfahrtschiff", "cruise", "schiffsreise"],
+  },
   { kind: "train", words: ["bahnhof", "zugfahrt", "sbb"] },
   { kind: "car", words: ["mfk", "garage", "autowerkstatt", "tanken", "fahrstunde"] },
   { kind: "hotel", words: ["check-in", "checkin", "hotel", "uebernachtung"] },
@@ -208,6 +214,9 @@ export function eventArtKind(input: {
   );
   if (!text.trim()) return null;
   if (/geburtstag/.test(fold(input.calendarSummary || ""))) return "birthday";
+  if (/arbeitsplan/.test(fold(input.calendarSummary || "")) && /valentyna/.test(fold(input.calendarSummary || ""))) {
+    return "nurse";
+  }
   for (const rule of EVENT_ART_RULES) {
     if (rule.words.some((word) => hasWord(text, word))) return rule.kind;
   }
@@ -220,7 +229,8 @@ const ART_FILE: Record<EventArtKind, string> = {
   ooo: "vacation",
   hotel: "vacation",
   camping: "vacation",
-  boat: "vacation",
+  boat: "cruise",
+  cruise: "cruise",
   swim: "vacation",
   garden: "vacation",
   meal: "meal",
@@ -231,6 +241,7 @@ const ART_FILE: Record<EventArtKind, string> = {
   train: "train",
   car: "car",
   doctor: "doctor",
+  nurse: "nurse",
   sport: "sport",
   game: "sport",
   dance: "sport",
@@ -269,5 +280,5 @@ export function eventArtSrc(
   kind: EventArtKind,
   variant: "side" | "header",
 ): string {
-  return `/event-art/${ART_FILE[kind]}-${variant}.jpg?v=illust2`;
+  return `/event-art/${ART_FILE[kind]}-${variant}.jpg?v=illust3`;
 }

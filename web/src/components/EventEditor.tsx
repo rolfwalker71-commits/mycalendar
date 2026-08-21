@@ -735,7 +735,7 @@ export function EventEditor({
         </div>
       ) : null}
       <LocationField id="location" value={location} onValueChange={setLocation} />
-      {location ? <EventMapSnippet location={location} /> : null}
+      {location ? <EventMapSnippet location={location} summary={summary} /> : null}
       <div className="flex min-h-11 items-center justify-between gap-3">
         <Label htmlFor="meet" className="flex items-center gap-2">
           <Video className="size-4" />

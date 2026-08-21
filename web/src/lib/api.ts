@@ -299,7 +299,7 @@ export const apiClient = {
   patchTask: (
     listId: string,
     id: string,
-    body: { title?: string; status?: string; due?: string; notes?: string },
+    body: { title?: string; status?: string; due?: string | null; notes?: string },
   ) =>
     api<{ task: TaskItem }>(`/api/tasks/${encodeURIComponent(listId)}/${encodeURIComponent(id)}`, {
       method: "PATCH",

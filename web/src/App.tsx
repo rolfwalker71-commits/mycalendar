@@ -20,7 +20,6 @@ import { MiniMonth, MiniNavigator, type MiniRange } from "@/components/MiniMonth
 import { CalendarList } from "@/components/CalendarList";
 import { ViewSwitcher } from "@/components/ViewSwitcher";
 import { EventEditor, type EditorState } from "@/components/EventEditor";
-import { TasksPanel } from "@/components/TasksPanel";
 import { isDeclined } from "@/components/EventChip";
 import { AgendaView } from "@/views/AgendaView";
 import { DayView } from "@/views/DayView";
@@ -28,6 +27,7 @@ import { WeekView } from "@/views/WeekView";
 import { MonthView } from "@/views/MonthView";
 import { YearView } from "@/views/YearView";
 import { SearchView } from "@/views/SearchView";
+import { TasksView } from "@/views/TasksView";
 import { apiClient, ApiError } from "@/lib/api";
 import { syncExistingPushSubscription } from "@/lib/push";
 import {
@@ -126,6 +126,7 @@ function CalendarApp({
   const [reschedule, setReschedule] = useState<CalendarEvent | null>(null);
   const [rescheduleDate, setRescheduleDate] = useState("");
   const [rescheduleTime, setRescheduleTime] = useState("09:00");
+  const [taskCompose, setTaskCompose] = useState(false);
 
   const effectiveView: ViewId = desktop
     ? searchOpen
@@ -225,7 +226,7 @@ function CalendarApp({
   }, [calendars, events, me.hideDeclined]);
 
   function shift(dir: number) {
-    if (view === "day" || (!desktop && mobileTab === "today")) {
+    if (view === "day" || view === "agenda" || (!desktop && mobileTab === "today")) {
       setCursor((c) => c.plus({ days: dir }));
     } else if (view === "week") {
       setCursor((c) => c.plus({ weeks: dir }));
@@ -360,7 +361,10 @@ function CalendarApp({
       }
       if (typing) return;
       if (e.key === "t") setCursor(now());
-      if (e.key === "n") openNew();
+      if (e.key === "n") {
+        if (!desktop && mobileTab === "tasks") setTaskCompose(true);
+        else openNew();
+      }
       if (e.key === "/") {
         e.preventDefault();
         if (desktop) setSearchOpen(true);
@@ -374,8 +378,10 @@ function CalendarApp({
     return () => window.removeEventListener("keydown", onKey);
   });
 
-  const dayHeading = view === "day" || (!desktop && mobileTab === "today");
+  const dayHeading = view === "day" || view === "agenda" || (!desktop && mobileTab === "today");
+  const tasksTab = !desktop && mobileTab === "tasks";
   const title = useMemo(() => {
+    if (tasksTab) return "Aufgaben";
     if (dayHeading) return dayTitleParts(cursor);
     if (view === "year") return String(cursor.year);
     if (view === "week") {
@@ -383,7 +389,7 @@ function CalendarApp({
       return `${s.toFormat("d.")}–${s.plus({ days: 6 }).toFormat("d. LLLL yyyy")}`;
     }
     return monthTitle(cursor);
-  }, [cursor, dayHeading, view, weekStart]);
+  }, [cursor, dayHeading, tasksTab, view, weekStart]);
 
   const header = (
     <header className="flex flex-col gap-3 border-b border-border px-3 py-3 lg:flex-row lg:items-center lg:px-6">
@@ -391,15 +397,19 @@ function CalendarApp({
         <AppSwitcher value={module} onChange={onModule} />
       </div>
       <div className="flex items-center gap-2">
-        <Button variant="outline" onClick={() => setCursor(now())}>
-          Heute
-        </Button>
-        <Button variant="ghost" size="icon" aria-label="Zurück" onClick={() => shift(-1)}>
-          <ChevronLeft className="size-5" />
-        </Button>
-        <Button variant="ghost" size="icon" aria-label="Weiter" onClick={() => shift(1)}>
-          <ChevronRight className="size-5" />
-        </Button>
+        {tasksTab ? null : (
+          <>
+            <Button variant="outline" onClick={() => setCursor(now())}>
+              Heute
+            </Button>
+            <Button variant="ghost" size="icon" aria-label="Zurück" onClick={() => shift(-1)}>
+              <ChevronLeft className="size-5" />
+            </Button>
+            <Button variant="ghost" size="icon" aria-label="Weiter" onClick={() => shift(1)}>
+              <ChevronRight className="size-5" />
+            </Button>
+          </>
+        )}
         <h1 className="min-w-0 flex-1 text-xl font-semibold tracking-tight capitalize leading-tight lg:text-2xl">
           {typeof title === "string" ? (
             title
@@ -424,7 +434,8 @@ function CalendarApp({
       </div>
       <div className="hidden flex-1 justify-center lg:flex">
         <ViewSwitcher
-          value={view === "agenda" ? "week" : view}
+          value={view}
+          withAgenda
           onChange={(v) => {
             setSearchOpen(false);
             setView(v);
@@ -522,11 +533,6 @@ function CalendarApp({
             />
           </div>
         </section>
-        <section>
-          <div className="rounded-2xl bg-card p-3 shadow-lg shadow-black/10 ring-1 ring-border">
-            <TasksPanel tasks={tasks} onChange={() => void loadTasks()} error={tasksError} />
-          </div>
-        </section>
         <Button variant="outline" onClick={onOpenSettings}>
           Einstellungen
         </Button>
@@ -536,6 +542,18 @@ function CalendarApp({
         >
           Abmelden
         </Button>
+      </div>
+    );
+  } else if (!desktop && mobileTab === "tasks") {
+    main = (
+      <div className="min-h-0 flex-1 overflow-auto">
+        <TasksView
+          tasks={tasks}
+          error={tasksError}
+          onReload={() => void loadTasks()}
+          composeOpen={taskCompose}
+          onComposeOpenChange={setTaskCompose}
+        />
       </div>
     );
   } else if (desktop && searchOpen) {
@@ -557,16 +575,16 @@ function CalendarApp({
             />
           </div>
         ) : null}
-        <AgendaView
-          events={visibleEvents}
-          from={cursor}
-          onOpen={onOpenEvent}
-          onDelete={setPendingDelete}
-          onDuplicate={(e) => void duplicateEvent(e)}
-          onMove={openReschedule}
-          geminiAvailable={me.geminiAvailable}
-          tasks={tasks}
-        />
+        <div className={desktop ? "mx-auto max-w-3xl py-2" : undefined}>
+          <AgendaView
+            events={visibleEvents}
+            from={cursor}
+            onOpen={onOpenEvent}
+            onDelete={setPendingDelete}
+            onDuplicate={(e) => void duplicateEvent(e)}
+            onMove={openReschedule}
+          />
+        </div>
       </div>
     );
   } else if (view === "day") {
@@ -657,7 +675,7 @@ function CalendarApp({
               }
             }}
           />
-          <TasksPanel tasks={tasks} onChange={() => void loadTasks()} error={tasksError} />
+          <TasksView tasks={tasks} error={tasksError} onReload={() => void loadTasks()} compact />
           <div className="mt-auto flex min-h-11 items-center justify-between gap-3 pt-4">
             <Label className="text-muted-foreground">Dunkel</Label>
             <Switch checked={dark} onCheckedChange={(v) => setTheme(v ? "dark" : "light")} />
@@ -683,8 +701,11 @@ function CalendarApp({
         className="fixed right-4 z-40 size-14 rounded-full shadow-lg lg:bottom-6"
         style={{ bottom: desktop ? undefined : "calc(5.5rem + env(safe-area-inset-bottom))" }}
         size="icon"
-        aria-label="Neuer Termin"
-        onClick={() => openNew()}
+        aria-label={tasksTab ? "Neue Aufgabe" : "Neuer Termin"}
+        onClick={() => {
+          if (tasksTab) setTaskCompose(true);
+          else openNew();
+        }}
       >
         <Plus className="size-6" />
       </Button>
@@ -693,6 +714,7 @@ function CalendarApp({
           value={mobileTab}
           onChange={(tab) => {
             setMobileTab(tab);
+            if (tab !== "tasks") setTaskCompose(false);
             if (tab === "today") setView("agenda");
             if (tab === "calendar" && view === "agenda") setView("month");
           }}

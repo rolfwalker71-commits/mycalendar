@@ -203,10 +203,10 @@ export function TimeGrid({
                 className="absolute right-0 left-12 border-t border-border/80"
                 style={{ top: h * HOUR_HEIGHT }}
               >
-                <span className="absolute -top-2.5 -left-12 w-11 text-right text-[11px] tabular-nums text-muted-foreground">
+                <span className="absolute -top-2.5 -left-12 w-11 text-right text-[0.6875rem] tabular-nums text-muted-foreground">
                   {String(h).padStart(2, "0")}:00
                   {other ? (
-                    <span className="block text-[9px] leading-none opacity-70">{other}</span>
+                    <span className="block text-[0.5625rem] leading-none opacity-70">{other}</span>
                   ) : null}
                 </span>
               </div>

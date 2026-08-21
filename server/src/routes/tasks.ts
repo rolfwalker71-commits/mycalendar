@@ -99,13 +99,21 @@ tasksRouter.patch("/:listId/:id", async (req, res) => {
         : req.body?.status === "needsAction"
           ? "needsAction"
           : undefined;
+    const due =
+      req.body && Object.prototype.hasOwnProperty.call(req.body, "due")
+        ? req.body.due === null || req.body.due === ""
+          ? null
+          : typeof req.body.due === "string"
+            ? req.body.due
+            : undefined
+        : undefined;
     const { data } = await api.tasks.patch({
       tasklist: req.params.listId,
       task: req.params.id,
       requestBody: {
         title: typeof req.body?.title === "string" ? req.body.title : undefined,
         notes: typeof req.body?.notes === "string" ? req.body.notes : undefined,
-        due: typeof req.body?.due === "string" ? req.body.due : undefined,
+        due,
         status,
       },
     });

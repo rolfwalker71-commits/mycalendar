@@ -98,5 +98,5 @@ export type Me = {
 };
 
 export type ViewId = "day" | "week" | "month" | "year" | "agenda";
-export type MobileTab = "today" | "calendar" | "search" | "more";
+export type MobileTab = "today" | "calendar" | "tasks" | "search" | "more";
 export type RecurrenceScope = "this" | "thisAndFollowing" | "all";

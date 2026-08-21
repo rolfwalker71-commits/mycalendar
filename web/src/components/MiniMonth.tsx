@@ -38,12 +38,15 @@ export function MiniMonth({
 
   return (
     <div className="px-1">
-      <div className="mb-2 grid grid-cols-7 gap-0 text-center text-[11px] font-medium text-muted-foreground">
+      <div className="grid grid-cols-7 justify-items-center gap-y-1">
         {labels.map((l, i) => (
-          <div key={`${l}-${i}`}>{l}</div>
+          <div
+            key={`${l}-${i}`}
+            className="flex h-6 w-full items-center justify-center text-[0.6875rem] font-medium tracking-wide text-muted-foreground"
+          >
+            {l}
+          </div>
         ))}
-      </div>
-      <div className="grid grid-cols-7 gap-y-1">
         {days.map((day) => {
           const inMonth = range === "week" || day.month === cursor.month;
           const selected = isSameDay(day, cursor);

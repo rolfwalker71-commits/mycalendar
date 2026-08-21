@@ -84,7 +84,7 @@ function MailboxRow({
       type="button"
       onClick={onClick}
       className={cn(
-        "flex min-h-9 w-full items-center gap-2.5 rounded-lg px-2.5 text-left text-[13px]",
+        "flex min-h-9 w-full items-center gap-2.5 rounded-lg px-2.5 text-left text-[0.8125rem]",
         active ? "bg-mail/10 text-mail" : "hover:bg-muted",
       )}
     >
@@ -97,7 +97,7 @@ function MailboxRow({
       ) : null}
       <span className="min-w-0 flex-1 truncate font-medium">{label.name}</span>
       {unread ? (
-        <span className={cn("text-[11px] tabular-nums", active ? "text-mail" : "text-muted-foreground")}>
+        <span className={cn("text-[0.6875rem] tabular-nums", active ? "text-mail" : "text-muted-foreground")}>
           {unread}
         </span>
       ) : null}
@@ -114,21 +114,24 @@ function FolderDrawer({
   onClose: () => void;
   children: ReactNode;
 }) {
-  const [present, setPresent] = useState(open);
+  const [present, setPresent] = useState(false);
   const [shown, setShown] = useState(false);
 
   useEffect(() => {
     if (open) {
       setPresent(true);
-      const id = window.requestAnimationFrame(() => {
-        window.requestAnimationFrame(() => setShown(true));
-      });
-      return () => window.cancelAnimationFrame(id);
+      return;
     }
     setShown(false);
     const t = window.setTimeout(() => setPresent(false), 750);
     return () => window.clearTimeout(t);
   }, [open]);
+
+  useLayoutEffect(() => {
+    if (!present || !open) return;
+    const t = window.setTimeout(() => setShown(true), 30);
+    return () => window.clearTimeout(t);
+  }, [present, open]);
 
   useEffect(() => {
     if (!open) return;
@@ -141,23 +144,23 @@ function FolderDrawer({
 
   if (!present) return null;
   return (
-    <div className="absolute inset-0 z-30 lg:hidden">
+    <div className="absolute inset-0 z-30 overflow-hidden lg:hidden">
       <button
         type="button"
         aria-label="Ordner schliessen"
         className={cn(
-          "absolute inset-x-0 bottom-0 top-[3.75rem] bg-black/35 transition-opacity duration-[750ms] ease-in-out",
+          "absolute inset-0 bg-black/35 transition-opacity duration-[750ms] ease-in-out",
           shown ? "opacity-100" : "opacity-0",
         )}
         onClick={onClose}
       />
       <nav
         className={cn(
-          "absolute top-[3.75rem] bottom-3 left-0 flex w-[min(17.5rem,78vw)] flex-col overflow-hidden bg-card shadow-2xl ring-1 ring-border transition-transform duration-[750ms] ease-in-out",
+          "absolute inset-y-0 left-0 flex w-[min(17.5rem,78vw)] flex-col overflow-hidden bg-card shadow-2xl ring-1 ring-border transition-transform duration-[750ms] ease-in-out will-change-transform",
           shown ? "translate-x-0" : "-translate-x-full",
         )}
       >
-        <div className="min-h-0 flex-1 overflow-auto text-[13px]">{children}</div>
+        <div className="min-h-0 flex-1 overflow-auto text-[0.8125rem]">{children}</div>
       </nav>
     </div>
   );
@@ -202,7 +205,7 @@ function ThreadRow({
       />
       <span className="min-w-0 flex-1">
         <span className="flex items-baseline justify-between gap-3">
-          <span className={cn("truncate text-[15px]", thread.unread ? "font-semibold" : "font-medium")}>
+          <span className={cn("truncate text-[0.9375rem]", thread.unread ? "font-semibold" : "font-medium")}>
             {displayName(thread.from)}
           </span>
           <span className={cn("shrink-0 text-xs", thread.unread ? "text-mail" : "text-muted-foreground")}>
@@ -218,7 +221,7 @@ function ThreadRow({
         <span className="mt-0.5 block truncate text-sm text-muted-foreground">{thread.snippet}</span>
       </span>
       {thread.draft ? (
-        <span className="mt-1 shrink-0 text-[11px] font-medium text-mail">Entwurf</span>
+        <span className="mt-1 shrink-0 text-[0.6875rem] font-medium text-mail">Entwurf</span>
       ) : null}
       {thread.starred ? <Star className="mt-1 size-4 shrink-0 fill-amber-400 text-amber-400" /> : null}
     </button>
@@ -292,7 +295,7 @@ function MessageBody({
     return <IsolatedHtml html={html} />;
   }
   return (
-    <pre className="whitespace-pre-wrap font-sans text-[16px] leading-snug text-foreground">
+    <pre className="whitespace-pre-wrap font-sans text-base leading-snug text-foreground">
       {message.text || message.snippet}
     </pre>
   );
@@ -437,7 +440,7 @@ function ThreadDetail({
             {appliedUserLabels.map((label) => (
               <span
                 key={label.id}
-                className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium"
+                className="inline-flex items-center rounded-full px-2 py-0.5 text-[0.6875rem] font-medium"
                 style={{
                   backgroundColor: label.color?.backgroundColor ?? "var(--muted)",
                   color: label.color?.textColor ?? "inherit",
@@ -533,6 +536,7 @@ export function MailApp({
   const [compose, setCompose] = useState<ComposeState>({ open: false });
   const [mobilePane, setMobilePane] = useState<"list" | "thread">("list");
   const [foldersOpen, setFoldersOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
 
   const activeLabel = labels.find((l) => l.id === labelId);
   const systemLabels = labels.filter((l) => l.type === "system");
@@ -740,7 +744,7 @@ export function MailApp({
 
   const boxes = (
     <nav className="flex flex-col gap-0.5 p-2">
-      <p className="px-2.5 pb-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+      <p className="px-2.5 pb-1.5 text-[0.625rem] font-medium uppercase tracking-wide text-muted-foreground">
         Postfächer
       </p>
       {systemLabels.map((label) => (
@@ -757,7 +761,7 @@ export function MailApp({
       ))}
       {userLabels.length ? (
         <>
-          <p className="mt-3 px-2.5 pb-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+            <p className="mt-3 px-2.5 pb-1.5 text-[0.625rem] font-medium uppercase tracking-wide text-muted-foreground">
             Ordner
           </p>
           {userLabels.map((label) => (
@@ -812,12 +816,12 @@ export function MailApp({
 
   const list = (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col border-r border-border bg-background">
-      <div className="flex items-center gap-2 border-b border-border px-3 py-2">
+      <div className="relative z-40 flex items-center gap-2 border-b border-border bg-background px-3 py-2">
         {!desktop ? (
           <Button
             variant="ghost"
             size="icon"
-            aria-label="Postfächer"
+            aria-label={foldersOpen ? "Ordner schliessen" : "Ordner öffnen"}
             aria-expanded={foldersOpen}
             onClick={() => setFoldersOpen((v) => !v)}
           >
@@ -832,60 +836,78 @@ export function MailApp({
         <h1 className="min-w-0 flex-1 truncate text-xl font-semibold tracking-tight">
           {activeLabel?.name ?? "Posteingang"}
         </h1>
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label={searchOpen ? "Suche ausblenden" : "Suche"}
+          aria-expanded={searchOpen}
+          onClick={() => setSearchOpen((v) => !v)}
+        >
+          <Search className={cn("size-5", searchOpen || appliedQuery ? "text-mail" : undefined)} />
+        </Button>
       </div>
-      <form
-        className="border-b border-border px-3 py-2"
-        onSubmit={(e) => {
-          e.preventDefault();
-          setAppliedQuery(query.trim());
-        }}
+      <div
+        className={cn(
+          "grid transition-[grid-template-rows] duration-[750ms] ease-in-out",
+          searchOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
+        )}
       >
-        <div className="relative">
-          <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={query}
-            onValueChange={setQuery}
-            placeholder="Suchen (from:, to:, has:attachment …)"
-            className="rounded-full bg-muted pl-9"
-            aria-label="Mail durchsuchen"
-          />
-        </div>
-        <div className="mt-2 flex flex-wrap gap-1.5">
-          {[
-            ["from:", "from:"],
-            ["Anhang", "has:attachment"],
-            ["Ungelesen", "is:unread"],
-            ["Markiert", "is:starred"],
-          ].map(([label, op]) => (
-            <button
-              key={op}
-              type="button"
-              className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground"
-              onClick={() => setQuery((q) => (q.includes(op) ? q : `${q} ${op}`.trim()))}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        <div className="mt-2 grid grid-cols-2 gap-2">
-          <Input
-            type="date"
-            aria-label="Nach dem"
-            onValueChange={(v) => {
-              if (!v) return;
-              setQuery((q) => `${q.replace(/\bafter:\S+/g, "").trim()} after:${v}`.trim());
-            }}
-          />
-          <Input
-            type="date"
-            aria-label="Vor dem"
-            onValueChange={(v) => {
-              if (!v) return;
-              setQuery((q) => `${q.replace(/\bbefore:\S+/g, "").trim()} before:${v}`.trim());
-            }}
-          />
-        </div>
-      </form>
+        <form
+          className="min-h-0 overflow-hidden"
+          onSubmit={(e) => {
+            e.preventDefault();
+            setAppliedQuery(query.trim());
+          }}
+        >
+          <div className="border-b border-border px-3 py-2">
+            <div className="relative">
+              <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={query}
+                onValueChange={setQuery}
+                placeholder="Suchen (from:, to:, has:attachment …)"
+                className="rounded-full bg-muted pl-9"
+                aria-label="Mail durchsuchen"
+              />
+            </div>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {[
+                ["from:", "from:"],
+                ["Anhang", "has:attachment"],
+                ["Ungelesen", "is:unread"],
+                ["Markiert", "is:starred"],
+              ].map(([label, op]) => (
+                <button
+                  key={op}
+                  type="button"
+                  className="rounded-full bg-muted px-2 py-0.5 text-[0.6875rem] text-muted-foreground"
+                  onClick={() => setQuery((q) => (q.includes(op) ? q : `${q} ${op}`.trim()))}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <Input
+                type="date"
+                aria-label="Nach dem"
+                onValueChange={(v) => {
+                  if (!v) return;
+                  setQuery((q) => `${q.replace(/\bafter:\S+/g, "").trim()} after:${v}`.trim());
+                }}
+              />
+              <Input
+                type="date"
+                aria-label="Vor dem"
+                onValueChange={(v) => {
+                  if (!v) return;
+                  setQuery((q) => `${q.replace(/\bbefore:\S+/g, "").trim()} before:${v}`.trim());
+                }}
+              />
+            </div>
+          </div>
+        </form>
+      </div>
       <PullToRefresh
         onRefresh={async () => {
           await loadThreads();

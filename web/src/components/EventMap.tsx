@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { apiClient } from "@/lib/api";
+import { parseFlightRoute } from "@/lib/flights";
 import { cn } from "@/lib/utils";
 
 function mapsHref(location: string, lat: number, lon: number): string {
@@ -9,18 +10,30 @@ function mapsHref(location: string, lat: number, lon: number): string {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${lat},${lon}`)}`;
 }
 
+function flightHref(from: string, to: string): string {
+  const origin = encodeURIComponent(`${from} airport`);
+  const dest = encodeURIComponent(`${to} airport`);
+  const ios = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+  if (ios) return `https://maps.apple.com/?saddr=${origin}&daddr=${dest}`;
+  return `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${dest}`;
+}
+
 export function EventMapSnippet({
   location,
+  summary,
   className,
 }: {
   location?: string | null;
+  summary?: string | null;
   className?: string;
 }) {
   const query = location?.trim() ?? "";
+  const route = parseFlightRoute(query, summary);
   const [coords, setCoords] = useState<{ lat: number; lon: number } | null>(null);
 
   useEffect(() => {
-    if (query.length < 3) {
+    const nextRoute = parseFlightRoute(query, summary);
+    if (nextRoute || query.length < 3) {
       setCoords(null);
       return;
     }
@@ -44,7 +57,26 @@ export function EventMapSnippet({
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [query]);
+  }, [query, summary]);
+
+  if (route) {
+    const src = `/api/maps/static?from=${encodeURIComponent(route.from)}&to=${encodeURIComponent(route.to)}&w=640&h=200&v=flight`;
+    return (
+      <a
+        href={flightHref(route.from, route.to)}
+        target="_blank"
+        rel="noreferrer"
+        onClick={(event) => event.stopPropagation()}
+        className={cn(
+          "mt-2 block overflow-hidden rounded-md bg-[#f4f1ea] shadow-[inset_0_0_0_1px_rgba(15,23,42,0.08)]",
+          className,
+        )}
+        aria-label={`Flugroute ${route.from} nach ${route.to}`}
+      >
+        <img src={src} alt="" draggable={false} className="h-36 w-full object-cover" loading="lazy" />
+      </a>
+    );
+  }
 
   if (!coords) return null;
 
@@ -56,12 +88,12 @@ export function EventMapSnippet({
       rel="noreferrer"
       onClick={(event) => event.stopPropagation()}
       className={cn(
-        "mt-2 block overflow-hidden rounded-xl bg-[#f4f1ea] shadow-[inset_0_0_0_1px_rgba(15,23,42,0.08)]",
+        "mt-2 block overflow-hidden rounded-md bg-[#f4f1ea] shadow-[inset_0_0_0_1px_rgba(15,23,42,0.08)]",
         className,
       )}
       aria-label={`Karte für ${query}`}
     >
-      <img src={src} alt="" className="h-32 w-full object-cover" loading="lazy" />
+      <img src={src} alt="" draggable={false} className="h-32 w-full object-cover" loading="lazy" />
     </a>
   );
 }

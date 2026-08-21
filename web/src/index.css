@@ -98,6 +98,15 @@ body,
 
 html {
   overscroll-behavior: none;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+@media (max-width: 1023px) {
+  html {
+    /* iOS-Systemschrift ist 17px; 16px-Webdefault wirkt auf dem Handy zu klein. */
+    font-size: 17.5px;
+  }
 }
 
 body {

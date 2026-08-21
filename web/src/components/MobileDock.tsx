@@ -1,10 +1,11 @@
-import { CalendarDays, MoreHorizontal, Search, Sun } from "lucide-react";
+import { CalendarDays, ListTodo, MoreHorizontal, Search, Sun } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { MobileTab } from "@/lib/types";
 
 const ITEMS: { id: MobileTab; label: string; icon: typeof Sun }[] = [
-  { id: "today", label: "Heute", icon: Sun },
+  { id: "today", label: "Agenda", icon: Sun },
   { id: "calendar", label: "Kalender", icon: CalendarDays },
+  { id: "tasks", label: "Aufgaben", icon: ListTodo },
   { id: "search", label: "Suche", icon: Search },
   { id: "more", label: "Mehr", icon: MoreHorizontal },
 ];
@@ -28,7 +29,7 @@ export function MobileDock({
               type="button"
               onClick={() => onChange(item.id)}
               className={cn(
-                "flex min-h-11 flex-1 flex-col items-center justify-center rounded-xl py-1.5 text-xs",
+                "flex min-h-11 flex-1 flex-col items-center justify-center rounded-xl py-1.5 text-[0.8125rem]",
                 active ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted/70",
               )}
             >

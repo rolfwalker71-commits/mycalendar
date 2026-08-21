@@ -1,4 +1,4 @@
-import { DateTime, Info, Settings } from "luxon";
+import { DateTime, Settings } from "luxon";
 
 export const ZONE = "Europe/Berlin";
 
@@ -38,16 +38,15 @@ export function endOfWeek(dt: DateTime, weekStart: 0 | 1): DateTime {
   return startOfWeek(dt, weekStart).plus({ days: 6 }).endOf("day");
 }
 
+const WEEKDAYS_DE = ["MO", "DI", "MI", "DO", "FR", "SA", "SO"] as const;
+
 export function weekdayLabels(weekStart: 0 | 1): string[] {
-  const names = Info.weekdays("narrow", { locale: "de" });
-  if (weekStart === 1) return names;
-  return [names[6], ...names.slice(0, 6)];
+  if (weekStart === 1) return [...WEEKDAYS_DE];
+  return [WEEKDAYS_DE[6], ...WEEKDAYS_DE.slice(0, 6)];
 }
 
 export function weekdayShort(weekStart: 0 | 1): string[] {
-  const names = Info.weekdays("short", { locale: "de" });
-  if (weekStart === 1) return names;
-  return [names[6], ...names.slice(0, 6)];
+  return weekdayLabels(weekStart);
 }
 
 export function monthTitle(dt: DateTime): string {
