@@ -426,7 +426,7 @@ function CalendarApp({
             </>
           )}
         </h1>
-        <HeaderWeather />
+        {desktop || !agendaHeading ? <HeaderWeather /> : null}
         {syncing ? (
           <span className="flex items-center gap-1 text-xs text-muted-foreground">
             <LoaderCircle className="size-3.5 animate-spin" />
