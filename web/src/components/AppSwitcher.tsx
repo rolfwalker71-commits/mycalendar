@@ -10,7 +10,7 @@ export function AppSwitcher({
   onChange: (next: AppModule) => void;
 }) {
   return (
-    <div className="inline-flex h-10 min-h-10 items-center rounded-full bg-muted p-0.5">
+    <div className="inline-flex h-10 min-h-10 shrink-0 items-center rounded-full bg-muted p-0.5">
       {(
         [
           { id: "calendar", label: "Kalender", icon: CalendarDays },
@@ -26,13 +26,13 @@ export function AppSwitcher({
             type="button"
             onClick={() => onChange(item.id)}
             className={cn(
-              "flex h-9 min-h-0 flex-1 items-center justify-center gap-1 rounded-full px-2.5 text-[0.8125rem] font-medium leading-none transition-colors",
+              "inline-flex h-9 min-h-0 items-center justify-center gap-1 rounded-full px-3 text-[0.8125rem] font-medium leading-none whitespace-nowrap transition-colors",
               active
                 ? "bg-background text-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground",
             )}
           >
-            <Icon className="size-4" />
+            <Icon className="size-4 shrink-0" />
             {item.label}
           </button>
         );
