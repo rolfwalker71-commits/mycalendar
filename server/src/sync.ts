@@ -11,6 +11,7 @@ import {
 } from "./google.js";
 import { notifyNewCalendarEvent } from "./notify.js";
 import { invalidateShiftArtCache, driveFileId } from "./shiftCover.js";
+import { syncAllIcsFeeds } from "./localCalendars.js";
 import type { AttendeeJson, CalendarRow, EventAttachmentJson, EventRow, ReminderJson, UserRow } from "./types.js";
 
 function asDate(value: string | null | undefined): string | null {
@@ -256,7 +257,9 @@ export async function syncCalendarList(user: UserRow): Promise<CalendarRow[]> {
     await query(
       `DELETE FROM calendars
         WHERE user_id = $1
-          AND google_cal_id <> ALL($2::text[])`,
+          AND google_cal_id <> ALL($2::text[])
+          AND google_cal_id NOT LIKE 'ics:%'
+          AND google_cal_id NOT LIKE 'birthday:%'`,
       [user.id, [...seen]],
     );
   }
@@ -389,6 +392,12 @@ export async function syncUserEvents(
     const list = full ? calendars.map((c) => ({ ...c, sync_token: null })) : calendars;
 
     for (const calendar of list) {
+      if (
+        calendar.google_cal_id.startsWith("ics:") ||
+        calendar.google_cal_id.startsWith("birthday:")
+      ) {
+        continue;
+      }
       try {
         if (calendar.sync_token) {
           try {
@@ -417,6 +426,7 @@ export async function syncUserEvents(
       }
     }
 
+    await syncAllIcsFeeds(user).catch((err) => console.warn("ICS-Feeds:", err));
     await query("UPDATE users SET last_sync_at = NOW() WHERE id = $1", [user.id]);
     return { calendars: calendars.length };
   } catch (err) {

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { DateTime } from "luxon";
 import { toast } from "sonner";
-import { Copy, Download, Paperclip, Video, XIcon } from "lucide-react";
+import { Copy, Download, Paperclip, Share2, Video, XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -116,6 +116,7 @@ export function EventEditor({
   onOpenEvent?: (event: CalendarEvent) => void;
 }) {
   const event = state.event ?? null;
+  const readOnly = Boolean(event?.readOnly || event?.eventType === "birthday");
   const writable = calendars.filter((c) =>
     ["owner", "writer"].includes(c.accessRole ?? ""),
   );
@@ -883,15 +884,35 @@ export function EventEditor({
           Duplizieren
         </Button>
       ) : null}
-      {event ? (
-        <a href={`/api/events/${event.id}/ics`}>
-          <Button variant="outline" type="button">
-            <Download className="size-4" />
-            ICS
+      {event && !String(event.id).startsWith("bday-") ? (
+        <>
+          <a href={`/api/events/${event.id}/ics`}>
+            <Button variant="outline" type="button">
+              <Download className="size-4" />
+              ICS
+            </Button>
+          </a>
+          <Button
+            variant="outline"
+            type="button"
+            onClick={() => {
+              const url = `${window.location.origin}/api/events/${event.id}/ics`;
+              if (navigator.share) {
+                void navigator.share({ title: event.summary || "Termin", url }).catch(() => undefined);
+              } else {
+                void navigator.clipboard.writeText(url).then(
+                  () => toast.success("ICS-Link kopiert."),
+                  () => toast.error("Kopieren fehlgeschlagen."),
+                );
+              }
+            }}
+          >
+            <Share2 className="size-4" />
+            Teilen
           </Button>
-        </a>
+        </>
       ) : null}
-      {event && includeSwipeActions ? (
+      {event && includeSwipeActions && !readOnly ? (
         confirmDelete ? (
           <Button variant="destructive" onClick={remove} disabled={saving}>
             Wirklich löschen
@@ -905,8 +926,8 @@ export function EventEditor({
       <Button variant="outline" onClick={() => onOpenChange(false)}>
         Abbrechen
       </Button>
-      <Button onClick={save} disabled={saving || !calendarId}>
-        Speichern
+      <Button onClick={save} disabled={saving || !calendarId || readOnly}>
+        {readOnly ? "Nur Anzeige" : "Speichern"}
       </Button>
     </div>
   );

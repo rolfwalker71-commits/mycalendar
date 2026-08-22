@@ -1,12 +1,15 @@
 import { Router } from "express";
 import { requireAuth } from "../auth.js";
 import { query } from "../db.js";
+import { ensureLocalCalendar, listIcsFeeds, removeIcsFeed, subscribeIcsFeed } from "../localCalendars.js";
+import { notifyLive } from "../live.js";
 import type { CalendarRow } from "../types.js";
 
 export const calendarsRouter = Router();
 calendarsRouter.use(requireAuth);
 
 calendarsRouter.get("/", async (req, res) => {
+  await ensureLocalCalendar(req.user!.id, "birthday:contacts", "Geburtstage", "#f4511e");
   const { rows } = await query<CalendarRow>(
     `SELECT * FROM calendars WHERE user_id = $1
      ORDER BY primary_cal DESC, summary ASC`,
@@ -25,6 +28,7 @@ calendarsRouter.get("/", async (req, res) => {
       primary: c.primary_cal,
       accessRole: c.access_role,
       defaultReminders: c.default_reminders ?? [],
+      source: c.source ?? (c.google_cal_id.startsWith("ics:") ? "ics" : c.google_cal_id.startsWith("birthday:") ? "birthday" : "google"),
     })),
   });
 });
@@ -71,4 +75,48 @@ calendarsRouter.patch("/:id", async (req, res) => {
     id: rows[0].id,
     selected: rows[0].selected,
   });
+});
+
+calendarsRouter.get("/ics-feeds", async (req, res) => {
+  const feeds = await listIcsFeeds(req.user!.id);
+  res.json({
+    feeds: feeds.map((f) => ({
+      id: f.id,
+      url: f.url,
+      name: f.summary,
+      calendarId: f.calendar_id,
+      lastSyncAt: f.last_sync_at,
+      lastError: f.last_error,
+    })),
+  });
+});
+
+calendarsRouter.post("/ics-feeds", async (req, res) => {
+  const url = typeof req.body?.url === "string" ? req.body.url.trim() : "";
+  const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
+  if (!url) {
+    res.status(400).json({ error: "Adresse fehlt." });
+    return;
+  }
+  try {
+    const result = await subscribeIcsFeed(req.user!, url, name || undefined);
+    notifyLive(req.user!.id, "calendar");
+    res.status(201).json({
+      feedId: result.feedId,
+      calendarId: result.calendar.id,
+      count: result.count,
+    });
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : "Feed konnte nicht abonniert werden." });
+  }
+});
+
+calendarsRouter.delete("/ics-feeds/:id", async (req, res) => {
+  const ok = await removeIcsFeed(req.user!.id, req.params.id);
+  if (!ok) {
+    res.status(404).json({ error: "Feed nicht gefunden." });
+    return;
+  }
+  notifyLive(req.user!.id, "calendar");
+  res.json({ ok: true });
 });

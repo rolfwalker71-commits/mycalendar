@@ -221,6 +221,74 @@ export const apiClient = {
       method: "PATCH",
       body: JSON.stringify({ backgroundColor, textColor }),
     }),
+  mailCreateLabel: (name: string) =>
+    api<{ id: string; name: string }>("/api/mail/labels", {
+      method: "POST",
+      body: JSON.stringify({ name }),
+    }),
+  mailRenameLabel: (id: string, name: string) =>
+    api<{ id: string; name: string }>(`/api/mail/labels/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ name }),
+    }),
+  mailDeleteLabel: (id: string) =>
+    api<{ ok: boolean }>(`/api/mail/labels/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  mailSaveToDrive: (messageId: string, attachmentId: string, filename: string, mime: string) =>
+    api<{ ok: boolean; url?: string }>(
+      `/api/mail/messages/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(attachmentId)}/drive?filename=${encodeURIComponent(filename)}&mime=${encodeURIComponent(mime)}`,
+      { method: "POST" },
+    ),
+  mailToEvent: (body: {
+    messageId?: string;
+    attachmentId?: string;
+    event?: {
+      summary: string;
+      start: string;
+      end: string;
+      allDay?: boolean;
+      location?: string;
+      description?: string;
+    };
+  }) =>
+    api<{ ok: boolean; googleEventId?: string | null }>("/api/mail/to-event", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  mailBlock: (from: string, threadId?: string) =>
+    api<{ ok: boolean }>("/api/mail/block", {
+      method: "POST",
+      body: JSON.stringify({ from, threadId }),
+    }),
+  contacts: (q?: string) =>
+    api<{
+      contacts: {
+        resourceName: string;
+        name: string;
+        emails: string[];
+        phones: { value: string; type?: string }[];
+        photoUrl: string | null;
+        birthday: { month: number; day: number; year?: number } | null;
+        organization?: string | null;
+      }[];
+    }>(`/api/contacts${q ? `?q=${encodeURIComponent(q)}` : ""}`),
+  icsFeeds: () =>
+    api<{
+      feeds: {
+        id: string;
+        url: string;
+        name: string | null;
+        calendarId: string;
+        lastSyncAt: string | null;
+        lastError: string | null;
+      }[];
+    }>("/api/calendars/ics-feeds"),
+  subscribeIcs: (url: string, name?: string) =>
+    api<{ feedId: string; calendarId: string; count: number }>("/api/calendars/ics-feeds", {
+      method: "POST",
+      body: JSON.stringify({ url, name }),
+    }),
+  deleteIcsFeed: (id: string) =>
+    api<{ ok: boolean }>(`/api/calendars/ics-feeds/${encodeURIComponent(id)}`, { method: "DELETE" }),
   mailSendAs: () =>
     api<{
       aliases: {

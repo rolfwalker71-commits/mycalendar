@@ -1,14 +1,22 @@
 import { Router } from "express";
+import { Readable } from "node:stream";
 import type { Request } from "express";
 import type { gmail_v1 } from "googleapis";
 import { requireAuth } from "../auth.js";
+import { query } from "../db.js";
+import { TZ } from "../config.js";
 import {
   GoogleAuthError,
   describeGoogleApiError,
+  getAuthedCalendar,
+  getAuthedDrive,
   getAuthedGmail,
   getAuthedPeople,
   isInsufficientScope,
 } from "../google.js";
+import { extractEventFromText, parseIcs } from "../icsParse.js";
+import { eventToGoogleBody, refreshCachedEvent } from "../sync.js";
+import type { CalendarRow, UserRow } from "../types.js";
 import {
   buildRfc822,
   headerMap,
@@ -404,6 +412,11 @@ mailRouter.get("/threads/:id", async (req, res) => {
     );
     const drafts = await draftIdMap(gmail);
     const draftId = drafts.get(data.id ?? req.params.id) ?? null;
+    const invites = await collectInvites(gmail, messages);
+    const hint = extractEventFromText(
+      messages[0]?.subject ?? "",
+      messages.map((m) => m.text || m.snippet).join("\n"),
+    );
     res.json({
       id: data.id ?? req.params.id,
       messages,
@@ -411,6 +424,8 @@ mailRouter.get("/threads/:id", async (req, res) => {
       starred: messages.some((m) => m.starred),
       draft: messages.some((m) => (m.labelIds ?? []).includes("DRAFT")),
       draftId,
+      invites,
+      eventHint: hint,
     });
   } catch (err) {
     if (handleMailError(err, res)) return;
@@ -520,6 +535,8 @@ mailRouter.get("/messages/:id", async (req, res) => {
     });
     const mapped = mapFullMessage(data, data.threadId ?? req.params.id);
     const drafts = await draftIdMap(gmail);
+    const invites = await collectInvites(gmail, [mapped]);
+    const hint = extractEventFromText(mapped.subject, mapped.text || mapped.snippet);
     res.json({
       id: mapped.id,
       messages: [mapped],
@@ -527,6 +544,8 @@ mailRouter.get("/messages/:id", async (req, res) => {
       starred: mapped.starred,
       draft: (mapped.labelIds ?? []).includes("DRAFT"),
       draftId: drafts.get(data.threadId ?? "") ?? drafts.get(`msg:${mapped.id}`) ?? null,
+      invites,
+      eventHint: hint,
     });
   } catch (err) {
     if (handleMailError(err, res)) return;
@@ -674,12 +693,53 @@ mailRouter.get("/messages/:messageId/attachments/:attachmentId", async (req, res
   }
 });
 
+mailRouter.post("/labels", async (req, res) => {
+  const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
+  if (!name) {
+    res.status(400).json({ error: "Name fehlt." });
+    return;
+  }
+  try {
+    const gmail = await gmailFor(req);
+    const { data } = await gmail.users.labels.create({
+      userId: "me",
+      requestBody: {
+        name,
+        labelListVisibility: "labelShow",
+        messageListVisibility: "show",
+      },
+    });
+    res.status(201).json({
+      id: data.id,
+      name: data.name,
+      type: "user",
+      color: data.color
+        ? { backgroundColor: data.color.backgroundColor, textColor: data.color.textColor }
+        : null,
+    });
+  } catch (err) {
+    if (handleMailError(err, res)) return;
+    console.error(err);
+    res.status(502).json({ error: "Ordner konnte nicht angelegt werden." });
+  }
+});
+
 mailRouter.patch("/labels/:id", async (req, res) => {
+  const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
   const backgroundColor =
     typeof req.body?.backgroundColor === "string" ? req.body.backgroundColor : "";
   const textColor = typeof req.body?.textColor === "string" ? req.body.textColor : "#000000";
-  if (!GMAIL_LABEL_COLORS.has(backgroundColor) || !GMAIL_LABEL_COLORS.has(textColor)) {
-    res.status(400).json({ error: "Diese Farbe wird von Gmail nicht unterstützt." });
+  const requestBody: gmail_v1.Schema$Label = {};
+  if (name) requestBody.name = name;
+  if (backgroundColor) {
+    if (!GMAIL_LABEL_COLORS.has(backgroundColor) || !GMAIL_LABEL_COLORS.has(textColor)) {
+      res.status(400).json({ error: "Diese Farbe wird von Gmail nicht unterstützt." });
+      return;
+    }
+    requestBody.color = { backgroundColor, textColor };
+  }
+  if (!requestBody.name && !requestBody.color) {
+    res.status(400).json({ error: "Keine Änderung." });
     return;
   }
   try {
@@ -687,7 +747,7 @@ mailRouter.patch("/labels/:id", async (req, res) => {
     const { data } = await gmail.users.labels.patch({
       userId: "me",
       id: req.params.id,
-      requestBody: { color: { backgroundColor, textColor } },
+      requestBody,
     });
     res.json({
       id: data.id,
@@ -699,7 +759,19 @@ mailRouter.patch("/labels/:id", async (req, res) => {
   } catch (err) {
     if (handleMailError(err, res)) return;
     console.error(err);
-    res.status(502).json({ error: "Ordnerfarbe konnte nicht gespeichert werden." });
+    res.status(502).json({ error: "Ordner konnte nicht gespeichert werden." });
+  }
+});
+
+mailRouter.delete("/labels/:id", async (req, res) => {
+  try {
+    const gmail = await gmailFor(req);
+    await gmail.users.labels.delete({ userId: "me", id: req.params.id });
+    res.json({ ok: true });
+  } catch (err) {
+    if (handleMailError(err, res)) return;
+    console.error(err);
+    res.status(502).json({ error: "Ordner konnte nicht gelöscht werden." });
   }
 });
 
@@ -1007,4 +1079,198 @@ mailRouter.get("/contacts", async (req, res) => {
     res.status(502).json({ error: "Kontakte konnten nicht geladen werden.", contacts: [] });
   }
 });
+
+function isCalendarAttachment(att: { filename: string; mimeType: string }): boolean {
+  return /calendar|ics/i.test(att.mimeType) || /\.ics$/i.test(att.filename);
+}
+
+async function gmailAttachmentBuffer(
+  gmail: gmail_v1.Gmail,
+  messageId: string,
+  attachmentId: string,
+): Promise<Buffer> {
+  const { data } = await gmail.users.messages.attachments.get({
+    userId: "me",
+    messageId,
+    id: attachmentId,
+  });
+  return Buffer.from((data.data ?? "").replace(/-/g, "+").replace(/_/g, "/"), "base64");
+}
+
+async function collectInvites(
+  gmail: gmail_v1.Gmail,
+  messages: Array<{ attachments: { filename: string; mimeType: string; attachmentId: string; messageId: string }[] }>,
+) {
+  const invites: {
+    messageId: string;
+    attachmentId: string;
+    filename: string;
+    method?: string;
+    events: ReturnType<typeof parseIcs>["events"];
+  }[] = [];
+  for (const message of messages) {
+    for (const att of message.attachments) {
+      if (!isCalendarAttachment(att)) continue;
+      try {
+        const buf = await gmailAttachmentBuffer(gmail, att.messageId, att.attachmentId);
+        const parsed = parseIcs(buf.toString("utf8"));
+        if (parsed.events.length) {
+          invites.push({
+            messageId: att.messageId,
+            attachmentId: att.attachmentId,
+            filename: att.filename,
+            method: parsed.method,
+            events: parsed.events,
+          });
+        }
+      } catch {
+        /* skip */
+      }
+    }
+  }
+  return invites;
+}
+
+async function primaryWritableCalendar(userId: string): Promise<CalendarRow | null> {
+  const { rows } = await query<CalendarRow>(
+    `SELECT * FROM calendars
+      WHERE user_id = $1
+        AND google_cal_id NOT LIKE 'ics:%'
+        AND google_cal_id NOT LIKE 'birthday:%'
+      ORDER BY primary_cal DESC, selected DESC, summary ASC
+      LIMIT 1`,
+    [userId],
+  );
+  return rows[0] ?? null;
+}
+
+async function insertParsedEvent(
+  user: UserRow,
+  parsed: ReturnType<typeof parseIcs>["events"][number],
+) {
+  const calendar = await primaryWritableCalendar(user.id);
+  if (!calendar) throw new Error("Kein Kalender.");
+  const api = await getAuthedCalendar(user);
+  const created = await api.events.insert({
+    calendarId: calendar.google_cal_id,
+    requestBody: eventToGoogleBody({
+      summary: parsed.summary,
+      description: parsed.description,
+      location: parsed.location,
+      allDay: parsed.allDay,
+      start: parsed.start,
+      end: parsed.end,
+      timezone: parsed.timezone || calendar.timezone || TZ,
+      attendees: parsed.attendees,
+      recurrence: parsed.recurrence,
+    }),
+    supportsAttachments: true,
+    conferenceDataVersion: 1,
+  });
+  if (created.data.id) await refreshCachedEvent(user, calendar, created.data.id);
+  return created.data.id ?? null;
+}
+
+mailRouter.post("/messages/:messageId/attachments/:attachmentId/drive", async (req, res) => {
+  const filename = typeof req.query.filename === "string" ? req.query.filename : "Anhang";
+  const mime = typeof req.query.mime === "string" ? req.query.mime : "application/octet-stream";
+  try {
+    const gmail = await gmailFor(req);
+    const buf = await gmailAttachmentBuffer(gmail, req.params.messageId, req.params.attachmentId);
+    const drive = await getAuthedDrive(req.user!);
+    const created = await drive.files.create({
+      requestBody: { name: filename, mimeType: mime },
+      media: { mimeType: mime, body: Readable.from(buf) },
+      fields: "id,name,webViewLink",
+    });
+    res.json({
+      ok: true,
+      fileId: created.data.id,
+      name: created.data.name,
+      url: created.data.webViewLink,
+    });
+  } catch (err) {
+    const described = describeGoogleApiError(err, "drive");
+    if (described) {
+      res.status(described.status).json({ error: described.error, code: described.code });
+      return;
+    }
+    if (handleMailError(err, res)) return;
+    console.error(err);
+    res.status(502).json({ error: "Anhang konnte nicht in Drive gelegt werden." });
+  }
+});
+
+mailRouter.post("/to-event", async (req, res) => {
+  try {
+    const messageId = typeof req.body?.messageId === "string" ? req.body.messageId : "";
+    const attachmentId = typeof req.body?.attachmentId === "string" ? req.body.attachmentId : "";
+    if (messageId && attachmentId) {
+      const gmail = await gmailFor(req);
+      const buf = await gmailAttachmentBuffer(gmail, messageId, attachmentId);
+      const parsed = parseIcs(buf.toString("utf8"));
+      const ev = parsed.events[0];
+      if (!ev) {
+        res.status(400).json({ error: "Keine Termine in der Einladung." });
+        return;
+      }
+      const googleEventId = await insertParsedEvent(req.user!, ev);
+      res.json({ ok: true, googleEventId });
+      return;
+    }
+    const hint = req.body?.event as
+      | { summary?: string; start?: string; end?: string; allDay?: boolean; location?: string; description?: string }
+      | undefined;
+    if (!hint?.summary || !hint.start || !hint.end) {
+      res.status(400).json({ error: "Kein Termin erkennbar." });
+      return;
+    }
+    const googleEventId = await insertParsedEvent(req.user!, {
+      uid: "mail-hint",
+      summary: hint.summary,
+      start: hint.start,
+      end: hint.end,
+      allDay: Boolean(hint.allDay),
+      location: hint.location,
+      description: hint.description,
+    });
+    res.json({ ok: true, googleEventId });
+  } catch (err) {
+    if (handleMailError(err, res)) return;
+    console.error(err);
+    res.status(502).json({ error: "Termin konnte nicht angelegt werden." });
+  }
+});
+
+mailRouter.post("/block", async (req, res) => {
+  const from = typeof req.body?.from === "string" ? req.body.from.trim() : "";
+  const threadId = typeof req.body?.threadId === "string" ? req.body.threadId : "";
+  if (!from) {
+    res.status(400).json({ error: "Absender fehlt." });
+    return;
+  }
+  try {
+    const gmail = await gmailFor(req);
+    await gmail.users.settings.filters.create({
+      userId: "me",
+      requestBody: {
+        criteria: { from },
+        action: { addLabelIds: ["SPAM"], removeLabelIds: ["INBOX"] },
+      },
+    });
+    if (threadId) {
+      await gmail.users.threads.modify({
+        userId: "me",
+        id: threadId,
+        requestBody: { addLabelIds: ["SPAM"], removeLabelIds: ["INBOX"] },
+      });
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    if (handleMailError(err, res)) return;
+    console.error(err);
+    res.status(502).json({ error: "Absender konnte nicht blockiert werden." });
+  }
+});
+
 

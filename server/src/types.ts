@@ -37,6 +37,7 @@ export type CalendarRow = {
   access_role: string | null;
   sync_token: string | null;
   default_reminders: { method: string; minutes: number }[] | null;
+  source?: string;
   updated_at: Date;
 };
 

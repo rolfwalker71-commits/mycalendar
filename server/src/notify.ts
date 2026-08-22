@@ -4,6 +4,7 @@ import { query } from "./db.js";
 import { getAuthedGmail, isInsufficientScope } from "./google.js";
 import { gravatarUrl } from "./mailAvatar.js";
 import { headerMap, parseAddress, parsePayload } from "./mailMime.js";
+import { notifyLive } from "./live.js";
 import { markSent, sendPushToUser } from "./push.js";
 import type { AttendeeJson, UserRow } from "./types.js";
 
@@ -233,6 +234,7 @@ export async function notifyNewMail(): Promise<void> {
       }
 
       added = [...new Set(added)].slice(0, 8);
+      if (added.length) notifyLive(user.id, "mail");
       for (const id of added) {
         if (!(await markSent(user.id, "mail", id))) continue;
         const { data } = await gmail.users.messages.get({

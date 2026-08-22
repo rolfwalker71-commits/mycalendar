@@ -7,6 +7,8 @@ import { TZ } from "../config.js";
 import type { UserRow, WorkingHoursJson } from "../types.js";
 import { geminiAvailable, loadGeminiKey } from "../gemini.js";
 import { describeGoogleApiError, getAuthedCalendar } from "../google.js";
+import { subscribeLive } from "../live.js";
+import { calendarWatchAvailable, ensureCalendarWatches, handleGooglePush } from "../watch.js";
 
 function meJson(u: UserRow) {
   return {
@@ -113,6 +115,25 @@ meRouter.get("/calendar-settings", async (req, res) => {
 export const syncRouter = Router();
 syncRouter.use(requireAuth);
 
+syncRouter.get("/stream", (req, res) => {
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache, no-transform");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
+  res.flushHeaders?.();
+  const send = (event: string, data: unknown) => {
+    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  };
+  send("hello", { watch: calendarWatchAvailable() });
+  const off = subscribeLive(req.user!.id, (payload) => send("change", payload));
+  const beat = setInterval(() => res.write(": ping\n\n"), 25000);
+  void ensureCalendarWatches(req.user!).catch((err) => console.warn("Watch:", err));
+  req.on("close", () => {
+    clearInterval(beat);
+    off();
+  });
+});
+
 syncRouter.post("/", async (req, res) => {
   const timeMin = typeof req.body?.timeMin === "string" ? req.body.timeMin : undefined;
   const timeMax = typeof req.body?.timeMax === "string" ? req.body.timeMax : undefined;
@@ -145,11 +166,7 @@ syncRouter.post("/", async (req, res) => {
 
 export const googlePushRouter = Router();
 
-googlePushRouter.post("/push", async (req, res) => {
-  const state = String(req.header("X-Goog-Resource-State") ?? "");
-  if (state === "sync") {
-    res.status(200).end();
-    return;
-  }
+googlePushRouter.post("/push", (req, res) => {
   res.status(200).end();
+  void handleGooglePush(req.headers as Record<string, string | string[] | undefined>);
 });

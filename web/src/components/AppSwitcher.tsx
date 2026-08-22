@@ -1,4 +1,4 @@
-import { CalendarDays, Mail } from "lucide-react";
+import { CalendarDays, Mail, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { AppModule } from "@/mail/types";
 
@@ -15,6 +15,7 @@ export function AppSwitcher({
         [
           { id: "calendar", label: "Kalender", icon: CalendarDays },
           { id: "mail", label: "Mail", icon: Mail },
+          { id: "contacts", label: "Kontakte", icon: Users },
         ] as const
       ).map((item) => {
         const Icon = item.icon;

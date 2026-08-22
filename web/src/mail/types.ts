@@ -61,6 +61,32 @@ export type MailMessage = {
   cards?: { type: string; title: string; lines: string[] }[];
 };
 
+export type MailInvite = {
+  messageId: string;
+  attachmentId: string;
+  filename: string;
+  method?: string;
+  events: {
+    uid: string;
+    summary: string;
+    start: string;
+    end: string;
+    allDay: boolean;
+    location?: string;
+    description?: string;
+  }[];
+};
+
+export type MailEventHint = {
+  uid: string;
+  summary: string;
+  start: string;
+  end: string;
+  allDay: boolean;
+  location?: string;
+  description?: string;
+};
+
 export type MailThread = {
   id: string;
   messages: MailMessage[];
@@ -68,6 +94,8 @@ export type MailThread = {
   starred: boolean;
   draft?: boolean;
   draftId?: string | null;
+  invites?: MailInvite[];
+  eventHint?: MailEventHint | null;
 };
 
-export type AppModule = "calendar" | "mail";
+export type AppModule = "calendar" | "mail" | "contacts";

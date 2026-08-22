@@ -17,6 +17,41 @@ registerRoute(
   }),
 );
 
+const MAIL_CACHE = "mail-offline-v1";
+
+function shouldCacheMail(url: URL): boolean {
+  return (
+    (url.pathname.startsWith("/api/mail/threads") ||
+      url.pathname.startsWith("/api/mail/messages") ||
+      url.pathname.startsWith("/api/mail/labels") ||
+      url.pathname === "/api/contacts") &&
+    !url.pathname.includes("/attachments/")
+  );
+}
+
+self.addEventListener("fetch", (event) => {
+  const req = event.request;
+  if (req.method !== "GET") return;
+  const url = new URL(req.url);
+  if (url.origin !== self.location.origin || !shouldCacheMail(url)) return;
+  event.respondWith(
+    (async () => {
+      try {
+        const fresh = await fetch(req);
+        if (fresh.ok) {
+          const cache = await caches.open(MAIL_CACHE);
+          await cache.put(req, fresh.clone());
+        }
+        return fresh;
+      } catch {
+        const cached = await caches.match(req);
+        if (cached) return cached;
+        throw new Error("offline");
+      }
+    })(),
+  );
+});
+
 type PushData = {
   title?: string;
   body?: string;

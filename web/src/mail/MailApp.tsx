@@ -2,8 +2,13 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import {
   Archive,
   ArrowLeft,
+  Ban,
+  BellOff,
+  CalendarPlus,
   CheckSquare,
   ChevronRight,
+  Cloud,
+  FolderInput,
   Forward,
   Inbox,
   LoaderCircle,
@@ -44,6 +49,7 @@ import { ComposeSheet, type ComposeState } from "./ComposeSheet";
 import { MailAvatar } from "./MailAvatar";
 import { displayName, formatMailDate, formatMailDateLong } from "./format";
 import type { AppModule, MailLabel, MailMessage, MailThread, MailThreadSummary } from "./types";
+import { useLiveSync } from "@/lib/liveSync";
 import { GMAIL_LABEL_COLORS } from "./gmailColors";
 import { PullToRefresh } from "@/components/PullToRefresh";
 import { GeminiCard, HighlightCards } from "@/components/AiSummary";
@@ -475,6 +481,30 @@ function ThreadDetail({
               <MailOpen className="size-4" />
               Als ungelesen
             </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() =>
+                void apiClient
+                  .mailModify(thread.id, ["MUTED"], ["INBOX"], threaded)
+                  .then(() => toast.success("Unterhaltung stummgeschaltet."))
+                  .catch((err) => toast.error(err instanceof ApiError ? err.message : "Stummschalten fehlgeschlagen."))
+              }
+            >
+              <BellOff className="size-4" />
+              Stummschalten
+            </DropdownMenuItem>
+            {last.from.email ? (
+              <DropdownMenuItem
+                onClick={() =>
+                  void apiClient
+                    .mailBlock(last.from.email, thread.id)
+                    .then(() => toast.success("Absender blockiert."))
+                    .catch((err) => toast.error(err instanceof ApiError ? err.message : "Blockieren fehlgeschlagen."))
+                }
+              >
+                <Ban className="size-4" />
+                Absender blockieren
+              </DropdownMenuItem>
+            ) : null}
             {isSpam ? (
               <DropdownMenuItem onClick={onNotSpam}>
                 <ShieldCheck className="size-4" />
@@ -529,6 +559,61 @@ function ThreadDetail({
           available={geminiAvailable}
           onGenerate={() => void loadSummary()}
         />
+        {(thread.invites?.length || thread.eventHint) ? (
+          <div className="mx-4 mt-3 flex flex-col gap-2 rounded-xl bg-muted px-3 py-2">
+            {thread.invites?.map((inv) => (
+              <div key={`${inv.messageId}-${inv.attachmentId}`} className="flex items-center justify-between gap-2">
+                <span className="min-w-0 truncate text-sm">
+                  {inv.events[0]?.summary || inv.filename}
+                </span>
+                <Button
+                  variant="ghost"
+                  className="text-mail"
+                  onClick={() =>
+                    void apiClient
+                      .mailToEvent({ messageId: inv.messageId, attachmentId: inv.attachmentId })
+                      .then(() => toast.success("Termin liegt im Kalender."))
+                      .catch((err) =>
+                        toast.error(err instanceof ApiError ? err.message : "Termin fehlgeschlagen."),
+                      )
+                  }
+                >
+                  <CalendarPlus className="size-4" />
+                  In den Kalender
+                </Button>
+              </div>
+            ))}
+            {!thread.invites?.length && thread.eventHint ? (
+              <div className="flex items-center justify-between gap-2">
+                <span className="min-w-0 truncate text-sm">{thread.eventHint.summary}</span>
+                <Button
+                  variant="ghost"
+                  className="text-mail"
+                  onClick={() =>
+                    void apiClient
+                      .mailToEvent({
+                        event: {
+                          summary: thread.eventHint!.summary,
+                          start: thread.eventHint!.start,
+                          end: thread.eventHint!.end,
+                          allDay: thread.eventHint!.allDay,
+                          location: thread.eventHint!.location,
+                          description: thread.eventHint!.description,
+                        },
+                      })
+                      .then(() => toast.success("Termin liegt im Kalender."))
+                      .catch((err) =>
+                        toast.error(err instanceof ApiError ? err.message : "Termin fehlgeschlagen."),
+                      )
+                  }
+                >
+                  <CalendarPlus className="size-4" />
+                  Vorschlag übernehmen
+                </Button>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
         {hasRemoteImages && !loadImages ? (
           <div className="mx-4 mt-3 flex items-center justify-between gap-3 rounded-xl bg-muted px-3 py-2 text-sm">
             <span>Externe Bilder sind ausgeblendet.</span>
@@ -557,7 +642,7 @@ function ThreadDetail({
             {message.attachments.length ? (
               <ul className="mt-3 flex flex-col gap-1">
                 {message.attachments.map((a) => (
-                  <li key={a.attachmentId}>
+                  <li key={a.attachmentId} className="flex flex-wrap items-center gap-2">
                     <a
                       className="inline-flex items-center gap-2 text-sm text-mail hover:underline"
                       href={`/api/mail/messages/${encodeURIComponent(a.messageId)}/attachments/${encodeURIComponent(a.attachmentId)}?filename=${encodeURIComponent(a.filename)}&mime=${encodeURIComponent(a.mimeType)}`}
@@ -565,6 +650,25 @@ function ThreadDetail({
                       <Paperclip className="size-4" />
                       {a.filename}
                     </a>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="h-8 px-2 text-xs text-mail"
+                      onClick={() =>
+                        void apiClient
+                          .mailSaveToDrive(a.messageId, a.attachmentId, a.filename, a.mimeType)
+                          .then((res) => {
+                            toast.success("In Drive gelegt.");
+                            if (res.url) window.open(res.url, "_blank", "noopener");
+                          })
+                          .catch((err) =>
+                            toast.error(err instanceof ApiError ? err.message : "Drive fehlgeschlagen. Bitte Google neu verbinden."),
+                          )
+                      }
+                    >
+                      <Cloud className="size-3.5" />
+                      Drive
+                    </Button>
                   </li>
                 ))}
               </ul>
@@ -583,6 +687,8 @@ export function MailApp({
   onModule,
   threaded,
   onOpenSettings,
+  composeTo,
+  onComposeToConsumed,
 }: {
   me: Me;
   onLogout: () => void;
@@ -590,6 +696,8 @@ export function MailApp({
   onModule: (next: AppModule) => void;
   threaded: boolean;
   onOpenSettings: () => void;
+  composeTo?: string | null;
+  onComposeToConsumed?: () => void;
 }) {
   const desktop = useDesktop();
   const [labels, setLabels] = useState<MailLabel[]>(
@@ -690,6 +798,27 @@ export function MailApp({
     },
     [appliedQuery, labelId, threaded],
   );
+
+  const [newLabel, setNewLabel] = useState("");
+  const [labelPickId, setLabelPickId] = useState<string | null>(null);
+
+  useLiveSync(
+    useCallback(
+      (kind) => {
+        if (kind === "mail") {
+          loadThreads().catch(() => undefined);
+          loadLabels().catch(() => undefined);
+        }
+      },
+      [loadThreads, loadLabels],
+    ),
+  );
+
+  useEffect(() => {
+    if (!composeTo) return;
+    setCompose({ open: true, mode: "new", to: composeTo });
+    onComposeToConsumed?.();
+  }, [composeTo, onComposeToConsumed]);
 
   useEffect(() => {
     loadLabels().catch((err) => {
@@ -960,6 +1089,24 @@ export function MailApp({
                   />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-44">
+                  <DropdownMenuItem
+                    onClick={() => {
+                      const next = window.prompt("Neuer Name", label.name);
+                      if (!next?.trim() || next.trim() === label.name) return;
+                      void apiClient
+                        .mailRenameLabel(label.id, next.trim())
+                        .then(() =>
+                          setLabels((ls) =>
+                            ls.map((l) => (l.id === label.id ? { ...l, name: next.trim() } : l)),
+                          ),
+                        )
+                        .catch((err) =>
+                          toast.error(err instanceof ApiError ? err.message : "Umbenennen fehlgeschlagen."),
+                        );
+                    }}
+                  >
+                    Umbenennen
+                  </DropdownMenuItem>
                   <div className="grid grid-cols-8 gap-1 p-2">
                     {GMAIL_LABEL_COLORS.map((c) => (
                       <button
@@ -982,11 +1129,45 @@ export function MailApp({
           ))}
         </>
       ) : null}
+      <form
+        className="mt-3 flex gap-1 px-1"
+        onSubmit={(e) => {
+          e.preventDefault();
+          const name = newLabel.trim();
+          if (!name) return;
+          void apiClient
+            .mailCreateLabel(name)
+            .then((created) => {
+              setNewLabel("");
+              setLabels((ls) => [
+                ...ls,
+                {
+                  id: created.id,
+                  name: created.name,
+                  type: "user",
+                  color: null,
+                  messagesTotal: 0,
+                  messagesUnread: 0,
+                  threadsTotal: 0,
+                  threadsUnread: 0,
+                },
+              ]);
+            })
+            .catch((err) =>
+              toast.error(err instanceof ApiError ? err.message : "Ordner anlegen fehlgeschlagen."),
+            );
+        }}
+      >
+        <Input value={newLabel} onValueChange={setNewLabel} placeholder="Neuer Ordner" className="h-9" />
+        <Button type="submit" variant="outline" className="h-9 px-2" disabled={!newLabel.trim()}>
+          Anlegen
+        </Button>
+      </form>
     </nav>
   );
 
   const list = (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col border-r border-border bg-background">
+    <div className="relative flex min-h-0 min-w-0 flex-1 flex-col border-r border-border bg-background">
       <div className="relative z-40 flex items-center gap-2 border-b border-border bg-background px-3 py-2">
         {!desktop ? (
           <Button
@@ -1158,6 +1339,35 @@ export function MailApp({
                             },
                           ]
                         : []),
+                      {
+                        key: "unread",
+                        label: "Ungelesen",
+                        icon: <MailOpen className="size-5" />,
+                        className: "bg-amber-600",
+                        onClick: () =>
+                          void apiClient
+                            .mailModify(item.id, ["UNREAD"], [], threaded)
+                            .then(() => {
+                              setThreads((ts) =>
+                                ts.map((t) => (t.id === item.id ? { ...t, unread: true } : t)),
+                              );
+                              bumpUnread(unreadFolders(labelId), item.unread ? 0 : 1);
+                            })
+                            .catch((err) =>
+                              toast.error(err instanceof ApiError ? err.message : "Änderung fehlgeschlagen."),
+                            ),
+                      },
+                      ...(userLabels.length
+                        ? [
+                            {
+                              key: "label",
+                              label: "Ordner",
+                              icon: <FolderInput className="size-5" />,
+                              className: "bg-violet-600",
+                              onClick: () => setLabelPickId(item.id),
+                            },
+                          ]
+                        : []),
                       ...(labelId === "TRASH"
                         ? [
                             {
@@ -1209,6 +1419,44 @@ export function MailApp({
           ) : null}
         </div>
       </PullToRefresh>
+      {labelPickId ? (
+        <div className="absolute inset-0 z-30 flex items-end bg-black/30 p-3" onClick={() => setLabelPickId(null)}>
+          <div
+            className="w-full rounded-2xl bg-card p-3 shadow-xl ring-1 ring-border"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="px-1 pb-2 text-sm font-medium">In Ordner legen</p>
+            <ul className="flex flex-col">
+              {userLabels.map((label) => (
+                <li key={label.id}>
+                  <button
+                    type="button"
+                    className="flex min-h-11 w-full items-center gap-2 rounded-lg px-2 text-left text-sm hover:bg-muted"
+                    onClick={() =>
+                      void apiClient
+                        .mailModify(labelPickId, [label.id], ["INBOX"], threaded)
+                        .then(() => {
+                          setThreads((ts) => ts.filter((t) => t.id !== labelPickId));
+                          setLabelPickId(null);
+                          toast.success(`Nach ${label.name} verschoben.`);
+                        })
+                        .catch((err) =>
+                          toast.error(err instanceof ApiError ? err.message : "Verschieben fehlgeschlagen."),
+                        )
+                    }
+                  >
+                    <span
+                      className="size-3 rounded-full"
+                      style={{ backgroundColor: label.color?.backgroundColor ?? "#ccc" }}
+                    />
+                    {label.name}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 

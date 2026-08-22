@@ -9,8 +9,11 @@ import { healthCheck, initSchema, query } from "./db.js";
 import { getLastSeen } from "./auth.js";
 import { loadUserById } from "./auth.js";
 import { GoogleAuthError } from "./google.js";
-import { runNotificationJobs } from "./notify.js";
+import { notifyNewMail, runNotificationJobs } from "./notify.js";
 import { syncUserEvents } from "./sync.js";
+import { hasLiveListeners } from "./live.js";
+import { renewDueWatches } from "./watch.js";
+import { contactsRouter } from "./routes/contacts.js";
 import { loadVapidKeys } from "./vapid.js";
 import { authRouter } from "./routes/auth.js";
 import { calendarsRouter } from "./routes/calendars.js";
@@ -81,6 +84,7 @@ app.use("/api/calendars", calendarsRouter);
 app.use("/api/events", eventsRouter);
 app.use("/api/search", searchRouter);
 app.use("/api/mail", mailRouter);
+app.use("/api/contacts", contactsRouter);
 app.use("/api/tasks", tasksRouter);
 app.use("/api/push", pushRouter);
 app.use("/api/ai", aiRouter);
@@ -180,6 +184,12 @@ async function main(): Promise<void> {
   setInterval(() => {
     backgroundSync().catch((err) => console.error(err));
   }, 60_000);
+  setInterval(() => {
+    if (hasLiveListeners()) notifyNewMail().catch((err) => console.error(err));
+  }, 15_000);
+  setInterval(() => {
+    renewDueWatches().catch((err) => console.error(err));
+  }, 6 * 60 * 60 * 1000);
 }
 
 main().catch((err) => {

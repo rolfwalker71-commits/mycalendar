@@ -37,6 +37,7 @@ export type CalendarItem = {
   primary: boolean;
   accessRole: string | null;
   defaultReminders?: { method: string; minutes: number }[];
+  source?: "google" | "ics" | "birthday" | string;
 };
 
 export type CalendarEvent = {
@@ -70,6 +71,7 @@ export type CalendarEvent = {
   calendarTimezone: string | null;
   updatedAt?: string;
   coverUrl?: string | null;
+  readOnly?: boolean;
 };
 
 export type TaskItem = {

@@ -43,6 +43,7 @@ export type ComposeState =
       mode: "new" | "reply" | "replyAll" | "forward" | "draft";
       replyTo?: MailMessage;
       draftId?: string;
+      to?: string;
     };
 
 function splitAddresses(raw: string): string[] {
@@ -116,8 +117,14 @@ export function ComposeSheet({
         html: quotedForwardHtml(reply),
       };
     }
-    return { to: "", cc: "", bcc: "", subject: "", html: "" };
-  }, [state.open, mode, reply, selfEmail]);
+    return {
+      to: state.open && state.to ? state.to : "",
+      cc: "",
+      bcc: "",
+      subject: "",
+      html: "",
+    };
+  }, [state.open, mode, reply, selfEmail, state.open ? state.to : ""]);
 
   const [to, setTo] = useState(initial.to);
   const [cc, setCc] = useState(initial.cc);

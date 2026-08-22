@@ -12,6 +12,8 @@ import {
 import type { CalendarRow, EventRow } from "../types.js";
 import { buildVcalendar } from "../ics.js";
 import { coverUrlFor, loadCoverFile } from "../shiftCover.js";
+import { birthdayEventsForRange, ensureLocalCalendar } from "../localCalendars.js";
+import { loadContacts } from "./contacts.js";
 
 export const eventsRouter = Router();
 eventsRouter.use(requireAuth);
@@ -150,7 +152,21 @@ eventsRouter.get("/", async (req, res) => {
       ORDER BY e.all_day DESC, e.start_at ASC NULLS LAST, e.all_day_start ASC NULLS LAST`,
     params,
   );
-  res.json({ events: rows.map(serializeEvent) });
+  const events = rows.map(serializeEvent);
+  try {
+    const birthdayCal = await ensureLocalCalendar(req.user!.id, "birthday:contacts", "Geburtstage", "#f4511e");
+    const includeBirthday =
+      birthdayCal.selected &&
+      (!calendarIds.length || calendarIds.includes(birthdayCal.id));
+    if (includeBirthday) {
+      const contacts = await loadContacts(req.user!);
+      const extras = birthdayEventsForRange(contacts, birthdayCal, fromDt.setZone(TZ), toDt.setZone(TZ));
+      events.push(...extras.map((e) => ({ ...serializeEvent(e), readOnly: true })));
+    }
+  } catch {
+    /* Kontakte nicht freigegeben */
+  }
+  res.json({ events });
 });
 
 eventsRouter.post("/", async (req, res) => {
@@ -179,12 +195,24 @@ eventsRouter.post("/", async (req, res) => {
       officeLocation?: { label?: string; buildingId?: string };
     };
   };
-  if (!body.summary?.trim() || !body.calendarId || !body.start || !body.end) {
-    res.status(400).json({ error: "Titel, Kalender, Start und Ende sind erforderlich." });
+  if (!body.summary?.trim() || !body.start || !body.end) {
+    res.status(400).json({ error: "Titel, Start und Ende sind erforderlich." });
     return;
   }
 
-  const calendar = await getOwnedCalendar(req.user!.id, body.calendarId);
+  const calendar = body.calendarId
+    ? await getOwnedCalendar(req.user!.id, body.calendarId)
+    : (
+        await query<CalendarRow>(
+          `SELECT * FROM calendars
+            WHERE user_id = $1
+              AND google_cal_id NOT LIKE 'ics:%'
+              AND google_cal_id NOT LIKE 'birthday:%'
+            ORDER BY primary_cal DESC, selected DESC
+            LIMIT 1`,
+          [req.user!.id],
+        )
+      ).rows[0];
   if (!calendar) {
     res.status(404).json({ error: "Kalender nicht gefunden." });
     return;

@@ -58,7 +58,9 @@ import {
 import { SettingsDialog } from "@/components/SettingsDialog";
 import { Toaster } from "@/components/ui/sonner";
 import { MailApp } from "@/mail/MailApp";
+import { ContactsView } from "@/views/ContactsView";
 import type { AppModule } from "@/mail/types";
+import { useLiveSync } from "@/lib/liveSync";
 import { useTheme } from "@/components/ThemeProvider";
 import { PullToRefresh } from "@/components/PullToRefresh";
 import { DateField, TimeField } from "@/components/DateTimeFields";
@@ -204,17 +206,24 @@ function CalendarApp({
     sync(true).catch(() => undefined);
   }, []); // initial pull
 
+  const onLive = useCallback(
+    (kind: "calendar" | "mail" | "contacts") => {
+      if (kind === "calendar" || kind === "contacts") {
+        loadCalendars().catch(() => undefined);
+        loadEvents().catch(() => undefined);
+      }
+    },
+    [loadCalendars, loadEvents],
+  );
+  useLiveSync(onLive);
+
   useEffect(() => {
-    const id = window.setInterval(() => {
-      if (document.visibilityState === "visible") sync(true).catch(() => undefined);
-    }, 90_000);
     const onVis = () => {
       if (document.visibilityState === "visible") sync(true).catch(() => undefined);
     };
     document.addEventListener("visibilitychange", onVis);
     window.addEventListener("focus", onVis);
     return () => {
-      clearInterval(id);
       document.removeEventListener("visibilitychange", onVis);
       window.removeEventListener("focus", onVis);
     };
@@ -547,6 +556,7 @@ function CalendarApp({
           <div className="rounded-2xl bg-card p-3 shadow-lg shadow-black/10 ring-1 ring-border">
             <CalendarList
               calendars={calendars}
+              onFeedsChanged={() => void loadCalendars().then(() => loadEvents())}
               onToggle={async (id, selected) => {
                 setCalendars((cs) => cs.map((c) => (c.id === id ? { ...c, selected } : c)));
                 await apiClient.patchCalendar(id, selected);
@@ -691,6 +701,7 @@ function CalendarApp({
           />
           <CalendarList
             calendars={calendars}
+            onFeedsChanged={() => void loadCalendars().then(() => loadEvents())}
             onToggle={async (id, selected) => {
               setCalendars((cs) => cs.map((c) => (c.id === id ? { ...c, selected } : c)));
               try {
@@ -838,8 +849,14 @@ export function App() {
   const [module, setModule] = useState<AppModule>(() => {
     if (typeof window === "undefined") return "calendar";
     const q = new URLSearchParams(window.location.search).get("module");
-    if (q === "mail" || q === "calendar") return q;
-    return window.localStorage.getItem("app-module") === "mail" ? "mail" : "calendar";
+    if (q === "mail" || q === "calendar" || q === "contacts") return q;
+    const stored = window.localStorage.getItem("app-module");
+    if (stored === "mail" || stored === "contacts") return stored;
+    return "calendar";
+  });
+  const [mailTo, setMailTo] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    return new URLSearchParams(window.location.search).get("to");
   });
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [threaded, setThreaded] = useState(() => {
@@ -860,11 +877,13 @@ export function App() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const q = params.get("module");
-    if (q === "mail" || q === "calendar") {
+    if (q === "mail" || q === "calendar" || q === "contacts") {
       window.localStorage.setItem("app-module", q);
     }
-    if (!params.has("module")) return;
+    if (params.get("to")) setMailTo(params.get("to"));
+    if (!params.has("module") && !params.has("to")) return;
     params.delete("module");
+    params.delete("to");
     const qs = params.toString();
     window.history.replaceState({}, "", `${window.location.pathname}${qs ? `?${qs}` : ""}${window.location.hash}`);
   }, []);
@@ -912,6 +931,20 @@ export function App() {
           onModule={onModule}
           threaded={threaded}
           onOpenSettings={() => setSettingsOpen(true)}
+          composeTo={mailTo}
+          onComposeToConsumed={() => setMailTo(null)}
+        />
+      ) : module === "contacts" ? (
+        <ContactsView
+          me={me}
+          onLogout={() => setMe(null)}
+          module={module}
+          onModule={onModule}
+          onOpenSettings={() => setSettingsOpen(true)}
+          onMailTo={(email) => {
+            setMailTo(email);
+            onModule("mail");
+          }}
         />
       ) : (
         <CalendarApp

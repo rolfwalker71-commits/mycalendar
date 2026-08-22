@@ -123,3 +123,32 @@ CREATE TABLE IF NOT EXISTS gemini_cache (
   PRIMARY KEY (user_id, kind, ref)
 );
 
+ALTER TABLE calendars ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'google';
+
+CREATE TABLE IF NOT EXISTS google_watches (
+  channel_id TEXT PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  calendar_id UUID REFERENCES calendars(id) ON DELETE CASCADE,
+  resource_id TEXT,
+  expiration TIMESTAMPTZ,
+  kind TEXT NOT NULL DEFAULT 'calendar',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS google_watches_user_idx ON google_watches (user_id);
+CREATE INDEX IF NOT EXISTS google_watches_exp_idx ON google_watches (expiration);
+
+CREATE TABLE IF NOT EXISTS ics_feeds (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  calendar_id UUID NOT NULL REFERENCES calendars(id) ON DELETE CASCADE,
+  url TEXT NOT NULL,
+  etag TEXT,
+  last_sync_at TIMESTAMPTZ,
+  last_error TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (user_id, url)
+);
+
+CREATE INDEX IF NOT EXISTS ics_feeds_user_idx ON ics_feeds (user_id);
+
