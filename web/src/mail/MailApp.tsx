@@ -31,6 +31,7 @@ import {
   Undo2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { AppLogo } from "@/components/AppLogo";
 import { AppSwitcher } from "@/components/AppSwitcher";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -1018,7 +1019,10 @@ export function MailApp({
     return (
       <div className="flex h-dvh flex-col bg-background">
         <header className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
-          <AppSwitcher value={module} onChange={onModule} />
+          <div className="flex min-w-0 items-center gap-2">
+            <AppLogo className="size-8" size={32} />
+            <AppSwitcher value={module} onChange={onModule} />
+          </div>
           <div className="flex items-center gap-1">
             <Button variant="ghost" size="icon" aria-label="Einstellungen" onClick={onOpenSettings}>
               <Settings className="size-5" />
@@ -1501,7 +1505,10 @@ export function MailApp({
   return (
     <div className="flex h-dvh flex-col bg-background">
       <header className="flex items-center justify-between gap-3 border-b border-border px-3 py-2 lg:px-4">
-        <AppSwitcher value={module} onChange={onModule} />
+        <div className="flex min-w-0 items-center gap-2">
+          <AppLogo className="size-8" size={32} />
+          <AppSwitcher value={module} onChange={onModule} />
+        </div>
         <div className="flex items-center gap-1">
           <Button variant="ghost" size="icon" aria-label="Einstellungen" onClick={onOpenSettings}>
             <Settings className="size-5" />

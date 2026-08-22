@@ -14,6 +14,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { LoginScreen } from "@/components/LoginScreen";
+import { AppLogo } from "@/components/AppLogo";
 import { AppSwitcher } from "@/components/AppSwitcher";
 import { MobileDock } from "@/components/MobileDock";
 import { MiniMonth, MiniNavigator, type MiniRange } from "@/components/MiniMonth";
@@ -404,6 +405,7 @@ function CalendarApp({
   const header = (
     <header className="flex flex-col gap-2 border-b border-border px-3 py-2 lg:flex-row lg:items-center lg:gap-3 lg:px-6 lg:py-3">
       <div className="flex items-center gap-2 lg:hidden">
+        <AppLogo className="size-8" size={32} />
         <AppSwitcher value={module} onChange={onModule} />
       </div>
       <div className="flex items-center gap-1 lg:gap-2">
@@ -684,6 +686,13 @@ function CalendarApp({
     <div className="flex h-dvh flex-col bg-background">
       <div className="flex min-h-0 flex-1">
         <aside className="hidden w-72 shrink-0 flex-col gap-6 overflow-auto border-r border-border p-4 lg:flex">
+          <div className="flex items-center gap-2.5">
+            <AppLogo className="size-9" size={36} />
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold leading-tight">Kalender & Mail</p>
+              <p className="truncate text-xs text-muted-foreground">Workspace</p>
+            </div>
+          </div>
           <AppSwitcher value={module} onChange={onModule} />
           <div>
             <p className="mb-2 text-5xl font-semibold tracking-tight">{cursor.day}</p>

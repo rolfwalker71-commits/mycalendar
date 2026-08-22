@@ -1,3 +1,4 @@
+import { AppLogo } from "@/components/AppLogo";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -9,13 +10,7 @@ export function LoginScreen() {
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center bg-background px-6">
       <div className="flex w-full max-w-sm flex-col items-center text-center">
-        <img
-          src="/logo.png"
-          alt=""
-          width={96}
-          height={96}
-          className="mb-6 size-24 object-contain"
-        />
+        <AppLogo className="mb-6 size-24" size={96} />
         <h1 className="text-3xl font-semibold tracking-tight">Kalender & Mail</h1>
         <p className="mt-2 text-muted-foreground">
           Google Workspace — privat, selbst gehostet, im Browser und als PWA.
