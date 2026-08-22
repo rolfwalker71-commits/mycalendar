@@ -14,6 +14,7 @@ import {
   getAuthedPeople,
   isInsufficientScope,
 } from "../google.js";
+import { gmailBatchGet } from "../gmailBatch.js";
 import { extractEventFromText, parseIcs } from "../icsParse.js";
 import { eventToGoogleBody, refreshCachedEvent } from "../sync.js";
 import type { CalendarRow, UserRow } from "../types.js";
@@ -21,7 +22,6 @@ import {
   buildRfc822,
   headerMap,
   htmlToPlain,
-  mapPool,
   parseAddress,
   parsePayload,
   scrubHtml,
@@ -202,20 +202,106 @@ function countsFrom(label?: gmail_v1.Schema$Label | null): LabelCounts {
   };
 }
 
+function labelHasCounts(label?: gmail_v1.Schema$Label | null): boolean {
+  return (
+    typeof label?.messagesTotal === "number" &&
+    typeof label?.messagesUnread === "number" &&
+    typeof label?.threadsTotal === "number" &&
+    typeof label?.threadsUnread === "number"
+  );
+}
+
+const LIST_CACHE_TTL_MS = 20_000;
+const LIST_META_HEADERS = ["From", "To", "Subject", "Date"];
+
+type MailListPayload = {
+  threads: unknown[];
+  nextPageToken: string | null;
+  resultSizeEstimate: number;
+};
+
+const mailListCache = new Map<string, { at: number; payload: MailListPayload }>();
+
+function mailListCacheKey(
+  userId: string,
+  threaded: boolean,
+  labelId: string,
+  q: string,
+  pageToken: string | undefined,
+  maxResults: number,
+): string {
+  return `${userId}\t${threaded ? "t" : "m"}\t${labelId}\t${q}\t${pageToken ?? ""}\t${maxResults}`;
+}
+
+function readMailListCache(key: string): MailListPayload | null {
+  const hit = mailListCache.get(key);
+  if (!hit || Date.now() - hit.at > LIST_CACHE_TTL_MS) {
+    if (hit) mailListCache.delete(key);
+    return null;
+  }
+  return hit.payload;
+}
+
+function writeMailListCache(key: string, payload: MailListPayload): void {
+  mailListCache.set(key, { at: Date.now(), payload });
+}
+
+function invalidateMailListCache(userId: string): void {
+  for (const key of mailListCache.keys()) {
+    if (key.startsWith(`${userId}\t`)) mailListCache.delete(key);
+  }
+}
+
+function bustMailListCache(req: Request): void {
+  const id = req.user?.id;
+  if (id) invalidateMailListCache(id);
+}
+
+function metadataQuery(): string {
+  const qs = new URLSearchParams({ format: "metadata" });
+  for (const h of LIST_META_HEADERS) qs.append("metadataHeaders", h);
+  return qs.toString();
+}
+
 async function fetchLabelCounts(
+  user: UserRow,
   gmail: Awaited<ReturnType<typeof gmailFor>>,
+  listed: gmail_v1.Schema$Label[],
   ids: string[],
 ): Promise<Map<string, LabelCounts>> {
+  const listedById = new Map(
+    listed
+      .filter((l): l is gmail_v1.Schema$Label & { id: string } => Boolean(l.id))
+      .map((l) => [l.id, l]),
+  );
   const unique = [...new Set(ids.filter(Boolean))];
-  const rows = await mapPool(unique, 8, async (id) => {
-    try {
-      const { data } = await gmail.users.labels.get({ userId: "me", id });
-      return [id, countsFrom(data)] as const;
-    } catch {
-      return [id, countsFrom(null)] as const;
-    }
+  const out = new Map<string, LabelCounts>();
+  const need: string[] = [];
+  for (const id of unique) {
+    const fromList = listedById.get(id);
+    if (labelHasCounts(fromList)) out.set(id, countsFrom(fromList));
+    else need.push(id);
+  }
+  if (!need.length) return out;
+  const fetched = await gmailBatchGet<gmail_v1.Schema$Label>(
+    user,
+    need.map((id) => ({
+      id,
+      path: `/gmail/v1/users/me/labels/${encodeURIComponent(id)}`,
+    })),
+    async (id) => {
+      try {
+        const { data } = await gmail.users.labels.get({ userId: "me", id });
+        return data;
+      } catch {
+        return null;
+      }
+    },
+  );
+  need.forEach((id, i) => {
+    out.set(id, countsFrom(fetched[i]));
   });
-  return new Map(rows);
+  return out;
 }
 
 mailRouter.get("/labels", async (req, res) => {
@@ -224,7 +310,7 @@ mailRouter.get("/labels", async (req, res) => {
     const { data } = await gmail.users.labels.list({ userId: "me" });
     const listed = data.labels ?? [];
     const userRaw = listed.filter((l) => l.type === "user" && l.id && l.name);
-    const counts = await fetchLabelCounts(gmail, [
+    const counts = await fetchLabelCounts(req.user!, gmail, listed, [
       ...SYSTEM_LABELS.map((s) => s.id),
       ...userRaw.map((l) => l.id as string),
     ]);
@@ -328,30 +414,14 @@ async function draftIdMap(gmail: Awaited<ReturnType<typeof gmailFor>>) {
   return map;
 }
 
-async function summarizeListedThread(
-  gmail: Awaited<ReturnType<typeof gmailFor>>,
+function summarizeListedThread(
+  data: gmail_v1.Schema$Thread,
   threadId: string,
   listSnippet?: string | null,
   drafts?: Map<string, string>,
 ) {
-  const { data } = await gmail.users.threads.get({
-    userId: "me",
-    id: threadId,
-    format: "minimal",
-  });
   const messages = data.messages ?? [];
-  const lastMeta = messages[messages.length - 1];
-  const lastId = lastMeta?.id ?? "";
-  const last = lastId
-    ? (
-        await gmail.users.messages.get({
-          userId: "me",
-          id: lastId,
-          format: "metadata",
-          metadataHeaders: ["From", "To", "Subject", "Date"],
-        })
-      ).data
-    : {};
+  const last = messages[messages.length - 1] ?? {};
   const summary = summarizeMessage(last);
   const unread = messages.some((m) => (m.labelIds ?? []).includes("UNREAD"));
   const starred = messages.some((m) => (m.labelIds ?? []).includes("STARRED"));
@@ -368,12 +438,93 @@ async function summarizeListedThread(
   };
 }
 
+async function loadListedThreads(
+  user: UserRow,
+  gmail: Awaited<ReturnType<typeof gmailFor>>,
+  listed: Array<{ id?: string | null; snippet?: string | null }>,
+  drafts: Map<string, string>,
+) {
+  const qs = metadataQuery();
+  const parts = listed
+    .map((t) => t.id)
+    .filter((id): id is string => Boolean(id))
+    .map((id) => ({
+      id,
+      path: `/gmail/v1/users/me/threads/${encodeURIComponent(id)}?${qs}`,
+    }));
+  const fetched = await gmailBatchGet<gmail_v1.Schema$Thread>(user, parts, async (id) => {
+    const { data } = await gmail.users.threads.get({
+      userId: "me",
+      id,
+      format: "metadata",
+      metadataHeaders: LIST_META_HEADERS,
+    });
+    return data;
+  });
+  const byId = new Map<string, gmail_v1.Schema$Thread>();
+  parts.forEach((p, i) => {
+    if (fetched[i]) byId.set(p.id, fetched[i]!);
+  });
+  return listed.flatMap((t) => {
+    const id = t.id ?? "";
+    const data = byId.get(id);
+    if (!data) return [];
+    return [summarizeListedThread(data, id, t.snippet, drafts)];
+  });
+}
+
+async function loadListedMessages(
+  user: UserRow,
+  gmail: Awaited<ReturnType<typeof gmailFor>>,
+  listed: Array<{ id?: string | null }>,
+  drafts: Map<string, string>,
+) {
+  const qs = metadataQuery();
+  const parts = listed
+    .map((m) => m.id)
+    .filter((id): id is string => Boolean(id))
+    .map((id) => ({
+      id,
+      path: `/gmail/v1/users/me/messages/${encodeURIComponent(id)}?${qs}`,
+    }));
+  const fetched = await gmailBatchGet<gmail_v1.Schema$Message>(user, parts, async (id) => {
+    const { data } = await gmail.users.messages.get({
+      userId: "me",
+      id,
+      format: "metadata",
+      metadataHeaders: LIST_META_HEADERS,
+    });
+    return data;
+  });
+  return parts.flatMap((p, i) => {
+    const data = fetched[i];
+    if (!data) return [];
+    const summary = summarizeMessage(data);
+    const id = data.id ?? p.id;
+    return [
+      {
+        ...summary,
+        id,
+        snippet: data.snippet ?? summary.snippet,
+        messageCount: 1,
+        draftId: drafts.get(data.threadId ?? "") ?? drafts.get(`msg:${id}`) ?? null,
+      },
+    ];
+  });
+}
+
 mailRouter.get("/threads", async (req, res) => {
   const labelId = String(req.query.labelId ?? "INBOX");
   const q = typeof req.query.q === "string" ? req.query.q : "";
   const pageToken = typeof req.query.pageToken === "string" ? req.query.pageToken : undefined;
   const maxResults = Math.min(50, Math.max(10, Number(req.query.maxResults ?? 20) || 20));
   try {
+    const cacheKey = mailListCacheKey(req.user!.id, true, labelId, q, pageToken, maxResults);
+    const cached = readMailListCache(cacheKey);
+    if (cached) {
+      res.json(cached);
+      return;
+    }
     const gmail = await gmailFor(req);
     const listP = gmail.users.threads.list({
       userId: "me",
@@ -384,14 +535,14 @@ mailRouter.get("/threads", async (req, res) => {
     });
     const draftsP = labelId === "DRAFT" ? draftIdMap(gmail) : Promise.resolve(new Map<string, string>());
     const [list, drafts] = await Promise.all([listP, draftsP]);
-    const threads = await mapPool(list.data.threads ?? [], 12, async (t) =>
-      summarizeListedThread(gmail, t.id ?? "", t.snippet, drafts),
-    );
-    res.json({
+    const threads = await loadListedThreads(req.user!, gmail, list.data.threads ?? [], drafts);
+    const payload = {
       threads,
       nextPageToken: list.data.nextPageToken ?? null,
       resultSizeEstimate: list.data.resultSizeEstimate ?? threads.length,
-    });
+    };
+    writeMailListCache(cacheKey, payload);
+    res.json(payload);
   } catch (err) {
     if (handleMailError(err, res)) return;
     console.error(err);
@@ -448,6 +599,7 @@ mailRouter.post("/threads/:id/modify", async (req, res) => {
       id: req.params.id,
       requestBody: { addLabelIds, removeLabelIds },
     });
+    bustMailListCache(req);
     res.json({ ok: true });
   } catch (err) {
     if (handleMailError(err, res)) return;
@@ -460,6 +612,7 @@ mailRouter.post("/threads/:id/trash", async (req, res) => {
   try {
     const gmail = await gmailFor(req);
     await gmail.users.threads.trash({ userId: "me", id: req.params.id });
+    bustMailListCache(req);
     res.json({ ok: true });
   } catch (err) {
     if (handleMailError(err, res)) return;
@@ -472,6 +625,7 @@ mailRouter.post("/threads/:id/untrash", async (req, res) => {
   try {
     const gmail = await gmailFor(req);
     await gmail.users.threads.untrash({ userId: "me", id: req.params.id });
+    bustMailListCache(req);
     res.json({ ok: true });
   } catch (err) {
     if (handleMailError(err, res)) return;
@@ -486,6 +640,12 @@ mailRouter.get("/messages", async (req, res) => {
   const pageToken = typeof req.query.pageToken === "string" ? req.query.pageToken : undefined;
   const maxResults = Math.min(50, Math.max(10, Number(req.query.maxResults ?? 20) || 20));
   try {
+    const cacheKey = mailListCacheKey(req.user!.id, false, labelId, q, pageToken, maxResults);
+    const cached = readMailListCache(cacheKey);
+    if (cached) {
+      res.json(cached);
+      return;
+    }
     const gmail = await gmailFor(req);
     const listP = gmail.users.messages.list({
       userId: "me",
@@ -496,28 +656,14 @@ mailRouter.get("/messages", async (req, res) => {
     });
     const draftsP = labelId === "DRAFT" ? draftIdMap(gmail) : Promise.resolve(new Map<string, string>());
     const [list, drafts] = await Promise.all([listP, draftsP]);
-    const threads = await mapPool(list.data.messages ?? [], 12, async (m) => {
-      const { data } = await gmail.users.messages.get({
-        userId: "me",
-        id: m.id ?? "",
-        format: "metadata",
-        metadataHeaders: ["From", "To", "Subject", "Date"],
-      });
-      const summary = summarizeMessage(data);
-      const id = data.id ?? m.id ?? "";
-      return {
-        ...summary,
-        id,
-        snippet: data.snippet ?? summary.snippet,
-        messageCount: 1,
-        draftId: drafts.get(data.threadId ?? "") ?? drafts.get(`msg:${id}`) ?? null,
-      };
-    });
-    res.json({
+    const threads = await loadListedMessages(req.user!, gmail, list.data.messages ?? [], drafts);
+    const payload = {
       threads,
       nextPageToken: list.data.nextPageToken ?? null,
       resultSizeEstimate: list.data.resultSizeEstimate ?? threads.length,
-    });
+    };
+    writeMailListCache(cacheKey, payload);
+    res.json(payload);
   } catch (err) {
     if (handleMailError(err, res)) return;
     console.error(err);
@@ -568,6 +714,7 @@ mailRouter.post("/messages/:id/modify", async (req, res) => {
       id: req.params.id,
       requestBody: { addLabelIds, removeLabelIds },
     });
+    bustMailListCache(req);
     res.json({ ok: true });
   } catch (err) {
     if (handleMailError(err, res)) return;
@@ -580,6 +727,7 @@ mailRouter.post("/messages/:id/trash", async (req, res) => {
   try {
     const gmail = await gmailFor(req);
     await gmail.users.messages.trash({ userId: "me", id: req.params.id });
+    bustMailListCache(req);
     res.json({ ok: true });
   } catch (err) {
     if (handleMailError(err, res)) return;
@@ -592,6 +740,7 @@ mailRouter.post("/messages/:id/untrash", async (req, res) => {
   try {
     const gmail = await gmailFor(req);
     await gmail.users.messages.untrash({ userId: "me", id: req.params.id });
+    bustMailListCache(req);
     res.json({ ok: true });
   } catch (err) {
     if (handleMailError(err, res)) return;
@@ -651,6 +800,7 @@ mailRouter.post("/send", async (req, res) => {
         userId: "me",
         requestBody: { id: draftId },
       });
+      bustMailListCache(req);
       res.json({ ok: true, id: data.id, threadId: data.threadId });
       return;
     }
@@ -661,6 +811,7 @@ mailRouter.post("/send", async (req, res) => {
         threadId: body.threadId,
       },
     });
+    bustMailListCache(req);
     res.json({ ok: true, id: data.id, threadId: data.threadId });
   } catch (err) {
     if (handleMailError(err, res)) return;
@@ -847,6 +998,7 @@ mailRouter.post("/drafts", async (req, res) => {
           userId: "me",
           requestBody,
         });
+    bustMailListCache(req);
     res.json({ ok: true, id: data.id, threadId: data.message?.threadId ?? body.threadId });
   } catch (err) {
     if (handleMailError(err, res)) return;
@@ -859,6 +1011,7 @@ mailRouter.delete("/drafts/:id", async (req, res) => {
   try {
     const gmail = await gmailFor(req);
     await gmail.users.drafts.delete({ userId: "me", id: req.params.id });
+    bustMailListCache(req);
     res.json({ ok: true });
   } catch (err) {
     if (handleMailError(err, res)) return;
@@ -1265,6 +1418,7 @@ mailRouter.post("/block", async (req, res) => {
         requestBody: { addLabelIds: ["SPAM"], removeLabelIds: ["INBOX"] },
       });
     }
+    bustMailListCache(req);
     res.json({ ok: true });
   } catch (err) {
     if (handleMailError(err, res)) return;

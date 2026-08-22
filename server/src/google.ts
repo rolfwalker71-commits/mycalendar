@@ -52,7 +52,7 @@ export function authUrl(state: string): string {
 
 const tokenCache = new Map<string, { access_token: string; expiry_date: number }>();
 
-async function getAuthedOAuthClient(
+export async function getAuthedOAuthClient(
   user: UserRow,
 ): Promise<Auth.OAuth2Client> {
   if (!user.refresh_token_enc) {
@@ -186,6 +186,16 @@ export async function downloadDriveBytes(
 export function isGoneError(err: unknown): boolean {
   const e = err as { code?: number; status?: number };
   return e.code === 410 || e.status === 410;
+}
+
+export function isNotFoundError(err: unknown): boolean {
+  const e = err as { code?: number; status?: number };
+  return e.code === 404 || e.status === 404;
+}
+
+export function isForbiddenError(err: unknown): boolean {
+  const e = err as { code?: number; status?: number };
+  return e.code === 403 || e.status === 403;
 }
 
 export function isAuthError(err: unknown): boolean {

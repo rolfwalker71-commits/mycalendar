@@ -29,6 +29,11 @@ searchRouter.get("/", async (req, res) => {
        JOIN calendars c ON c.id = e.calendar_id
       WHERE e.user_id = $1
         AND e.status IS DISTINCT FROM 'cancelled'
+        AND NOT EXISTS (
+          SELECT 1 FROM hidden_events h
+           WHERE h.user_id = e.user_id
+             AND h.event_key IN (e.google_event_id, COALESCE(e.recurring_event_id, ''), COALESCE(e.ical_uid, ''))
+        )
         AND (
           e.summary ILIKE $2 ESCAPE '\\'
           OR e.location ILIKE $2 ESCAPE '\\'

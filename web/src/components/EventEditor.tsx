@@ -116,7 +116,10 @@ export function EventEditor({
   onOpenEvent?: (event: CalendarEvent) => void;
 }) {
   const event = state.event ?? null;
-  const readOnly = Boolean(event?.readOnly || event?.eventType === "birthday");
+  const isBirthday =
+    event?.eventType === "birthday" || String(event?.id ?? "").startsWith("bday-");
+  const readOnly = Boolean(event?.readOnly || isBirthday);
+  const canDelete = Boolean(event && (isBirthday || !event.readOnly));
   const writable = calendars.filter((c) =>
     ["owner", "writer"].includes(c.accessRole ?? ""),
   );
@@ -912,7 +915,7 @@ export function EventEditor({
           </Button>
         </>
       ) : null}
-      {event && includeSwipeActions && !readOnly ? (
+      {event && canDelete ? (
         confirmDelete ? (
           <Button variant="destructive" onClick={remove} disabled={saving}>
             Wirklich löschen

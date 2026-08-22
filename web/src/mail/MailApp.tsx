@@ -1307,106 +1307,98 @@ export function MailApp({
             <p className="p-8 text-center text-sm text-muted-foreground">Keine Nachrichten.</p>
           ) : (
             threads.map((item) => {
-              const isThread = threaded && item.messageCount > 1;
               const canArchive = labelId !== "TRASH" && labelId !== "DRAFT" && labelId !== "SENT" && labelId !== "SPAM";
               return (
-                <div key={item.id} className="relative px-3 py-1">
-                  {isThread ? (
-                    <div
-                      aria-hidden
-                      className="pointer-events-none absolute inset-x-5 top-[7px] h-[calc(100%-4px)] rounded-2xl bg-muted ring-1 ring-border"
-                    />
-                  ) : null}
-                  <SwipeableRow
-                    className="relative rounded-2xl shadow-lg shadow-black/10 ring-1 ring-border"
-                    disabled={selectMode}
-                    onOpen={() => {
-                      if (selectMode) toggleSelect(item.id);
-                      else void openThread(item.id);
-                    }}
-                    actions={[
-                      ...(canArchive
-                        ? [
-                            {
-                              key: "archive",
-                              label: "Archiv",
-                              icon: <Archive className="size-5" />,
-                              className: "bg-sky-600",
-                              onClick: () =>
-                                void archiveIds([item.id]).catch((err) =>
-                                  toast.error(err instanceof ApiError ? err.message : "Archivieren fehlgeschlagen."),
-                                ),
-                            },
-                          ]
-                        : []),
-                      {
-                        key: "unread",
-                        label: "Ungelesen",
-                        icon: <MailOpen className="size-5" />,
-                        className: "bg-amber-600",
-                        onClick: () =>
-                          void apiClient
-                            .mailModify(item.id, ["UNREAD"], [], threaded)
-                            .then(() => {
-                              setThreads((ts) =>
-                                ts.map((t) => (t.id === item.id ? { ...t, unread: true } : t)),
-                              );
-                              bumpUnread(unreadFolders(labelId), item.unread ? 0 : 1);
-                            })
-                            .catch((err) =>
-                              toast.error(err instanceof ApiError ? err.message : "Änderung fehlgeschlagen."),
-                            ),
-                      },
-                      ...(userLabels.length
-                        ? [
-                            {
-                              key: "label",
-                              label: "Ordner",
-                              icon: <FolderInput className="size-5" />,
-                              className: "bg-violet-600",
-                              onClick: () => setLabelPickId(item.id),
-                            },
-                          ]
-                        : []),
-                      ...(labelId === "TRASH"
-                        ? [
-                            {
-                              key: "restore",
-                              label: "Zurück",
-                              icon: <Undo2 className="size-5" />,
-                              className: "bg-sky-600",
-                              onClick: () =>
-                                void trashIds([item.id]).catch((err) =>
-                                  toast.error(err instanceof ApiError ? err.message : "Wiederherstellen fehlgeschlagen."),
-                                ),
-                            },
-                          ]
-                        : [
-                            {
-                              key: "delete",
-                              label: "Löschen",
-                              icon: <Trash2 className="size-5" />,
-                              className: "bg-red-600",
-                              onClick: () =>
-                                void trashIds([item.id]).catch((err) =>
-                                  toast.error(err instanceof ApiError ? err.message : "Löschen fehlgeschlagen."),
-                                ),
-                            },
-                          ]),
-                    ]}
-                  >
-                    <ThreadRow
-                      thread={item}
-                      active={item.id === selectedId}
-                      selected={selectedIds.has(item.id)}
-                      selecting={selectMode}
-                      selfEmail={me.email}
-                      selfPhoto={me.pictureUrl}
-                      threaded={threaded}
-                      onToggleSelect={() => toggleSelect(item.id)}
-                    />
-                  </SwipeableRow>
-                </div>
+                <SwipeableRow
+                  key={item.id}
+                  className="rounded-none border-b border-border"
+                  disabled={selectMode}
+                  onOpen={() => {
+                    if (selectMode) toggleSelect(item.id);
+                    else void openThread(item.id);
+                  }}
+                  actions={[
+                    ...(canArchive
+                      ? [
+                          {
+                            key: "archive",
+                            label: "Archiv",
+                            icon: <Archive className="size-5" />,
+                            className: "bg-sky-600",
+                            onClick: () =>
+                              void archiveIds([item.id]).catch((err) =>
+                                toast.error(err instanceof ApiError ? err.message : "Archivieren fehlgeschlagen."),
+                              ),
+                          },
+                        ]
+                      : []),
+                    {
+                      key: "unread",
+                      label: "Ungelesen",
+                      icon: <MailOpen className="size-5" />,
+                      className: "bg-amber-600",
+                      onClick: () =>
+                        void apiClient
+                          .mailModify(item.id, ["UNREAD"], [], threaded)
+                          .then(() => {
+                            setThreads((ts) =>
+                              ts.map((t) => (t.id === item.id ? { ...t, unread: true } : t)),
+                            );
+                            bumpUnread(unreadFolders(labelId), item.unread ? 0 : 1);
+                          })
+                          .catch((err) =>
+                            toast.error(err instanceof ApiError ? err.message : "Änderung fehlgeschlagen."),
+                          ),
+                    },
+                    ...(userLabels.length
+                      ? [
+                          {
+                            key: "label",
+                            label: "Ordner",
+                            icon: <FolderInput className="size-5" />,
+                            className: "bg-violet-600",
+                            onClick: () => setLabelPickId(item.id),
+                          },
+                        ]
+                      : []),
+                    ...(labelId === "TRASH"
+                      ? [
+                          {
+                            key: "restore",
+                            label: "Zurück",
+                            icon: <Undo2 className="size-5" />,
+                            className: "bg-sky-600",
+                            onClick: () =>
+                              void trashIds([item.id]).catch((err) =>
+                                toast.error(err instanceof ApiError ? err.message : "Wiederherstellen fehlgeschlagen."),
+                              ),
+                          },
+                        ]
+                      : [
+                          {
+                            key: "delete",
+                            label: "Löschen",
+                            icon: <Trash2 className="size-5" />,
+                            className: "bg-red-600",
+                            onClick: () =>
+                              void trashIds([item.id]).catch((err) =>
+                                toast.error(err instanceof ApiError ? err.message : "Löschen fehlgeschlagen."),
+                              ),
+                          },
+                        ]),
+                  ]}
+                >
+                  <ThreadRow
+                    thread={item}
+                    active={item.id === selectedId}
+                    selected={selectedIds.has(item.id)}
+                    selecting={selectMode}
+                    selfEmail={me.email}
+                    selfPhoto={me.pictureUrl}
+                    threaded={threaded}
+                    onToggleSelect={() => toggleSelect(item.id)}
+                  />
+                </SwipeableRow>
               );
             })
           )}

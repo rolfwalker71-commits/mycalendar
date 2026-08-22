@@ -9,6 +9,7 @@ import {
   isGoneError,
   GoogleAuthError,
 } from "./google.js";
+import { hiddenKeySet, isHiddenGoogleEvent } from "./hiddenEvents.js";
 import { notifyNewCalendarEvent } from "./notify.js";
 import { invalidateShiftArtCache, driveFileId } from "./shiftCover.js";
 import { syncAllIcsFeeds } from "./localCalendars.js";
@@ -276,10 +277,11 @@ async function applyEventPage(
   user: UserRow,
   calendar: CalendarRow,
   items: calendar_v3.Schema$Event[] | undefined,
+  hidden: Set<string>,
 ): Promise<void> {
   for (const item of items ?? []) {
     if (!item.id) continue;
-    if (item.status === "cancelled") {
+    if (item.status === "cancelled" || isHiddenGoogleEvent(hidden, item)) {
       await deleteCachedEvent(calendar.id, item.id);
       continue;
     }
@@ -303,6 +305,46 @@ async function applyEventPage(
   }
 }
 
+async function pruneMissingEvents(
+  calendarId: string,
+  timeMin: string,
+  timeMax: string,
+  seenIds: string[],
+): Promise<void> {
+  const from = DateTime.fromISO(timeMin, { setZone: true });
+  const to = DateTime.fromISO(timeMax, { setZone: true });
+  if (!from.isValid || !to.isValid) return;
+  const fromIso = from.toUTC().toISO();
+  const toIso = to.toUTC().toISO();
+  const fromDate = from.toISODate();
+  const toDate = to.toISODate();
+  if (!fromIso || !toIso || !fromDate || !toDate) return;
+  if (seenIds.length) {
+    await query(
+      `DELETE FROM events
+        WHERE calendar_id = $1
+          AND google_event_id <> ALL($2::text[])
+          AND (
+            (all_day = FALSE AND start_at < $4::timestamptz AND COALESCE(end_at, start_at) > $3::timestamptz)
+            OR
+            (all_day = TRUE AND all_day_start < $6::date AND COALESCE(all_day_end, all_day_start) > $5::date)
+          )`,
+      [calendarId, seenIds, fromIso, toIso, fromDate, toDate],
+    );
+    return;
+  }
+  await query(
+    `DELETE FROM events
+      WHERE calendar_id = $1
+        AND (
+          (all_day = FALSE AND start_at < $3::timestamptz AND COALESCE(end_at, start_at) > $2::timestamptz)
+          OR
+          (all_day = TRUE AND all_day_start < $5::date AND COALESCE(all_day_end, all_day_start) > $4::date)
+        )`,
+    [calendarId, fromIso, toIso, fromDate, toDate],
+  );
+}
+
 async function rangeSync(
   user: UserRow,
   calendar: CalendarRow,
@@ -310,9 +352,11 @@ async function rangeSync(
   timeMin: string,
   timeMax: string,
   saveSyncToken: boolean,
+  hidden: Set<string>,
 ): Promise<void> {
   let pageToken: string | undefined;
   let nextSyncToken: string | undefined;
+  const seen = new Set<string>();
   do {
     const res = await api.events.list({
       calendarId: calendar.google_cal_id,
@@ -323,10 +367,17 @@ async function rangeSync(
       pageToken,
       supportsAttachments: true,
     } as calendar_v3.Params$Resource$Events$List);
-    await applyEventPage(user, calendar, res.data.items);
+    for (const item of res.data.items ?? []) {
+      if (item.id && item.status !== "cancelled" && !isHiddenGoogleEvent(hidden, item)) {
+        seen.add(item.id);
+      }
+    }
+    await applyEventPage(user, calendar, res.data.items, hidden);
     pageToken = res.data.nextPageToken ?? undefined;
     if (res.data.nextSyncToken) nextSyncToken = res.data.nextSyncToken;
   } while (pageToken);
+
+  await pruneMissingEvents(calendar.id, timeMin, timeMax, [...seen]);
 
   if (saveSyncToken && nextSyncToken) {
     await query("UPDATE calendars SET sync_token = $1, updated_at = NOW() WHERE id = $2", [
@@ -340,6 +391,7 @@ async function incrementalSync(
   user: UserRow,
   calendar: CalendarRow,
   api: calendar_v3.Calendar,
+  hidden: Set<string>,
 ): Promise<void> {
   if (!calendar.sync_token) return;
   let pageToken: string | undefined;
@@ -352,7 +404,7 @@ async function incrementalSync(
       maxResults: 2500,
       supportsAttachments: true,
     } as calendar_v3.Params$Resource$Events$List);
-    await applyEventPage(user, calendar, res.data.items);
+    await applyEventPage(user, calendar, res.data.items, hidden);
     pageToken = res.data.nextPageToken ?? undefined;
     syncToken = undefined;
     if (res.data.nextSyncToken) {
@@ -390,6 +442,7 @@ export async function syncUserEvents(
     }
     const api = await getAuthedCalendar(user);
     const list = full ? calendars.map((c) => ({ ...c, sync_token: null })) : calendars;
+    const hidden = await hiddenKeySet(user.id);
 
     for (const calendar of list) {
       if (
@@ -401,7 +454,7 @@ export async function syncUserEvents(
       try {
         if (calendar.sync_token) {
           try {
-            await incrementalSync(user, calendar, api);
+            await incrementalSync(user, calendar, api, hidden);
           } catch (err) {
             if (isGoneError(err)) {
               await query(
@@ -409,14 +462,14 @@ export async function syncUserEvents(
                 [calendar.id],
               );
               await query("DELETE FROM events WHERE calendar_id = $1", [calendar.id]);
-              await rangeSync(user, { ...calendar, sync_token: null }, api, from, to, true);
+              await rangeSync(user, { ...calendar, sync_token: null }, api, from, to, true, hidden);
               continue;
             }
             throw err;
           }
-          await rangeSync(user, calendar, api, from, to, false);
+          await rangeSync(user, calendar, api, from, to, false, hidden);
         } else {
-          await rangeSync(user, calendar, api, from, to, true);
+          await rangeSync(user, calendar, api, from, to, true, hidden);
         }
       } catch (err) {
         if (isAuthError(err)) {

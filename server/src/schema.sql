@@ -152,3 +152,10 @@ CREATE TABLE IF NOT EXISTS ics_feeds (
 
 CREATE INDEX IF NOT EXISTS ics_feeds_user_idx ON ics_feeds (user_id);
 
+CREATE TABLE IF NOT EXISTS hidden_events (
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  event_key TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (user_id, event_key)
+);
+

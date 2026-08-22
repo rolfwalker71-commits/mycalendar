@@ -3,7 +3,7 @@ import { DateTime } from "luxon";
 import { TZ } from "../config.js";
 import { requireAuth, clearSessionCookie } from "../auth.js";
 import { query } from "../db.js";
-import { GoogleAuthError, describeGoogleApiError, getAuthedCalendar, downloadDriveBytes, isAuthError } from "../google.js";
+import { GoogleAuthError, describeGoogleApiError, getAuthedCalendar, downloadDriveBytes, isAuthError, isForbiddenError, isNotFoundError } from "../google.js";
 import {
   eventToGoogleBody,
   refreshCachedEvent,
@@ -12,6 +12,12 @@ import {
 import type { CalendarRow, EventRow } from "../types.js";
 import { buildVcalendar } from "../ics.js";
 import { coverUrlFor, loadCoverFile } from "../shiftCover.js";
+import {
+  birthdayContactKeyFromEventId,
+  hideEventKeys,
+  hideKeysForGoogleEvent,
+  hiddenKeySet,
+} from "../hiddenEvents.js";
 import { birthdayEventsForRange, ensureLocalCalendar } from "../localCalendars.js";
 import { loadContacts } from "./contacts.js";
 
@@ -143,6 +149,11 @@ eventsRouter.get("/", async (req, res) => {
        JOIN calendars c ON c.id = e.calendar_id
       WHERE e.user_id = $1
         AND e.status IS DISTINCT FROM 'cancelled'
+        AND NOT EXISTS (
+          SELECT 1 FROM hidden_events h
+           WHERE h.user_id = e.user_id
+             AND h.event_key IN (e.google_event_id, COALESCE(e.recurring_event_id, ''), COALESCE(e.ical_uid, ''))
+        )
         AND (
           (e.all_day = FALSE AND e.start_at < $3::timestamptz AND e.end_at > $2::timestamptz)
           OR
@@ -160,7 +171,14 @@ eventsRouter.get("/", async (req, res) => {
       (!calendarIds.length || calendarIds.includes(birthdayCal.id));
     if (includeBirthday) {
       const contacts = await loadContacts(req.user!);
-      const extras = birthdayEventsForRange(contacts, birthdayCal, fromDt.setZone(TZ), toDt.setZone(TZ));
+      const hidden = await hiddenKeySet(req.user!.id);
+      const extras = birthdayEventsForRange(
+        contacts,
+        birthdayCal,
+        fromDt.setZone(TZ),
+        toDt.setZone(TZ),
+        hidden,
+      );
       events.push(...extras.map((e) => ({ ...serializeEvent(e), readOnly: true })));
     }
   } catch {
@@ -494,7 +512,24 @@ eventsRouter.patch("/:id", async (req, res) => {
   }
 });
 
+function isBirthdayEvent(
+  event: { event_type?: string | null; summary?: string | null },
+  calendar: { google_cal_id: string; source?: string | null },
+): boolean {
+  if (event.event_type === "birthday") return true;
+  if (calendar.source === "birthday") return true;
+  if (calendar.google_cal_id.includes("#contacts@group.v.calendar.google.com")) return true;
+  return /hat geburtstag/i.test(event.summary ?? "");
+}
+
 eventsRouter.delete("/:id", async (req, res) => {
+  const syntheticKey = birthdayContactKeyFromEventId(req.params.id);
+  if (syntheticKey) {
+    await hideEventKeys(req.user!.id, [syntheticKey]);
+    res.json({ ok: true });
+    return;
+  }
+
   const event = await getOwnedEvent(req.user!.id, req.params.id);
   if (!event) {
     res.status(404).json({ error: "Termin nicht gefunden." });
@@ -509,17 +544,38 @@ eventsRouter.delete("/:id", async (req, res) => {
     | "this"
     | "thisAndFollowing"
     | "all";
+  const birthday = isBirthdayEvent(event, calendar);
   try {
     const api = await getAuthedCalendar(req.user!);
     let eventId = event.google_event_id;
     if (scope === "all" && event.recurring_event_id) {
       eventId = event.recurring_event_id;
     }
-    await api.events.delete({
-      calendarId: calendar.google_cal_id,
-      eventId,
-      sendUpdates: "all",
-    });
+    try {
+      await api.events.delete({
+        calendarId: calendar.google_cal_id,
+        eventId,
+        sendUpdates: birthday ? "none" : "all",
+      });
+    } catch (err) {
+      if (birthday && (isNotFoundError(err) || isForbiddenError(err))) {
+        try {
+          await api.events.patch({
+            calendarId: calendar.google_cal_id,
+            eventId,
+            requestBody: { status: "cancelled" },
+            sendUpdates: "none",
+          });
+        } catch (patchErr) {
+          if (!isNotFoundError(patchErr) && !isForbiddenError(patchErr)) throw patchErr;
+        }
+      } else {
+        throw err;
+      }
+    }
+    if (birthday) {
+      await hideEventKeys(req.user!.id, hideKeysForGoogleEvent(event));
+    }
     if (scope === "all" && event.recurring_event_id) {
       await query(
         "DELETE FROM events WHERE user_id = $1 AND (google_event_id = $2 OR recurring_event_id = $2)",
@@ -533,6 +589,15 @@ eventsRouter.delete("/:id", async (req, res) => {
     }
     res.json({ ok: true });
   } catch (err) {
+    if (birthday) {
+      await hideEventKeys(req.user!.id, hideKeysForGoogleEvent(event));
+      await query("DELETE FROM events WHERE id = $1 AND user_id = $2", [
+        event.id,
+        req.user!.id,
+      ]);
+      res.json({ ok: true });
+      return;
+    }
     if (handleGoogleError(res, err)) return;
     console.error(err);
     res.status(502).json({ error: "Termin konnte nicht gelöscht werden." });

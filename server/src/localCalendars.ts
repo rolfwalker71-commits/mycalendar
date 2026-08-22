@@ -273,10 +273,12 @@ export function birthdayEventsForRange(
   calendar: CalendarRow,
   from: DateTime,
   to: DateTime,
+  hidden: Set<string> = new Set(),
 ): Array<EventRow & { background_color: string | null; calendar_summary: string | null; calendar_timezone: string | null }> {
   const out: Array<EventRow & { background_color: string | null; calendar_summary: string | null; calendar_timezone: string | null }> = [];
   for (const c of contacts) {
     if (!c.birthday) continue;
+    if (hidden.has(`bday:${c.resourceName.replace(/[^\w-]/g, "")}`)) continue;
     let year = from.year;
     while (year <= to.year) {
       const start = DateTime.fromObject(

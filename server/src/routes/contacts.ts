@@ -9,6 +9,7 @@ import {
   ensureLocalCalendar,
   type ContactPerson,
 } from "../localCalendars.js";
+import { hiddenKeySet } from "../hiddenEvents.js";
 import { notifyLive } from "../live.js";
 import { eventToGoogleBody, refreshCachedEvent } from "../sync.js";
 import type { people_v1 } from "googleapis";
@@ -378,7 +379,8 @@ contactsRouter.get("/birthdays", async (req, res) => {
   try {
     const calendar = await ensureLocalCalendar(req.user!.id, "birthday:contacts", "Geburtstage", "#f4511e");
     const contacts = await loadContacts(req.user!);
-    const events = birthdayEventsForRange(contacts, calendar, from.setZone(TZ), to.setZone(TZ));
+    const hidden = await hiddenKeySet(req.user!.id);
+    const events = birthdayEventsForRange(contacts, calendar, from.setZone(TZ), to.setZone(TZ), hidden);
     res.json({
       calendarId: calendar.id,
       events: events.map((e) => ({
