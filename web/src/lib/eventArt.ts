@@ -10,6 +10,7 @@ export type EventArtKind =
   | "service"
   | "hotel"
   | "doctor"
+  | "dentist"
   | "gyno"
   | "translate"
   | "sport"
@@ -176,10 +177,23 @@ export const EVENT_ART_RULES: Rule[] = [
     ],
   },
   {
-    kind: "doctor",
+    kind: "dentist",
     words: [
       "zahnarzt",
       "zahnarztin",
+      "zahnaerztin",
+      "zahnpraxis",
+      "zahnklinik",
+      "zahnreinigung",
+      "zahnkontrolle",
+      "dentist",
+      "dental",
+      "zahn",
+    ],
+  },
+  {
+    kind: "doctor",
+    words: [
       "spital",
       "hospital",
       "apotheke",
@@ -188,7 +202,6 @@ export const EVENT_ART_RULES: Rule[] = [
       "therapie",
       "aerztin",
       "arzt",
-      "dentist",
       "doctor",
     ],
   },
@@ -274,6 +287,9 @@ export function eventArtKind(input: {
   }
   if (/\b(hcap|ambri)\b/.test(text) || /ambri-piotta/.test(text)) return "hockey";
   if (/(frauenarzt|frauenaerztin|gynaekolog)/.test(text)) return "gyno";
+  if (/(zahnarzt|zahnaerztin|zahnpraxis|zahnklinik|\bdentist\b|\bdental\b|\bzahn\b)/.test(text)) {
+    return "dentist";
+  }
   if (/(u(e)?bersetz|dolmetsch|\btranslate\b|\btranslation\b)/.test(text)) return "translate";
   if (/(sitzung|besprechung|\bmeeting\b)/.test(text)) return "meeting";
   if (
@@ -307,6 +323,7 @@ const ART_FILE: Record<EventArtKind, string> = {
   car: "car",
   agenda: "agenda",
   doctor: "doctor",
+  dentist: "dentist",
   gyno: "gyno",
   translate: "translate",
   service: "service",
@@ -351,5 +368,5 @@ export function eventArtSrc(
   kind: EventArtKind,
   variant: "side" | "header",
 ): string {
-  return `/event-art/${ART_FILE[kind]}-${variant}.jpg?v=illust8`;
+  return `/event-art/${ART_FILE[kind]}-${variant}.jpg?v=illust9`;
 }
