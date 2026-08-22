@@ -689,8 +689,8 @@ function CalendarApp({
           <div className="flex items-center gap-2.5">
             <AppLogo className="size-9" size={36} />
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold leading-tight">Kalender & Mail</p>
-              <p className="truncate text-xs text-muted-foreground">Workspace</p>
+              <p className="break-words text-sm font-semibold leading-snug">Kalender & Mail</p>
+              <p className="text-xs text-muted-foreground">Workspace</p>
             </div>
           </div>
           <AppSwitcher value={module} onChange={onModule} />

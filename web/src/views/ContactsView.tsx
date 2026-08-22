@@ -90,10 +90,10 @@ function ContactRow({
   const address = contact.addresses[0];
   const bday = birthdayLabel(contact.birthday);
   return (
-    <li className="border-b border-border">
+    <li className="overflow-hidden rounded-2xl bg-card shadow-lg shadow-black/10 ring-1 ring-border">
       <button
         type="button"
-        className="flex min-h-14 w-full items-center gap-3 px-4 py-3 text-left"
+        className="flex min-h-11 w-full items-center gap-3 px-4 py-3 text-left hover:bg-muted"
         onClick={onToggle}
         aria-expanded={open}
       >
@@ -102,8 +102,8 @@ function ContactRow({
           <AvatarFallback>{contact.name.slice(0, 1).toUpperCase()}</AvatarFallback>
         </Avatar>
         <span className="min-w-0 flex-1">
-          <span className="block truncate font-medium">{contact.name}</span>
-          <span className="block truncate text-sm text-muted-foreground">
+          <span className="block break-words font-medium leading-snug">{contact.name}</span>
+          <span className="block break-words text-sm leading-snug text-muted-foreground">
             {contact.organization || email || phone || address || "—"}
           </span>
           {bday ? (
@@ -458,7 +458,7 @@ export function ContactsView({
           </p>
         ) : (
           <>
-            <ul>
+            <ul className="flex flex-col gap-2 px-3 py-2">
               {filteredMine.map((c) => (
                 <ContactRow
                   key={c.resourceName}
@@ -480,7 +480,7 @@ export function ContactsView({
                 <p className="px-4 pb-2 text-xs text-muted-foreground">
                   Google kennt diese Personen nur aus Nachrichten. Übernehmen legt sie ins Adressbuch.
                 </p>
-                <ul>
+                <ul className="flex flex-col gap-2 px-3 py-2">
                   {filteredOther.map((c) => (
                     <ContactRow
                       key={c.resourceName}

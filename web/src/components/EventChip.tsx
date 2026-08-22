@@ -71,15 +71,15 @@ export function EventChip({
         onClick();
       }}
       className={cn(
-        "flex w-full min-h-0 items-center gap-1 overflow-hidden rounded-[3px] px-1.5 text-left text-xs leading-tight",
-        compact ? "h-5 py-0" : "min-h-6 py-0.5",
+        "flex w-full min-h-0 items-start gap-1 overflow-hidden rounded-[3px] px-1.5 text-left text-xs leading-snug whitespace-normal",
+        compact ? "min-h-5 items-center py-0" : "min-h-6 py-0.5",
         declined && "opacity-50 line-through",
         className,
       )}
       style={eventChipStyle(event.backgroundColor)}
       title={event.summary ?? "Ohne Titel"}
     >
-      <span className="min-w-0 flex-1 truncate font-medium">
+      <span className="min-w-0 flex-1 break-words font-medium line-clamp-2">
         {event.summary || "Ohne Titel"}
       </span>
       {!compact && event.location ? <MapPin className="size-3 shrink-0" /> : null}

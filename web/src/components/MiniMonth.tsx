@@ -14,6 +14,7 @@ export function MiniMonth({
   eventsByDay,
   range = "month",
   compact = false,
+  staticDays = false,
 }: {
   cursor: DateTime;
   weekStart: 0 | 1;
@@ -21,6 +22,7 @@ export function MiniMonth({
   eventsByDay?: Set<string>;
   range?: MiniRange;
   compact?: boolean;
+  staticDays?: boolean;
 }) {
   const start =
     range === "week"
@@ -54,28 +56,39 @@ export function MiniMonth({
           const isToday = isSameDay(day, today);
           const iso = day.toISODate() ?? "";
           const has = eventsByDay?.has(iso);
+          const dayClass = cn(
+            "flex items-center justify-center rounded-full text-sm font-normal",
+            compact ? "size-9" : "size-11",
+            !inMonth && "text-muted-foreground/50",
+            selected && !isToday && "bg-muted text-foreground",
+            isToday && "bg-today text-today-foreground",
+          );
+          const label = (
+            <span className="relative">
+              {day.day}
+              {has ? (
+                <span className="absolute -bottom-1 left-1/2 size-1 -translate-x-1/2 rounded-full bg-primary" />
+              ) : null}
+            </span>
+          );
+          if (staticDays) {
+            return (
+              <span key={iso} className={dayClass} aria-current={isToday ? "date" : undefined}>
+                {label}
+              </span>
+            );
+          }
           return (
             <Button
               key={iso}
               variant="ghost"
               size="icon"
               onClick={() => onSelect(day)}
-              className={cn(
-                "justify-center rounded-full p-0 text-sm font-normal",
-                compact ? "size-9" : "size-11",
-                !inMonth && "text-muted-foreground/50",
-                selected && !isToday && "bg-muted text-foreground",
-                isToday && "bg-today text-today-foreground hover:bg-today/90",
-              )}
+              className={cn(dayClass, "p-0", isToday && "hover:bg-today/90")}
               aria-label={day.setLocale("de").toFormat("d. LLLL")}
               aria-current={isToday ? "date" : undefined}
             >
-              <span className="relative">
-                {day.day}
-                {has ? (
-                  <span className="absolute -bottom-1 left-1/2 size-1 -translate-x-1/2 rounded-full bg-primary" />
-                ) : null}
-              </span>
+              {label}
             </Button>
           );
         })}

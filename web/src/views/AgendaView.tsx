@@ -56,7 +56,7 @@ export function AgendaView({
         return (
           <section key={iso}>
             <h2 className="flex items-baseline justify-between gap-3 px-3 pb-2 text-[0.75rem]">
-              <span className="min-w-0 truncate">
+              <span className="min-w-0 break-words leading-snug">
                 {isSameDay(day, today) ? (
                   <span className="font-bold">Heute</span>
                 ) : (

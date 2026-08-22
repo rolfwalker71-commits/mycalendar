@@ -1,4 +1,5 @@
 import { CalendarDays, ListTodo, MoreHorizontal, Search, Sun } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { MobileTab } from "@/lib/types";
 
@@ -19,23 +20,24 @@ export function MobileDock({
 }) {
   return (
     <nav className="nav-dock pointer-events-none fixed inset-x-0 bottom-0 z-40 lg:hidden">
-      <div className="pointer-events-auto flex rounded-2xl bg-card p-1.5 shadow-lg shadow-black/10 ring-1 ring-border">
+      <div className="pointer-events-auto flex rounded-2xl bg-card p-1 shadow-lg shadow-black/10 ring-1 ring-border">
         {ITEMS.map((item) => {
           const Icon = item.icon;
           const active = value === item.id;
           return (
-            <button
+            <Button
               key={item.id}
               type="button"
+              variant="ghost"
               onClick={() => onChange(item.id)}
               className={cn(
-                "flex min-h-11 flex-1 flex-col items-center justify-center rounded-xl py-1.5 text-[0.8125rem]",
-                active ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted/70",
+                "h-auto min-h-11 flex-1 flex-col gap-0.5 rounded-xl px-1 py-1.5 text-[0.8125rem] whitespace-normal leading-none",
+                active ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted",
               )}
             >
               <Icon className="size-5" />
               <span>{item.label}</span>
-            </button>
+            </Button>
           );
         })}
       </div>

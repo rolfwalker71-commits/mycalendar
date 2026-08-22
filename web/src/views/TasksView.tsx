@@ -328,7 +328,7 @@ function TaskRow({
         </span>
       </button>
       <button type="button" className="min-w-0 flex-1 text-left" onClick={onOpen}>
-        <span className={cn("block truncate text-sm", done && "text-muted-foreground line-through")}>
+        <span className={cn("block break-words leading-snug text-sm", done && "text-muted-foreground line-through")}>
           {task.title || "Ohne Titel"}
         </span>
         {due.text ? (

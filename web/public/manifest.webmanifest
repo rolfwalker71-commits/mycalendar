@@ -1,6 +1,6 @@
 {
   "name": "Kalender & Mail",
-  "short_name": "Kalender",
+  "short_name": "Kalender & Mail",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

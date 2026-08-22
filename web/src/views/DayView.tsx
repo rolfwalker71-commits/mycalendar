@@ -245,8 +245,10 @@ export function TimeGrid({
                 width: `calc((100% - 3.25rem) / ${e.cols} - 4px)`,
               }}
             >
-              <span className="block truncate font-medium">{e.summary || "Ohne Titel"}</span>
-              <span className="block truncate opacity-90">
+              <span className="block break-words font-medium leading-snug line-clamp-2">
+                {e.summary || "Ohne Titel"}
+              </span>
+              <span className="block whitespace-nowrap opacity-90">
                 {fromISO(e.startAt) ? formatTime(fromISO(e.startAt)!) : ""}
               </span>
               {onMove ? (

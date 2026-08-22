@@ -142,7 +142,7 @@ function MailboxRow({
           style={{ backgroundColor: label.color.backgroundColor }}
         />
       ) : null}
-      <span className="min-w-0 flex-1 truncate font-medium">{label.name}</span>
+      <span className="min-w-0 flex-1 break-words leading-snug font-medium">{label.name}</span>
       {badge > 0 ? (
         <span className="shrink-0 text-[0.75rem] font-semibold tabular-nums text-mail">{badge}</span>
       ) : null}
@@ -235,8 +235,7 @@ function ThreadRow({
     <div
       className={cn(
         "flex w-full gap-3 px-4 py-3 text-left",
-        active ? "bg-muted" : "hover:bg-muted/70",
-        selected ? "bg-mail/10" : thread.unread ? "bg-card" : "bg-card",
+        selected ? "bg-mail/10" : active ? "bg-muted" : "bg-card hover:bg-muted",
       )}
     >
       {selecting ? (
@@ -272,14 +271,14 @@ function ThreadRow({
           className="size-9 text-xs"
         />
         {isThread ? (
-          <span className="absolute -right-1 -bottom-1 flex size-4 items-center justify-center rounded-full bg-mail text-[9px] font-bold text-mail-foreground ring-2 ring-card">
+          <span className="absolute -right-1 -bottom-1 flex size-4 items-center justify-center rounded-full bg-mail text-[0.5625rem] font-bold text-mail-foreground ring-2 ring-card">
             {thread.messageCount > 9 ? "9+" : thread.messageCount}
           </span>
         ) : null}
       </button>
       <span className="min-w-0 flex-1">
         <span className="flex items-baseline justify-between gap-3">
-          <span className={cn("truncate text-[0.9375rem]", thread.unread ? "font-semibold" : "font-medium")}>
+          <span className={cn("min-w-0 break-words leading-snug text-[0.9375rem] line-clamp-2", thread.unread ? "font-semibold" : "font-medium")}>
             {displayName(thread.from)}
           </span>
           <span className={cn("shrink-0 text-xs", thread.unread ? "text-mail" : "text-muted-foreground")}>
@@ -287,7 +286,7 @@ function ThreadRow({
           </span>
         </span>
         <span className={cn("mt-0.5 flex min-w-0 items-center gap-1.5", thread.unread ? "font-medium" : "")}>
-          <span className="min-w-0 truncate text-sm">{thread.subject || "(kein Betreff)"}</span>
+          <span className="min-w-0 break-words leading-snug text-sm line-clamp-2">{thread.subject || "(kein Betreff)"}</span>
           {isThread ? (
             <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-mail/12 px-1.5 py-0.5 text-[0.6875rem] font-semibold text-mail">
               <MessagesSquare className="size-3" />
@@ -295,7 +294,7 @@ function ThreadRow({
             </span>
           ) : null}
         </span>
-        <span className="mt-0.5 block truncate text-sm text-muted-foreground">{thread.snippet}</span>
+        <span className="mt-0.5 block text-sm text-muted-foreground line-clamp-2">{thread.snippet}</span>
       </span>
       {thread.draft ? (
         <span className="mt-1 shrink-0 text-[0.6875rem] font-medium text-mail">Entwurf</span>
@@ -310,7 +309,7 @@ const ISOLATED_HTML_CSS = `
   display: block;
   max-width: 100%;
   overflow-x: auto;
-  font-size: 16px;
+  font-size: 1rem;
   line-height: 1.375;
   overflow-wrap: break-word;
   word-break: break-word;
@@ -451,7 +450,7 @@ function ThreadDetail({
             <ArrowLeft className="size-5 text-mail" />
           </Button>
         ) : null}
-        <h2 className="min-w-0 flex-1 truncate px-2 text-base font-semibold">
+        <h2 className="min-w-0 flex-1 break-words px-2 text-base font-semibold leading-snug line-clamp-2">
           {first.subject || "(kein Betreff)"}
         </h2>
         <Button variant="ghost" size="icon" aria-label="Markieren" onClick={onToggleStar}>
@@ -629,12 +628,12 @@ function ThreadDetail({
               <MailAvatar addr={message.from} selfEmail={selfEmail} selfPhoto={selfPhoto} />
               <div className="min-w-0 flex-1">
                 <div className="flex items-baseline justify-between gap-2">
-                  <p className="truncate font-semibold">{displayName(message.from)}</p>
+                  <p className="break-words font-semibold leading-snug">{displayName(message.from)}</p>
                   <p className="shrink-0 text-xs text-muted-foreground">
                     {formatMailDateLong(message.date, message.internalDate)}
                   </p>
                 </div>
-                <p className="truncate text-sm text-muted-foreground">An: {message.to || "mich"}</p>
+                <p className="break-words text-sm leading-snug text-muted-foreground">An: {message.to || "mich"}</p>
               </div>
             </div>
             <div className="mt-4">
@@ -1194,7 +1193,7 @@ export function MailApp({
             />
           </Button>
         ) : null}
-        <h1 className="min-w-0 flex-1 truncate text-xl font-semibold tracking-tight">
+        <h1 className="min-w-0 flex-1 break-words text-xl font-semibold leading-snug tracking-tight">
           {selectMode
             ? `${selectedIds.size} ausgewählt`
             : (activeLabel?.name ?? "Posteingang")}
@@ -1311,18 +1310,15 @@ export function MailApp({
               const isThread = threaded && item.messageCount > 1;
               const canArchive = labelId !== "TRASH" && labelId !== "DRAFT" && labelId !== "SENT" && labelId !== "SPAM";
               return (
-                <div key={item.id} className={cn("relative", isThread && "mb-1")}>
+                <div key={item.id} className="relative px-3 py-1">
                   {isThread ? (
                     <div
                       aria-hidden
-                      className="pointer-events-none absolute inset-x-3 top-[5px] h-[calc(100%-2px)] rounded-lg bg-muted ring-1 ring-border"
+                      className="pointer-events-none absolute inset-x-5 top-[7px] h-[calc(100%-4px)] rounded-2xl bg-muted ring-1 ring-border"
                     />
                   ) : null}
                   <SwipeableRow
-                    className={cn(
-                      "rounded-none border-b border-border",
-                      isThread && "relative rounded-lg ring-1 ring-border",
-                    )}
+                    className="relative rounded-2xl shadow-lg shadow-black/10 ring-1 ring-border"
                     disabled={selectMode}
                     onOpen={() => {
                       if (selectMode) toggleSelect(item.id);
