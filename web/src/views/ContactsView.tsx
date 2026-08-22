@@ -416,7 +416,7 @@ export function ContactsView({
       <header className="flex items-center justify-between gap-3 border-b border-border px-3 py-2 lg:px-4">
         <div className="flex min-w-0 items-center gap-2">
           <AppLogo className="size-8" size={32} />
-          <AppSwitcher value={module} onChange={onModule} />
+          <AppSwitcher className="flex-1" value={module} onChange={onModule} />
         </div>
         <div className="flex items-center gap-1">
           <Button variant="ghost" size="icon" aria-label="Einstellungen" onClick={onOpenSettings}>

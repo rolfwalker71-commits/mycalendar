@@ -1,5 +1,5 @@
 import { CalendarDays, Mail, Users } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import type { AppModule } from "@/mail/types";
 
@@ -12,33 +12,29 @@ const ITEMS = [
 export function AppSwitcher({
   value,
   onChange,
+  className,
 }: {
   value: AppModule;
   onChange: (next: AppModule) => void;
+  className?: string;
 }) {
   return (
-    <div className="inline-flex h-10 min-h-10 shrink-0 items-center rounded-full bg-muted p-0.5">
-      {ITEMS.map((item) => {
-        const Icon = item.icon;
-        const active = value === item.id;
-        return (
-          <Button
-            key={item.id}
-            type="button"
-            variant="ghost"
-            onClick={() => onChange(item.id)}
-            className={cn(
-              "h-full min-h-0 items-center justify-center gap-1 rounded-full px-3 py-0 text-[0.8125rem] font-medium leading-none",
-              active
-                ? "bg-background text-foreground shadow-sm hover:bg-background"
-                : "text-muted-foreground hover:bg-transparent hover:text-foreground",
-            )}
-          >
-            <Icon className="size-4 shrink-0" />
-            {item.label}
-          </Button>
-        );
-      })}
-    </div>
+    <Tabs
+      className={cn("min-w-0 w-full", className)}
+      value={value}
+      onValueChange={(v) => onChange((v as AppModule) ?? "calendar")}
+    >
+      <TabsList className="w-full">
+        {ITEMS.map((item) => {
+          const Icon = item.icon;
+          return (
+            <TabsTrigger key={item.id} value={item.id} className="px-1.5">
+              <Icon />
+              {item.label}
+            </TabsTrigger>
+          );
+        })}
+      </TabsList>
+    </Tabs>
   );
 }

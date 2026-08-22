@@ -406,7 +406,7 @@ function CalendarApp({
     <header className="flex flex-col gap-2 border-b border-border px-3 py-2 lg:flex-row lg:items-center lg:gap-3 lg:px-6 lg:py-3">
       <div className="flex items-center gap-2 lg:hidden">
         <AppLogo className="size-8" size={32} />
-        <AppSwitcher value={module} onChange={onModule} />
+        <AppSwitcher className="flex-1" value={module} onChange={onModule} />
       </div>
       <div className="flex items-center gap-1 lg:gap-2">
         {tasksTab ? null : (

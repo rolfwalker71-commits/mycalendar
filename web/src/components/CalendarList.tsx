@@ -84,7 +84,7 @@ export function CalendarList({
   }
 
   return (
-    <Accordion multiple defaultValue={["mine", "other", "ics"]}>
+    <Accordion multiple defaultValue={[]}>
       <AccordionItem value="mine">
         <AccordionTrigger>Meine Kalender</AccordionTrigger>
         <AccordionContent>
