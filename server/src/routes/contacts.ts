@@ -2,25 +2,38 @@ import { Router } from "express";
 import { DateTime } from "luxon";
 import { requireAuth } from "../auth.js";
 import { TZ } from "../config.js";
-import { describeGoogleApiError, getAuthedPeople } from "../google.js";
+import { query } from "../db.js";
+import { describeGoogleApiError, getAuthedCalendar, getAuthedPeople } from "../google.js";
 import {
   birthdayEventsForRange,
   ensureLocalCalendar,
   type ContactPerson,
 } from "../localCalendars.js";
+import { eventToGoogleBody, refreshCachedEvent } from "../sync.js";
 import type { people_v1 } from "googleapis";
-import type { UserRow } from "../types.js";
+import type { CalendarRow, UserRow } from "../types.js";
 
 export const contactsRouter = Router();
 contactsRouter.use(requireAuth);
 
-function mapPerson(person: people_v1.Schema$Person, resourceName: string): ContactPerson {
+const PERSON_FIELDS = "names,emailAddresses,phoneNumbers,photos,birthdays,organizations,addresses";
+
+function mapPerson(
+  person: people_v1.Schema$Person,
+  resourceName: string,
+  source: "mine" | "other",
+): ContactPerson {
   const name =
     person.names?.[0]?.displayName ||
     [person.names?.[0]?.givenName, person.names?.[0]?.familyName].filter(Boolean).join(" ") ||
     person.emailAddresses?.[0]?.value ||
     "Ohne Namen";
   const b = person.birthdays?.[0]?.date;
+  const addresses = (person.addresses ?? [])
+    .map((a) =>
+      (a.formattedValue || [a.streetAddress, a.postalCode, a.city, a.country].filter(Boolean).join(", ")).trim(),
+    )
+    .filter(Boolean);
   return {
     resourceName,
     name,
@@ -28,13 +41,19 @@ function mapPerson(person: people_v1.Schema$Person, resourceName: string): Conta
     phones: (person.phoneNumbers ?? [])
       .map((p) => ({ value: p.value ?? "", type: p.type ?? undefined }))
       .filter((p) => p.value),
+    addresses,
     photoUrl: person.photos?.[0]?.url ?? null,
     birthday:
       b?.month && b.day
         ? { month: b.month, day: b.day, year: b.year ?? undefined }
         : null,
     organization: person.organizations?.[0]?.name ?? null,
+    source,
   };
+}
+
+export function invalidateContactCache(userId: string): void {
+  contactCache.delete(userId);
 }
 
 const contactCache = new Map<string, { at: number; contacts: ContactPerson[] }>();
@@ -49,7 +68,7 @@ export async function loadContacts(user: UserRow): Promise<ContactPerson[]> {
   do {
     const { data } = await people.people.connections.list({
       resourceName: "people/me",
-      personFields: "names,emailAddresses,phoneNumbers,photos,birthdays,organizations",
+      personFields: PERSON_FIELDS,
       pageSize: 200,
       pageToken,
       sortOrder: "FIRST_NAME_ASCENDING",
@@ -58,7 +77,7 @@ export async function loadContacts(user: UserRow): Promise<ContactPerson[]> {
       const key = person.resourceName || person.etag || person.names?.[0]?.displayName || "";
       if (!key || seen.has(key)) continue;
       seen.add(key);
-      out.push(mapPerson(person, person.resourceName || key));
+      out.push(mapPerson(person, person.resourceName || key, "mine"));
     }
     pageToken = data.nextPageToken ?? undefined;
   } while (pageToken && out.length < 2000);
@@ -66,29 +85,141 @@ export async function loadContacts(user: UserRow): Promise<ContactPerson[]> {
   return out;
 }
 
+export async function loadOtherContacts(user: UserRow): Promise<ContactPerson[]> {
+  const people = await getAuthedPeople(user);
+  const out: ContactPerson[] = [];
+  let pageToken: string | undefined;
+  do {
+    const { data } = await people.otherContacts.list({
+      readMask: "names,emailAddresses,phoneNumbers,photos",
+      pageSize: 100,
+      pageToken,
+    });
+    for (const person of data.otherContacts ?? []) {
+      if (!person.resourceName) continue;
+      out.push(mapPerson(person, person.resourceName, "other"));
+    }
+    pageToken = data.nextPageToken ?? undefined;
+  } while (pageToken && out.length < 400);
+  return out;
+}
+
+function matchesQuery(c: ContactPerson, q: string): boolean {
+  return (
+    c.name.toLowerCase().includes(q) ||
+    c.emails.some((e) => e.toLowerCase().includes(q)) ||
+    c.phones.some((p) => p.value.includes(q)) ||
+    c.addresses.some((a) => a.toLowerCase().includes(q)) ||
+    (c.organization ?? "").toLowerCase().includes(q)
+  );
+}
+
 contactsRouter.get("/", async (req, res) => {
   const q = typeof req.query.q === "string" ? req.query.q.trim().toLowerCase() : "";
   try {
-    let contacts = await loadContacts(req.user!);
+    const [mine, othersRaw] = await Promise.all([
+      loadContacts(req.user!),
+      loadOtherContacts(req.user!).catch(() => [] as ContactPerson[]),
+    ]);
+    const known = new Set(mine.flatMap((c) => c.emails.map((e) => e.toLowerCase())));
+    let contacts = mine;
+    let other = othersRaw.filter((c) => !c.emails.some((e) => known.has(e.toLowerCase())));
     if (q) {
-      contacts = contacts.filter(
-        (c) =>
-          c.name.toLowerCase().includes(q) ||
-          c.emails.some((e) => e.toLowerCase().includes(q)) ||
-          c.phones.some((p) => p.value.includes(q)) ||
-          (c.organization ?? "").toLowerCase().includes(q),
-      );
+      contacts = contacts.filter((c) => matchesQuery(c, q));
+      other = other.filter((c) => matchesQuery(c, q));
     }
     await ensureLocalCalendar(req.user!.id, "birthday:contacts", "Geburtstage", "#f4511e");
-    res.json({ contacts });
+    res.json({ contacts, other });
   } catch (err) {
     const described = describeGoogleApiError(err, "people");
     if (described) {
-      res.status(described.status).json({ error: described.error, code: described.code, contacts: [] });
+      res.status(described.status).json({ error: described.error, code: described.code, contacts: [], other: [] });
       return;
     }
     console.error(err);
-    res.status(502).json({ error: "Kontakte konnten nicht geladen werden.", contacts: [] });
+    res.status(502).json({ error: "Kontakte konnten nicht geladen werden.", contacts: [], other: [] });
+  }
+});
+
+contactsRouter.post("/adopt", async (req, res) => {
+  const resourceName = typeof req.body?.resourceName === "string" ? req.body.resourceName.trim() : "";
+  if (!resourceName.startsWith("otherContacts/")) {
+    res.status(400).json({ error: "Kein Mail-Kontakt." });
+    return;
+  }
+  try {
+    const people = await getAuthedPeople(req.user!);
+    const { data } = await people.otherContacts.copyOtherContactToMyContactsGroup({
+      resourceName,
+      requestBody: {
+        copyMask: "names,emailAddresses,phoneNumbers",
+      },
+    });
+    invalidateContactCache(req.user!.id);
+    const mapped = mapPerson(data, data.resourceName || resourceName, "mine");
+    res.json({ contact: mapped });
+  } catch (err) {
+    const described = describeGoogleApiError(err, "people");
+    if (described) {
+      res.status(described.status).json({ error: described.error, code: described.code });
+      return;
+    }
+    console.error(err);
+    res.status(502).json({ error: "Kontakt konnte nicht übernommen werden." });
+  }
+});
+
+contactsRouter.post("/event", async (req, res) => {
+  const summary = typeof req.body?.summary === "string" ? req.body.summary.trim() : "";
+  const start = typeof req.body?.start === "string" ? req.body.start : "";
+  const end = typeof req.body?.end === "string" ? req.body.end : "";
+  const allDay = Boolean(req.body?.allDay);
+  const location = typeof req.body?.location === "string" ? req.body.location.trim() : "";
+  const email = typeof req.body?.email === "string" ? req.body.email.trim() : "";
+  const displayName = typeof req.body?.name === "string" ? req.body.name.trim() : "";
+  if (!summary || !start || !end) {
+    res.status(400).json({ error: "Titel, Start und Ende sind erforderlich." });
+    return;
+  }
+  try {
+    const { rows } = await query<CalendarRow>(
+      `SELECT * FROM calendars
+        WHERE user_id = $1
+          AND google_cal_id NOT LIKE 'ics:%'
+          AND google_cal_id NOT LIKE 'birthday:%'
+        ORDER BY primary_cal DESC, selected DESC
+        LIMIT 1`,
+      [req.user!.id],
+    );
+    const calendar = rows[0];
+    if (!calendar) {
+      res.status(404).json({ error: "Kein Kalender." });
+      return;
+    }
+    const api = await getAuthedCalendar(req.user!);
+    const created = await api.events.insert({
+      calendarId: calendar.google_cal_id,
+      sendUpdates: email ? "all" : "none",
+      requestBody: eventToGoogleBody({
+        summary,
+        location: location || undefined,
+        allDay,
+        start,
+        end,
+        timezone: calendar.timezone || TZ,
+        attendees: email ? [{ email, displayName: displayName || undefined }] : undefined,
+      }),
+    });
+    if (created.data.id) await refreshCachedEvent(req.user!, calendar, created.data.id);
+    res.status(201).json({ ok: true, googleEventId: created.data.id });
+  } catch (err) {
+    const described = describeGoogleApiError(err, "calendar");
+    if (described) {
+      res.status(described.status).json({ error: described.error, code: described.code });
+      return;
+    }
+    console.error(err);
+    res.status(502).json({ error: "Termin konnte nicht angelegt werden." });
   }
 });
 

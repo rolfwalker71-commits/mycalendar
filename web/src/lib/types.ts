@@ -74,6 +74,18 @@ export type CalendarEvent = {
   readOnly?: boolean;
 };
 
+export type ContactCard = {
+  resourceName: string;
+  name: string;
+  emails: string[];
+  phones: { value: string; type?: string }[];
+  addresses: string[];
+  photoUrl: string | null;
+  birthday: { month: number; day: number; year?: number } | null;
+  organization?: string | null;
+  source: "mine" | "other";
+};
+
 export type TaskItem = {
   id: string;
   listId: string;

@@ -1,4 +1,4 @@
-import type { CalendarEvent, CalendarItem, Me, TaskItem } from "./types";
+import type { CalendarEvent, CalendarItem, ContactCard, Me, TaskItem } from "./types";
 import type { MailLabel, MailThread, MailThreadSummary } from "@/mail/types";
 
 export class ApiError extends Error {
@@ -261,16 +261,27 @@ export const apiClient = {
     }),
   contacts: (q?: string) =>
     api<{
-      contacts: {
-        resourceName: string;
-        name: string;
-        emails: string[];
-        phones: { value: string; type?: string }[];
-        photoUrl: string | null;
-        birthday: { month: number; day: number; year?: number } | null;
-        organization?: string | null;
-      }[];
+      contacts: ContactCard[];
+      other: ContactCard[];
     }>(`/api/contacts${q ? `?q=${encodeURIComponent(q)}` : ""}`),
+  adoptContact: (resourceName: string) =>
+    api<{ contact: ContactCard }>("/api/contacts/adopt", {
+      method: "POST",
+      body: JSON.stringify({ resourceName }),
+    }),
+  contactEvent: (body: {
+    summary: string;
+    start: string;
+    end: string;
+    allDay?: boolean;
+    location?: string;
+    email?: string;
+    name?: string;
+  }) =>
+    api<{ ok: boolean; googleEventId?: string | null }>("/api/contacts/event", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
   icsFeeds: () =>
     api<{
       feeds: {

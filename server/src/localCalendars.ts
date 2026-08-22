@@ -258,9 +258,11 @@ export type ContactPerson = {
   name: string;
   emails: string[];
   phones: { value: string; type?: string }[];
+  addresses: string[];
   photoUrl: string | null;
   birthday: { month: number; day: number; year?: number } | null;
   organization?: string | null;
+  source: "mine" | "other";
 };
 
 export function birthdayEventsForRange(
