@@ -438,7 +438,7 @@ function CalendarApp({
             </Button>
           </>
         )}
-        <h1 className="min-w-0 flex-1 text-base font-semibold tracking-tight capitalize leading-tight lg:text-2xl">
+        <h1 className="min-w-0 flex-1 text-base font-semibold tracking-tight capitalize leading-tight lg:text-xl">
           {typeof title === "string" ? (
             title
           ) : agendaHeading ? (
@@ -695,7 +695,7 @@ function CalendarApp({
           </div>
           <AppSwitcher value={module} onChange={onModule} />
           <div>
-            <p className="mb-2 text-5xl font-semibold tracking-tight">{cursor.day}</p>
+            <p className="mb-2 text-4xl font-semibold tracking-tight">{cursor.day}</p>
             <p className="text-muted-foreground capitalize">{monthTitle(cursor)}</p>
           </div>
           <MiniNavigator

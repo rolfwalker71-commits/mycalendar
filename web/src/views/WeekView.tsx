@@ -92,7 +92,7 @@ export function WeekView({
             </div>
             <div
               className={cn(
-                "mx-auto mt-1 inline-flex size-8 items-center justify-center rounded-full text-lg font-medium",
+                "mx-auto mt-1 inline-flex size-8 items-center justify-center rounded-full text-base font-medium",
                 isSameDay(day, today) && "bg-today text-today-foreground",
               )}
             >
