@@ -235,7 +235,7 @@ function ThreadRow({
       {selecting ? (
         <span
           className="mt-3 shrink-0"
-          onPointerDown={(e) => e.stopPropagation()}
+          data-swipe-ignore
           onClick={(e) => e.stopPropagation()}
         >
           <Checkbox checked={selected} onCheckedChange={() => onToggleSelect()} aria-label="Auswählen" />
@@ -250,9 +250,9 @@ function ThreadRow({
       )}
       <button
         type="button"
+        data-swipe-ignore
         className="relative mt-0.5 shrink-0"
         aria-label="Nachricht auswählen"
-        onPointerDown={(e) => e.stopPropagation()}
         onClick={(e) => {
           e.stopPropagation();
           onToggleSelect();
@@ -1113,7 +1113,7 @@ export function MailApp({
         }}
         disabled={loadingList}
       >
-        <div className={cn("min-h-0 flex-1 overflow-auto", selectMode && "pb-24")}>
+        <div className={cn("min-h-0 flex-1 overflow-auto touch-pan-y", selectMode && "pb-24")}>
           {loadingList && !threads.length ? (
             <div className="flex items-center justify-center gap-2 p-8 text-sm text-muted-foreground">
               <LoaderCircle className="size-4 animate-spin" />

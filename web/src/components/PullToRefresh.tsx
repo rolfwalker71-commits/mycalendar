@@ -3,6 +3,7 @@ import { LoaderCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const THRESHOLD = 68;
+const MOVE_PX = 8;
 
 function isScrollable(el: HTMLElement): boolean {
   const oy = getComputedStyle(el).overflowY;
@@ -30,7 +31,9 @@ export function PullToRefresh({
   disabled?: boolean;
 }) {
   const root = useRef<HTMLDivElement>(null);
+  const startX = useRef<number | null>(null);
   const startY = useRef<number | null>(null);
+  const axis = useRef<"h" | "v" | null>(null);
   const offsetRef = useRef(0);
   const [offset, setOffset] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
@@ -40,15 +43,22 @@ export function PullToRefresh({
     if (!el) return;
     const onMove = (e: globalThis.TouchEvent) => {
       if (startY.current == null || disabled || refreshing) return;
+      const x = e.touches[0]?.clientX ?? startX.current ?? 0;
       const y = e.touches[0]?.clientY ?? startY.current;
-      const delta = y - startY.current;
-      if (delta <= 0) {
+      const dx = x - (startX.current ?? x);
+      const dy = y - startY.current;
+      if (!axis.current) {
+        if (Math.abs(dx) < MOVE_PX && Math.abs(dy) < MOVE_PX) return;
+        axis.current = Math.abs(dy) > Math.abs(dx) ? "v" : "h";
+      }
+      if (axis.current !== "v") return;
+      if (dy <= 0) {
         offsetRef.current = 0;
         setOffset(0);
         return;
       }
       if (e.cancelable) e.preventDefault();
-      const next = Math.min(120, delta * 0.42);
+      const next = Math.min(120, dy * 0.42);
       offsetRef.current = next;
       setOffset(next);
     };
@@ -59,16 +69,22 @@ export function PullToRefresh({
   function onTouchStart(e: TouchEvent) {
     if (disabled || refreshing) return;
     if (!canPullFrom(e.target)) {
+      startX.current = null;
       startY.current = null;
+      axis.current = null;
       return;
     }
+    startX.current = e.touches[0]?.clientX ?? null;
     startY.current = e.touches[0]?.clientY ?? null;
+    axis.current = null;
   }
 
   async function finish() {
     if (startY.current == null) return;
     const should = offsetRef.current >= THRESHOLD && !disabled && !refreshing;
+    startX.current = null;
     startY.current = null;
+    axis.current = null;
     if (!should) {
       offsetRef.current = 0;
       setOffset(0);
@@ -96,7 +112,9 @@ export function PullToRefresh({
       onTouchStart={onTouchStart}
       onTouchEnd={() => void finish()}
       onTouchCancel={() => {
+        startX.current = null;
         startY.current = null;
+        axis.current = null;
         if (!refreshing) {
           offsetRef.current = 0;
           setOffset(0);

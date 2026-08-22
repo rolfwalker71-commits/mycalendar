@@ -13,6 +13,10 @@ export type SwipeAction = {
   onClick: () => void;
 };
 
+function ignoreOpen(target: EventTarget | null): boolean {
+  return target instanceof Element && Boolean(target.closest("[data-swipe-ignore]"));
+}
+
 export function SwipeableRow({
   children,
   actions,
@@ -30,6 +34,7 @@ export function SwipeableRow({
 }) {
   const openX = -(ACTION_W * actions.length);
   const [x, setX] = useState(0);
+  const [locked, setLocked] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const surfaceRef = useRef<HTMLDivElement>(null);
   const startX = useRef(0);
@@ -37,18 +42,23 @@ export function SwipeableRow({
   const origin = useRef(0);
   const axis = useRef<"h" | "v" | null>(null);
   const dragged = useRef(false);
+  const active = useRef(false);
   const pointerId = useRef<number | null>(null);
   const pointerType = useRef("");
+  const downTarget = useRef<EventTarget | null>(null);
   const xRef = useRef(0);
   const onOpenRef = useRef(onOpen);
   const openXRef = useRef(openX);
   const holdTimer = useRef(0);
   const openedHold = useRef(false);
   const longPressRef = useRef(longPressToOpen);
+  const disabledRef = useRef(disabled);
+  const swipedAt = useRef(0);
   xRef.current = x;
   onOpenRef.current = onOpen;
   openXRef.current = openX;
   longPressRef.current = longPressToOpen;
+  disabledRef.current = disabled;
 
   function clearHold() {
     window.clearTimeout(holdTimer.current);
@@ -56,27 +66,24 @@ export function SwipeableRow({
   }
 
   function finish(openEvent: boolean) {
-    if (pointerId.current == null) return;
-    const id = pointerId.current;
+    if (!active.current) return;
     const wasH = axis.current === "h";
     const wasDrag = dragged.current;
     const from = origin.current;
     const snap = openXRef.current;
     const held = openedHold.current;
     const mouse = pointerType.current === "mouse";
+    const skipOpen = ignoreOpen(downTarget.current);
+    active.current = false;
     pointerId.current = null;
     axis.current = null;
     dragged.current = false;
     openedHold.current = false;
+    downTarget.current = null;
     clearHold();
-    const el = surfaceRef.current;
-    if (el?.hasPointerCapture(id)) {
-      try {
-        el.releasePointerCapture(id);
-      } catch {
-        /* already released */
-      }
-    }
+    setLocked(false);
+
+    if (wasH || wasDrag) swipedAt.current = Date.now();
 
     if (wasH) {
       setX((cur) => (cur < snap / 2 ? snap : 0));
@@ -86,7 +93,7 @@ export function SwipeableRow({
       setX(0);
       return;
     }
-    if (held) return;
+    if (held || skipOpen) return;
     if (!openEvent || wasDrag) return;
     if (!longPressRef.current || mouse) onOpenRef.current?.();
   }
@@ -94,10 +101,37 @@ export function SwipeableRow({
   const finishRef = useRef(finish);
   finishRef.current = finish;
 
+  function applyMove(clientX: number, clientY: number, ev?: { preventDefault(): void; cancelable: boolean }) {
+    if (!active.current || disabledRef.current) return;
+    const dx = clientX - startX.current;
+    const dy = clientY - startY.current;
+    if (!axis.current) {
+      if (Math.abs(dx) < MOVE_PX && Math.abs(dy) < MOVE_PX) return;
+      clearHold();
+      axis.current = Math.abs(dx) > Math.abs(dy) ? "h" : "v";
+      if (axis.current === "h") {
+        setLocked(true);
+        if (ev?.cancelable) ev.preventDefault();
+      } else {
+        finishRef.current(false);
+        return;
+      }
+    }
+    if (axis.current !== "h") return;
+    dragged.current = true;
+    if (ev?.cancelable) ev.preventDefault();
+    setX(Math.min(0, Math.max(openXRef.current - 24, origin.current + dx)));
+  }
+
+  const applyMoveRef = useRef(applyMove);
+  applyMoveRef.current = applyMove;
+
   function onPointerDown(e: PointerEvent<HTMLDivElement>) {
     if (disabled || e.button !== 0) return;
+    active.current = true;
     pointerId.current = e.pointerId;
     pointerType.current = e.pointerType;
+    downTarget.current = e.target;
     startX.current = e.clientX;
     startY.current = e.clientY;
     origin.current = xRef.current;
@@ -107,7 +141,7 @@ export function SwipeableRow({
     clearHold();
     if (longPressRef.current && origin.current === 0 && onOpenRef.current) {
       holdTimer.current = window.setTimeout(() => {
-        if (pointerId.current == null || dragged.current || axis.current === "h") return;
+        if (!active.current || dragged.current || axis.current === "h") return;
         openedHold.current = true;
         clearHold();
         onOpenRef.current?.();
@@ -115,38 +149,55 @@ export function SwipeableRow({
     }
   }
 
-  function onPointerMove(e: PointerEvent<HTMLDivElement>) {
-    if (e.pointerId !== pointerId.current) return;
-    const dx = e.clientX - startX.current;
-    const dy = e.clientY - startY.current;
-    if (!axis.current) {
-      if (Math.abs(dx) < MOVE_PX && Math.abs(dy) < MOVE_PX) return;
-      clearHold();
-      axis.current = Math.abs(dx) > Math.abs(dy) ? "h" : "v";
-      if (axis.current === "h") {
-        e.currentTarget.setPointerCapture(e.pointerId);
-        e.preventDefault();
-      } else {
-        finish(false);
-        return;
-      }
-    }
-    if (axis.current !== "h") return;
-    dragged.current = true;
-    e.preventDefault();
-    setX(Math.min(0, Math.max(openXRef.current - 24, origin.current + dx)));
-  }
-
   useEffect(() => {
+    function matchesPointer(e: globalThis.PointerEvent) {
+      return pointerId.current == null || e.pointerId === pointerId.current;
+    }
+
+    function onWinMove(e: globalThis.PointerEvent) {
+      if (!active.current || !matchesPointer(e)) return;
+      applyMoveRef.current(e.clientX, e.clientY, e);
+    }
+
+    function onTouchMove(e: TouchEvent) {
+      if (!active.current) return;
+      const t = e.touches[0];
+      if (!t) return;
+      applyMoveRef.current(t.clientX, t.clientY, e);
+    }
+
     function onWinUp(e: globalThis.PointerEvent) {
-      if (pointerId.current == null || e.pointerId !== pointerId.current) return;
+      if (!active.current || !matchesPointer(e)) return;
       finishRef.current(true);
     }
+
+    function onWinCancel(e: globalThis.PointerEvent) {
+      if (!active.current || !matchesPointer(e)) return;
+      if (e.pointerType === "mouse") {
+        finishRef.current(true);
+        return;
+      }
+      pointerId.current = null;
+    }
+
+    function onTouchEnd() {
+      if (!active.current) return;
+      finishRef.current(true);
+    }
+
+    window.addEventListener("pointermove", onWinMove, { capture: true, passive: false });
     window.addEventListener("pointerup", onWinUp, true);
-    window.addEventListener("pointercancel", onWinUp, true);
+    window.addEventListener("pointercancel", onWinCancel, true);
+    window.addEventListener("touchmove", onTouchMove, { capture: true, passive: false });
+    window.addEventListener("touchend", onTouchEnd, true);
+    window.addEventListener("touchcancel", onTouchEnd, true);
     return () => {
+      window.removeEventListener("pointermove", onWinMove, true);
       window.removeEventListener("pointerup", onWinUp, true);
-      window.removeEventListener("pointercancel", onWinUp, true);
+      window.removeEventListener("pointercancel", onWinCancel, true);
+      window.removeEventListener("touchmove", onTouchMove, true);
+      window.removeEventListener("touchend", onTouchEnd, true);
+      window.removeEventListener("touchcancel", onTouchEnd, true);
     };
   }, []);
 
@@ -184,13 +235,20 @@ export function SwipeableRow({
       </div>
       <div
         ref={surfaceRef}
-        className="relative touch-pan-y select-none bg-card transition-transform duration-150 ease-out [&_img]:pointer-events-none [&_img]:[-webkit-user-drag:none]"
+        className={cn(
+          "relative select-none bg-card transition-transform duration-150 ease-out [&_img]:pointer-events-none [&_img]:[-webkit-user-drag:none]",
+          locked ? "touch-none" : "touch-pan-y",
+        )}
         style={{ transform: `translateX(${x}px)` }}
         onPointerDown={onPointerDown}
-        onPointerMove={disabled ? undefined : onPointerMove}
         onContextMenu={longPressToOpen ? (e) => e.preventDefault() : undefined}
+        onClickCapture={(e) => {
+          if (Date.now() - swipedAt.current < 400) {
+            e.preventDefault();
+            e.stopPropagation();
+          }
+        }}
         onClick={disabled ? () => onOpenRef.current?.() : undefined}
-        onLostPointerCapture={() => finishRef.current(false)}
         onDragStart={(e) => e.preventDefault()}
       >
         {children}
