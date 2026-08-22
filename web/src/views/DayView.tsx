@@ -1,4 +1,4 @@
-import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useRef, useState, type PointerEvent as ReactPointerEvent, type Ref, type UIEvent } from "react";
 import { DateTime } from "luxon";
 import { cn } from "@/lib/utils";
 import { eventChipStyle } from "@/lib/colors";
@@ -22,6 +22,8 @@ export function TimeGrid({
   workingHours,
   tasks,
   onToggleTask,
+  scrollRef,
+  onScroll,
 }: {
   day: DateTime;
   events: CalendarEvent[];
@@ -33,6 +35,8 @@ export function TimeGrid({
   workingHours?: WorkingHours | null;
   tasks?: TaskItem[];
   onToggleTask?: (task: TaskItem) => void;
+  scrollRef?: Ref<HTMLDivElement>;
+  onScroll?: (e: UIEvent<HTMLDivElement>) => void;
 }) {
   const allDay = events.filter((e) => e.allDay);
   const laid = packDayEvents(events, day);
@@ -184,7 +188,11 @@ export function TimeGrid({
       ) : (
         <div className="h-2 border-b border-border" />
       )}
-      <div className="relative min-h-0 flex-1 overflow-auto">
+      <div
+        ref={scrollRef}
+        onScroll={onScroll}
+        className="relative min-h-0 flex-1 overflow-y-auto overscroll-y-contain"
+      >
         <div
           ref={gridRef}
           className="relative"
