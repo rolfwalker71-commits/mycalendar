@@ -9,6 +9,7 @@ import {
   ensureLocalCalendar,
   type ContactPerson,
 } from "../localCalendars.js";
+import { notifyLive } from "../live.js";
 import { eventToGoogleBody, refreshCachedEvent } from "../sync.js";
 import type { people_v1 } from "googleapis";
 import type { CalendarRow, UserRow } from "../types.js";
@@ -23,9 +24,11 @@ function mapPerson(
   resourceName: string,
   source: "mine" | "other",
 ): ContactPerson {
+  const givenName = (person.names?.[0]?.givenName ?? "").trim();
+  const familyName = (person.names?.[0]?.familyName ?? "").trim();
   const name =
     person.names?.[0]?.displayName ||
-    [person.names?.[0]?.givenName, person.names?.[0]?.familyName].filter(Boolean).join(" ") ||
+    [givenName, familyName].filter(Boolean).join(" ") ||
     person.emailAddresses?.[0]?.value ||
     "Ohne Namen";
   const b = person.birthdays?.[0]?.date;
@@ -36,6 +39,9 @@ function mapPerson(
     .filter(Boolean);
   return {
     resourceName,
+    etag: person.etag ?? null,
+    givenName,
+    familyName,
     name,
     emails: (person.emailAddresses ?? []).map((e) => e.value).filter((v): v is string => Boolean(v)),
     phones: (person.phoneNumbers ?? [])
@@ -156,6 +162,7 @@ contactsRouter.post("/adopt", async (req, res) => {
       },
     });
     invalidateContactCache(req.user!.id);
+    notifyLive(req.user!.id, "contacts");
     const mapped = mapPerson(data, data.resourceName || resourceName, "mine");
     res.json({ contact: mapped });
   } catch (err) {
@@ -166,6 +173,144 @@ contactsRouter.post("/adopt", async (req, res) => {
     }
     console.error(err);
     res.status(502).json({ error: "Kontakt konnte nicht übernommen werden." });
+  }
+});
+
+type ContactInput = {
+  givenName: string;
+  familyName: string;
+  email: string;
+  phone: string;
+  organization: string;
+  address: string;
+  birthday: { year?: number; month: number; day: number } | null;
+};
+
+function readContactInput(body: unknown): ContactInput | null {
+  if (!body || typeof body !== "object") return null;
+  const b = body as Record<string, unknown>;
+  const givenName = typeof b.givenName === "string" ? b.givenName.trim() : "";
+  const familyName = typeof b.familyName === "string" ? b.familyName.trim() : "";
+  if (!givenName && !familyName) return null;
+  let birthday: ContactInput["birthday"] = null;
+  if (typeof b.birthday === "string" && /^\d{4}-\d{2}-\d{2}$/.test(b.birthday)) {
+    const [y, m, d] = b.birthday.split("-").map(Number);
+    if (m && d) birthday = { year: y, month: m, day: d };
+  } else if (b.birthday && typeof b.birthday === "object") {
+    const bd = b.birthday as { year?: number; month?: number; day?: number };
+    if (bd.month && bd.day) birthday = { year: bd.year, month: bd.month, day: bd.day };
+  }
+  return {
+    givenName,
+    familyName,
+    email: typeof b.email === "string" ? b.email.trim() : "",
+    phone: typeof b.phone === "string" ? b.phone.trim() : "",
+    organization: typeof b.organization === "string" ? b.organization.trim() : "",
+    address: typeof b.address === "string" ? b.address.trim() : "",
+    birthday,
+  };
+}
+
+function personBody(input: ContactInput): people_v1.Schema$Person {
+  return {
+    names: [{ givenName: input.givenName || undefined, familyName: input.familyName || undefined }],
+    emailAddresses: input.email ? [{ value: input.email }] : [],
+    phoneNumbers: input.phone ? [{ value: input.phone }] : [],
+    organizations: input.organization ? [{ name: input.organization }] : [],
+    addresses: input.address ? [{ formattedValue: input.address }] : [],
+    birthdays: input.birthday
+      ? [{ date: { year: input.birthday.year, month: input.birthday.month, day: input.birthday.day } }]
+      : [],
+  };
+}
+
+contactsRouter.post("/", async (req, res) => {
+  const input = readContactInput(req.body);
+  if (!input) {
+    res.status(400).json({ error: "Vor- oder Nachname ist erforderlich." });
+    return;
+  }
+  try {
+    const people = await getAuthedPeople(req.user!);
+    const { data } = await people.people.createContact({
+      requestBody: personBody(input),
+    });
+    invalidateContactCache(req.user!.id);
+    notifyLive(req.user!.id, "contacts");
+    res.status(201).json({ contact: mapPerson(data, data.resourceName || "", "mine") });
+  } catch (err) {
+    const described = describeGoogleApiError(err, "people");
+    if (described) {
+      res.status(described.status).json({ error: described.error, code: described.code });
+      return;
+    }
+    console.error(err);
+    res.status(502).json({ error: "Kontakt konnte nicht angelegt werden." });
+  }
+});
+
+contactsRouter.patch("/", async (req, res) => {
+  const resourceName = typeof req.body?.resourceName === "string" ? req.body.resourceName.trim() : "";
+  if (!resourceName.startsWith("people/")) {
+    res.status(400).json({ error: "Kontakt unbekannt." });
+    return;
+  }
+  const input = readContactInput(req.body);
+  if (!input) {
+    res.status(400).json({ error: "Vor- oder Nachname ist erforderlich." });
+    return;
+  }
+  try {
+    const people = await getAuthedPeople(req.user!);
+    const current = await people.people.get({
+      resourceName,
+      personFields: `${PERSON_FIELDS},metadata`,
+    });
+    const { data } = await people.people.updateContact({
+      resourceName,
+      updatePersonFields: "names,emailAddresses,phoneNumbers,organizations,addresses,birthdays",
+      requestBody: {
+        ...personBody(input),
+        etag: current.data.etag,
+      },
+    });
+    invalidateContactCache(req.user!.id);
+    notifyLive(req.user!.id, "contacts");
+    res.json({ contact: mapPerson(data, data.resourceName || resourceName, "mine") });
+  } catch (err) {
+    const described = describeGoogleApiError(err, "people");
+    if (described) {
+      res.status(described.status).json({ error: described.error, code: described.code });
+      return;
+    }
+    console.error(err);
+    res.status(502).json({ error: "Kontakt konnte nicht gespeichert werden." });
+  }
+});
+
+contactsRouter.delete("/", async (req, res) => {
+  const resourceName =
+    (typeof req.body?.resourceName === "string" && req.body.resourceName) ||
+    (typeof req.query.resourceName === "string" && req.query.resourceName) ||
+    "";
+  if (!resourceName.startsWith("people/")) {
+    res.status(400).json({ error: "Kontakt unbekannt." });
+    return;
+  }
+  try {
+    const people = await getAuthedPeople(req.user!);
+    await people.people.deleteContact({ resourceName });
+    invalidateContactCache(req.user!.id);
+    notifyLive(req.user!.id, "contacts");
+    res.json({ ok: true });
+  } catch (err) {
+    const described = describeGoogleApiError(err, "people");
+    if (described) {
+      res.status(described.status).json({ error: described.error, code: described.code });
+      return;
+    }
+    console.error(err);
+    res.status(502).json({ error: "Kontakt konnte nicht gelöscht werden." });
   }
 });
 

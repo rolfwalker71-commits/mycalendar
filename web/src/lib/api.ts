@@ -1,4 +1,14 @@
 import type { CalendarEvent, CalendarItem, ContactCard, Me, TaskItem } from "./types";
+
+type ContactWrite = {
+  givenName: string;
+  familyName: string;
+  email?: string;
+  phone?: string;
+  organization?: string;
+  address?: string;
+  birthday?: string | null;
+};
 import type { MailLabel, MailThread, MailThreadSummary } from "@/mail/types";
 
 export class ApiError extends Error {
@@ -268,6 +278,20 @@ export const apiClient = {
     api<{ contact: ContactCard }>("/api/contacts/adopt", {
       method: "POST",
       body: JSON.stringify({ resourceName }),
+    }),
+  createContact: (body: ContactWrite) =>
+    api<{ contact: ContactCard }>("/api/contacts", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  patchContact: (body: ContactWrite & { resourceName: string }) =>
+    api<{ contact: ContactCard }>("/api/contacts", {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  deleteContact: (resourceName: string) =>
+    api<{ ok: boolean }>(`/api/contacts?resourceName=${encodeURIComponent(resourceName)}`, {
+      method: "DELETE",
     }),
   contactEvent: (body: {
     summary: string;

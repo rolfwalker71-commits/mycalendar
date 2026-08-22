@@ -76,6 +76,9 @@ export type CalendarEvent = {
 
 export type ContactCard = {
   resourceName: string;
+  etag?: string | null;
+  givenName?: string;
+  familyName?: string;
   name: string;
   emails: string[];
   phones: { value: string; type?: string }[];

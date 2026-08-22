@@ -255,6 +255,9 @@ export async function syncAllIcsFeeds(user: UserRow): Promise<void> {
 
 export type ContactPerson = {
   resourceName: string;
+  etag?: string | null;
+  givenName?: string;
+  familyName?: string;
   name: string;
   emails: string[];
   phones: { value: string; type?: string }[];

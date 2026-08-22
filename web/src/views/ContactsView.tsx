@@ -7,9 +7,12 @@ import {
   Mail,
   MessageCircle,
   MessageSquare,
+  Pencil,
   Phone,
+  Plus,
   Search,
   Settings,
+  Trash2,
   UserPlus,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -66,6 +69,8 @@ function ContactRow({
   onToggle,
   onMailTo,
   onEvent,
+  onEdit,
+  onDelete,
   onAdopt,
   adopting,
 }: {
@@ -74,6 +79,8 @@ function ContactRow({
   onToggle: () => void;
   onMailTo: (email: string) => void;
   onEvent: (contact: ContactCard) => void;
+  onEdit?: (contact: ContactCard) => void;
+  onDelete?: (contact: ContactCard) => void;
   onAdopt?: (contact: ContactCard) => void;
   adopting?: boolean;
 }) {
@@ -153,6 +160,18 @@ function ContactRow({
               <CalendarPlus className="size-4" />
               In den Kalender
             </Button>
+            {onEdit ? (
+              <Button variant="outline" className="min-h-11" onClick={() => onEdit(contact)}>
+                <Pencil className="size-4" />
+                Bearbeiten
+              </Button>
+            ) : null}
+            {onDelete ? (
+              <Button variant="outline" className="min-h-11 text-destructive" onClick={() => onDelete(contact)}>
+                <Trash2 className="size-4" />
+                Löschen
+              </Button>
+            ) : null}
             {onAdopt ? (
               <Button variant="outline" className="min-h-11" disabled={adopting} onClick={() => onAdopt(contact)}>
                 <UserPlus className="size-4" />
@@ -193,6 +212,16 @@ export function ContactsView({
   const [eventDate, setEventDate] = useState(() => now().toISODate() ?? "");
   const [eventTime, setEventTime] = useState("10:00");
   const [eventSaving, setEventSaving] = useState(false);
+  const [editor, setEditor] = useState<"new" | ContactCard | null>(null);
+  const [givenName, setGivenName] = useState("");
+  const [familyName, setFamilyName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [organization, setOrganization] = useState("");
+  const [address, setAddress] = useState("");
+  const [birthday, setBirthday] = useState("");
+  const [editorSaving, setEditorSaving] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<ContactCard | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -245,6 +274,91 @@ export function ContactsView({
         c.phones.some((p) => p.value.includes(needle)),
     );
   }, [other, q]);
+
+  function fillEditor(contact?: ContactCard) {
+    if (!contact) {
+      setGivenName("");
+      setFamilyName("");
+      setEmail("");
+      setPhone("");
+      setOrganization("");
+      setAddress("");
+      setBirthday("");
+      return;
+    }
+    const parts = contact.name.trim().split(/\s+/);
+    setGivenName(contact.givenName || parts[0] || "");
+    setFamilyName(contact.familyName || parts.slice(1).join(" "));
+    setEmail(contact.emails[0] ?? "");
+    setPhone(contact.phones[0]?.value ?? "");
+    setOrganization(contact.organization ?? "");
+    setAddress(contact.addresses[0] ?? "");
+    if (contact.birthday) {
+      const y = contact.birthday.year ?? now().year;
+      const m = String(contact.birthday.month).padStart(2, "0");
+      const d = String(contact.birthday.day).padStart(2, "0");
+      setBirthday(`${y}-${m}-${d}`);
+    } else {
+      setBirthday("");
+    }
+  }
+
+  function openEditor(contact?: ContactCard) {
+    fillEditor(contact);
+    setEditor(contact ?? "new");
+  }
+
+  function editorPayload() {
+    return {
+      givenName: givenName.trim(),
+      familyName: familyName.trim(),
+      email: email.trim(),
+      phone: phone.trim(),
+      organization: organization.trim(),
+      address: address.trim(),
+      birthday: birthday || null,
+    };
+  }
+
+  async function saveEditor() {
+    if (!givenName.trim() && !familyName.trim()) {
+      toast.error("Vor- oder Nachname fehlt.");
+      return;
+    }
+    setEditorSaving(true);
+    try {
+      const body = editorPayload();
+      const res =
+        editor && editor !== "new"
+          ? await apiClient.patchContact({ ...body, resourceName: editor.resourceName })
+          : await apiClient.createContact(body);
+      setContacts((xs) => {
+        const next = editor && editor !== "new"
+          ? xs.map((c) => (c.resourceName === editor.resourceName ? res.contact : c))
+          : [...xs, res.contact];
+        return next.sort((a, b) => a.name.localeCompare(b.name, "de"));
+      });
+      setOpenId(res.contact.resourceName);
+      setEditor(null);
+      toast.success(editor === "new" ? "Kontakt angelegt." : "Kontakt gespeichert.");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Speichern fehlgeschlagen. Bitte Google neu verbinden.");
+    } finally {
+      setEditorSaving(false);
+    }
+  }
+
+  async function removeContact(contact: ContactCard) {
+    try {
+      await apiClient.deleteContact(contact.resourceName);
+      setContacts((xs) => xs.filter((c) => c.resourceName !== contact.resourceName));
+      if (openId === contact.resourceName) setOpenId(null);
+      setConfirmDelete(null);
+      toast.success("Kontakt gelöscht.");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Löschen fehlgeschlagen.");
+    }
+  }
 
   function openEvent(contact: ContactCard) {
     setEventFor(contact);
@@ -335,7 +449,9 @@ export function ContactsView({
             </a>
           </div>
         ) : !filteredMine.length && !filteredOther.length ? (
-          <p className="p-8 text-center text-sm text-muted-foreground">Keine Kontakte.</p>
+          <p className="p-8 text-center text-sm text-muted-foreground">
+            Keine Kontakte. Unten rechts anlegen.
+          </p>
         ) : (
           <>
             <ul>
@@ -347,6 +463,8 @@ export function ContactsView({
                   onToggle={() => setOpenId((id) => (id === c.resourceName ? null : c.resourceName))}
                   onMailTo={onMailTo}
                   onEvent={openEvent}
+                  onEdit={openEditor}
+                  onDelete={setConfirmDelete}
                 />
               ))}
             </ul>
@@ -377,9 +495,17 @@ export function ContactsView({
           </>
         )}
       </div>
-      <p className="px-4 py-2 text-[0.6875rem] text-muted-foreground">
-        {me.name || me.email} · Geburtstage erscheinen im Kalender „Geburtstage“.
+      <p className="px-4 py-2 pb-24 text-[0.6875rem] text-muted-foreground lg:pb-2">
+        {me.name || me.email} · Tippen öffnet den Kontakt. Bearbeiten ändert ihn in Google Kontakte.
       </p>
+      <Button
+        className="fixed right-4 bottom-6 z-40 size-14 rounded-full shadow-lg"
+        size="icon"
+        aria-label="Neuer Kontakt"
+        onClick={() => openEditor()}
+      >
+        <Plus className="size-6" />
+      </Button>
       <Dialog open={Boolean(eventFor)} onOpenChange={(open) => !open && setEventFor(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -407,6 +533,71 @@ export function ContactsView({
             </Button>
             <Button onClick={() => void saveEvent()} disabled={eventSaving || !eventTitle.trim()}>
               Anlegen
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={Boolean(editor)} onOpenChange={(open) => !open && setEditor(null)}>
+        <DialogContent className="max-h-[min(90dvh,40rem)] overflow-y-auto sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{editor === "new" ? "Neuer Kontakt" : "Kontakt bearbeiten"}</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="contact-given">Vorname</Label>
+                <Input id="contact-given" value={givenName} onValueChange={setGivenName} autoComplete="given-name" />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="contact-family">Nachname</Label>
+                <Input id="contact-family" value={familyName} onValueChange={setFamilyName} autoComplete="family-name" />
+              </div>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="contact-phone">Telefon</Label>
+              <Input id="contact-phone" value={phone} onValueChange={setPhone} type="tel" autoComplete="tel" />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="contact-email">E-Mail</Label>
+              <Input id="contact-email" value={email} onValueChange={setEmail} type="email" autoComplete="email" />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="contact-org">Firma</Label>
+              <Input id="contact-org" value={organization} onValueChange={setOrganization} autoComplete="organization" />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="contact-address">Adresse</Label>
+              <Input id="contact-address" value={address} onValueChange={setAddress} autoComplete="street-address" />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label>Geburtstag</Label>
+              <DateField value={birthday} onValueChange={setBirthday} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditor(null)}>
+              Abbrechen
+            </Button>
+            <Button onClick={() => void saveEditor()} disabled={editorSaving || (!givenName.trim() && !familyName.trim())}>
+              Speichern
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={Boolean(confirmDelete)} onOpenChange={(open) => !open && setConfirmDelete(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Kontakt löschen?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            {confirmDelete?.name} wird aus Google Kontakte entfernt.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmDelete(null)}>
+              Abbrechen
+            </Button>
+            <Button variant="destructive" onClick={() => confirmDelete && void removeContact(confirmDelete)}>
+              Löschen
             </Button>
           </DialogFooter>
         </DialogContent>
