@@ -276,26 +276,28 @@ function ThreadRow({
           </span>
         ) : null}
       </button>
-      <span className="min-w-0 flex-1">
-        <span className="flex items-baseline justify-between gap-3">
-          <span className={cn("min-w-0 break-words leading-snug text-[0.9375rem] line-clamp-2", thread.unread ? "font-semibold" : "font-medium")}>
+      <div className="min-w-0 flex-1 overflow-hidden">
+        <div className="flex min-w-0 items-baseline justify-between gap-3">
+          <p className={cn("min-w-0 flex-1 truncate text-[0.9375rem]", thread.unread ? "font-semibold" : "font-medium")}>
             {displayName(thread.from)}
-          </span>
+          </p>
           <span className={cn("shrink-0 text-xs", thread.unread ? "text-mail" : "text-muted-foreground")}>
             {formatMailDate(thread.date, thread.internalDate)}
           </span>
-        </span>
-        <span className={cn("mt-0.5 flex min-w-0 items-center gap-1.5", thread.unread ? "font-medium" : "")}>
-          <span className="min-w-0 break-words leading-snug text-sm line-clamp-2">{thread.subject || "(kein Betreff)"}</span>
+        </div>
+        <div className={cn("mt-0.5 flex min-w-0 items-center gap-1.5", thread.unread ? "font-medium" : "")}>
+          <p className="min-w-0 flex-1 truncate text-sm">{thread.subject || "(kein Betreff)"}</p>
           {isThread ? (
             <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-mail/12 px-1.5 py-0.5 text-[0.6875rem] font-semibold text-mail">
               <MessagesSquare className="size-3" />
               {thread.messageCount}
             </span>
           ) : null}
-        </span>
-        <span className="mt-0.5 block text-sm text-muted-foreground line-clamp-2">{thread.snippet}</span>
-      </span>
+        </div>
+        <p className="mt-0.5 line-clamp-2 min-w-0 overflow-hidden text-sm leading-snug whitespace-normal text-muted-foreground">
+          {thread.snippet}
+        </p>
+      </div>
       {thread.draft ? (
         <span className="mt-1 shrink-0 text-[0.6875rem] font-medium text-mail">Entwurf</span>
       ) : null}
