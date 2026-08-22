@@ -25,6 +25,14 @@ export function fromISO(value: string | null | undefined): DateTime | null {
   return dt.isValid ? dt : null;
 }
 
+/** Normalizes date-only or Date-JSON (`…T00:00:00.000Z`) to `yyyy-MM-dd`. */
+export function toIsoDate(value: string | null | undefined): string | null {
+  if (!value) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  const dt = DateTime.fromISO(value, { setZone: true }).setZone(ZONE);
+  return dt.isValid ? dt.toISODate() : value.slice(0, 10);
+}
+
 export function startOfWeek(dt: DateTime, weekStart: 0 | 1): DateTime {
   const weekday = dt.weekday; // 1 Mon .. 7 Sun
   if (weekStart === 1) {
@@ -127,7 +135,7 @@ export function eventStartsOn(event: {
   startAt: string | null;
 }, day: DateTime): boolean {
   if (event.allDay && event.allDayStart) {
-    return event.allDayStart === day.toISODate();
+    return toIsoDate(event.allDayStart) === day.toISODate();
   }
   const start = fromISO(event.startAt);
   return start ? isSameDay(start, day) : false;

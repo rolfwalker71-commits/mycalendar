@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { DateTime } from "luxon";
 import { toast } from "sonner";
-import { Copy, Download, Paperclip, Share2, Video, XIcon } from "lucide-react";
+import { Copy, Download, Paperclip, Share2, Trash2, Video, XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -880,24 +880,32 @@ export function EventEditor({
   );
 
   const footer = (includeSwipeActions: boolean) => (
-    <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+    <div className="flex w-full flex-nowrap items-center justify-end gap-1.5 overflow-x-auto">
       {event && includeSwipeActions ? (
-        <Button variant="outline" onClick={() => void duplicate()} disabled={saving}>
+        <Button
+          variant="outline"
+          size="icon"
+          className="size-9 min-h-9 shrink-0"
+          aria-label="Duplizieren"
+          onClick={() => void duplicate()}
+          disabled={saving}
+        >
           <Copy className="size-4" />
-          Duplizieren
         </Button>
       ) : null}
       {event && !String(event.id).startsWith("bday-") ? (
         <>
-          <a href={`/api/events/${event.id}/ics`}>
-            <Button variant="outline" type="button">
+          <a href={`/api/events/${event.id}/ics`} className="shrink-0" aria-label="ICS herunterladen">
+            <Button variant="outline" size="icon" className="size-9 min-h-9" type="button" tabIndex={-1}>
               <Download className="size-4" />
-              ICS
             </Button>
           </a>
           <Button
             variant="outline"
+            size="icon"
+            className="size-9 min-h-9 shrink-0"
             type="button"
+            aria-label="Teilen"
             onClick={() => {
               const url = `${window.location.origin}/api/events/${event.id}/ics`;
               if (navigator.share) {
@@ -911,26 +919,44 @@ export function EventEditor({
             }}
           >
             <Share2 className="size-4" />
-            Teilen
           </Button>
         </>
       ) : null}
       {event && canDelete ? (
         confirmDelete ? (
-          <Button variant="destructive" onClick={remove} disabled={saving}>
-            Wirklich löschen
+          <Button
+            variant="destructive"
+            className="h-9 min-h-9 shrink-0 px-2.5 text-[0.8125rem]"
+            onClick={remove}
+            disabled={saving}
+          >
+            Wirklich?
           </Button>
         ) : (
-          <Button variant="destructive" onClick={() => setConfirmDelete(true)}>
-            Löschen
+          <Button
+            variant="destructive"
+            size="icon"
+            className="size-9 min-h-9 shrink-0"
+            aria-label="Löschen"
+            onClick={() => setConfirmDelete(true)}
+          >
+            <Trash2 className="size-4" />
           </Button>
         )
       ) : null}
-      <Button variant="outline" onClick={() => onOpenChange(false)}>
+      <Button
+        variant="outline"
+        className="h-9 min-h-9 shrink-0 px-2.5 text-[0.8125rem]"
+        onClick={() => onOpenChange(false)}
+      >
         Abbrechen
       </Button>
-      <Button onClick={save} disabled={saving || !calendarId || readOnly}>
-        {readOnly ? "Nur Anzeige" : "Speichern"}
+      <Button
+        className="h-9 min-h-9 shrink-0 px-3 text-[0.8125rem]"
+        onClick={save}
+        disabled={saving || !calendarId || readOnly}
+      >
+        {readOnly ? "Anzeige" : "Speichern"}
       </Button>
     </div>
   );

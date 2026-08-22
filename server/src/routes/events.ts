@@ -24,6 +24,17 @@ import { loadContacts } from "./contacts.js";
 export const eventsRouter = Router();
 eventsRouter.use(requireAuth);
 
+/** pg DATE → JS Date often JSON-serializes as `…T00:00:00.000Z`; keep calendar `yyyy-MM-dd`. */
+function asIsoDate(value: string | Date | null | undefined): string | null {
+  if (value == null) return null;
+  if (typeof value === "string") {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+    const dt = DateTime.fromISO(value, { setZone: true });
+    return dt.isValid ? dt.setZone(TZ).toISODate() : value.slice(0, 10);
+  }
+  return DateTime.fromJSDate(value, { zone: "utc" }).toISODate();
+}
+
 function handleGoogleError(res: import("express").Response, err: unknown): boolean {
   const described = describeGoogleApiError(err, "calendar");
   if (described) {
@@ -59,8 +70,8 @@ function serializeEvent(e: EventRow & { background_color?: string | null; calend
     startAt: e.start_at,
     endAt: e.end_at,
     allDay: e.all_day,
-    allDayStart: e.all_day_start,
-    allDayEnd: e.all_day_end,
+    allDayStart: asIsoDate(e.all_day_start),
+    allDayEnd: asIsoDate(e.all_day_end),
     timezone: e.timezone,
     attendees: e.attendees,
     recurrence: e.recurrence,

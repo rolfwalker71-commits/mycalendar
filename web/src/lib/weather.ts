@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { toIsoDate } from "@/lib/dates";
 import type { WeatherDay, WeatherPayload } from "@/components/WeatherMark";
 
 const GEO_KEY = "kalender-geo";
@@ -103,7 +104,8 @@ export function useWeather(): {
     weather,
     day(iso) {
       if (!iso || !weather) return undefined;
-      return weather.days.find((d) => d.date === iso);
+      const key = toIsoDate(iso) ?? iso.slice(0, 10);
+      return weather.days.find((d) => d.date === key);
     },
   };
 }
