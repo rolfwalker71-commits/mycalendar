@@ -100,6 +100,7 @@ export function isMsEmailAllowed(email: string): boolean {
   return ALLOWED_MS_EMAILS.includes(email.trim().toLowerCase());
 }
 
+/** Delegierte Graph-Scopes — muss zur Azure-App-Registrierung passen. */
 export const MS_SCOPES = [
   "openid",
   "profile",
@@ -108,7 +109,8 @@ export const MS_SCOPES = [
   "User.Read",
   "Calendars.ReadWrite",
   "Tasks.ReadWrite",
-  "Group.Read.All",
+  "Mail.ReadWrite",
+  "Mail.Send",
 ] as const;
 
 export function msConfigured(): boolean {
