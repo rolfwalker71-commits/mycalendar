@@ -55,6 +55,7 @@ export type EventArtKind =
   | "repair"
   | "church"
   | "museum"
+  | "business"
   | "agenda";
 
 type Rule = { kind: EventArtKind; words: string[] };
@@ -362,11 +363,12 @@ const ART_FILE: Record<EventArtKind, string> = {
   moving: "shopping",
   package: "shopping",
   repair: "shopping",
+  business: "business",
 };
 
 export function eventArtSrc(
   kind: EventArtKind,
   variant: "side" | "header",
 ): string {
-  return `/event-art/${ART_FILE[kind]}-${variant}.jpg?v=illust9`;
+  return `/event-art/${ART_FILE[kind]}-${variant}.jpg?v=illust10`;
 }

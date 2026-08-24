@@ -37,6 +37,7 @@ import { LocationField } from "@/components/LocationField";
 import { nthWeekdayOfMonth, ZONE } from "@/lib/dates";
 import type { CalendarEvent, CalendarItem, EventAttachment, RecurrenceScope } from "@/lib/types";
 import { driveFileId, mimeFromName } from "@/lib/driveFile";
+import { cn } from "@/lib/utils";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -962,9 +963,15 @@ export function EventEditor({
   );
 
   if (desktop) {
+    const ms = event?.source === "microsoft";
     return (
       <Dialog open={state.open} onOpenChange={onOpenChange}>
-        <DialogContent className="flex max-h-[min(90dvh,46rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-xl">
+        <DialogContent
+          className={cn(
+            "flex max-h-[min(90dvh,46rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-xl",
+            ms && "ring-[#0078D4]/30",
+          )}
+        >
           <EventArtBanner
             variant="header"
             className="h-44 w-full shrink-0 rounded-t-xl"
@@ -975,23 +982,36 @@ export function EventEditor({
             eventId={event?.id}
             attachments={attachments}
             coverUrl={event?.coverUrl}
+            source={event?.source}
           />
-          <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-4">
+          <div className={cn("min-h-0 flex-1 overflow-y-auto px-4 pt-4", ms && "bg-sky-50/80 dark:bg-sky-950/30")}>
             <DialogHeader>
-              <DialogTitle>{event ? "Termin bearbeiten" : "Neuer Termin"}</DialogTitle>
-              <DialogDescription>Änderungen werden mit Google Calendar synchronisiert.</DialogDescription>
+              <DialogTitle>
+                {event ? "Termin bearbeiten" : "Neuer Termin"}
+                {ms ? (
+                  <span className="ml-2 align-middle text-xs font-semibold text-[#0078D4]">M365</span>
+                ) : null}
+              </DialogTitle>
+              <DialogDescription>
+                {ms
+                  ? "Änderungen werden mit Microsoft 365 synchronisiert."
+                  : "Änderungen werden mit Google Calendar synchronisiert."}
+              </DialogDescription>
             </DialogHeader>
             <div className="mt-4">{form}</div>
           </div>
-          <DialogFooter className="shrink-0 px-4 py-4">{footer(true)}</DialogFooter>
+          <DialogFooter className={cn("shrink-0 px-4 py-4", ms && "bg-sky-50/80 dark:bg-sky-950/30")}>
+            {footer(true)}
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     );
   }
 
+  const ms = event?.source === "microsoft";
   return (
     <Sheet open={state.open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="gap-0 overflow-y-auto p-0">
+      <SheetContent side="bottom" className={cn("gap-0 overflow-y-auto p-0", ms && "bg-sky-50/80 dark:bg-sky-950/30")}>
         <EventArtBanner
           variant="header"
           className="h-28 w-full rounded-t-2xl"
@@ -1002,10 +1022,18 @@ export function EventEditor({
           eventId={event?.id}
           attachments={attachments}
           coverUrl={event?.coverUrl}
+          source={event?.source}
         />
         <SheetHeader>
-          <SheetTitle>{event ? "Termin bearbeiten" : "Neuer Termin"}</SheetTitle>
-          <SheetDescription>Änderungen werden mit Google Calendar synchronisiert.</SheetDescription>
+          <SheetTitle>
+            {event ? "Termin bearbeiten" : "Neuer Termin"}
+            {ms ? <span className="ml-2 text-xs font-semibold text-[#0078D4]">M365</span> : null}
+          </SheetTitle>
+          <SheetDescription>
+            {ms
+              ? "Änderungen werden mit Microsoft 365 synchronisiert."
+              : "Änderungen werden mit Google Calendar synchronisiert."}
+          </SheetDescription>
         </SheetHeader>
         <div className="px-4 pb-4">{form}</div>
         <div className="border-t border-border px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))]">

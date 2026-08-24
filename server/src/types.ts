@@ -19,6 +19,10 @@ export type UserRow = {
   hide_declined: boolean;
   second_timezone: string | null;
   working_hours: WorkingHoursJson | null;
+  ms_sub: string | null;
+  ms_email: string | null;
+  ms_refresh_token_enc: string | null;
+  ms_token_expiry: Date | null;
   created_at: Date;
   last_login_at: Date | null;
 };

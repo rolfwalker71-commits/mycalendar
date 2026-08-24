@@ -44,12 +44,56 @@ tasksRouter.get("/", async (req, res) => {
         items.push({
           ...mapTask(list.id!, t),
           listTitle: list.title ?? "Aufgaben",
+          source: "google" as const,
         });
       }
     }
+    let msTasks: {
+      id: string;
+      listId: string;
+      listTitle: string;
+      title: string;
+      notes?: string;
+      status: "needsAction" | "completed";
+      due: string | null;
+      source: "microsoft";
+    }[] = [];
+    let msLists: { id: string; title: string; source: "microsoft" }[] = [];
+    try {
+      const { listMsTodos, listMsPlanner } = await import("../microsoft.js");
+      const todos = await listMsTodos(req.user!);
+      msTasks = todos.map((t) => ({ ...t, source: "microsoft" as const }));
+      const seen = new Map<string, string>();
+      for (const t of todos) seen.set(t.listId, t.listTitle);
+      msLists = [...seen.entries()].map(([id, title]) => ({ id, title, source: "microsoft" as const }));
+      const planner = await listMsPlanner(req.user!);
+      for (const p of planner) {
+        msTasks.push({
+          id: p.id,
+          listId: `msplan:${p.planId}`,
+          listTitle: `Planner · ${p.planTitle}`,
+          title: p.title,
+          status: p.percentComplete >= 100 ? "completed" : "needsAction",
+          due: p.due,
+          source: "microsoft",
+        });
+        if (!msLists.some((l) => l.id === `msplan:${p.planId}`)) {
+          msLists.push({
+            id: `msplan:${p.planId}`,
+            title: `Planner · ${p.planTitle}`,
+            source: "microsoft",
+          });
+        }
+      }
+    } catch (err) {
+      console.warn("MS-Aufgaben:", err);
+    }
     res.json({
-      lists: lists.map((l) => ({ id: l.id, title: l.title ?? "Aufgaben" })),
-      tasks: items,
+      lists: [
+        ...lists.map((l) => ({ id: l.id, title: l.title ?? "Aufgaben", source: "google" as const })),
+        ...msLists,
+      ],
+      tasks: [...items, ...msTasks],
     });
   } catch (err) {
     if (handleTasksError(err, res)) return;

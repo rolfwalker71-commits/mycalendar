@@ -18,6 +18,10 @@ function FlightPathLabel({ from, to }: { from: string; to: string }) {
   );
 }
 
+export function isMsEvent(event: CalendarEvent): boolean {
+  return event.source === "microsoft";
+}
+
 export function EventCardBody({
   event,
   subtitle,
@@ -27,17 +31,44 @@ export function EventCardBody({
 }) {
   const declined = isDeclined(event);
   const route = parseFlightRoute(event.location, event.summary);
+  const ms = isMsEvent(event);
+  const art = (
+    <EventArtBanner
+      summary={event.summary}
+      description={event.description}
+      calendarSummary={event.calendarSummary}
+      eventType={event.eventType}
+      eventId={event.id}
+      attachments={event.attachments}
+      coverUrl={event.coverUrl}
+      source={event.source}
+    />
+  );
 
   return (
-    <div className="flex min-h-0 w-full flex-row items-stretch overflow-hidden bg-card text-left leading-snug">
+    <div
+      className={cn(
+        "flex min-h-0 w-full flex-row items-stretch overflow-hidden text-left leading-snug",
+        ms ? "bg-sky-50 dark:bg-sky-950/40" : "bg-card",
+      )}
+    >
+      {ms ? art : null}
       <div className="flex min-w-0 flex-1 items-start gap-3 px-4 py-3">
         <span
-          className="mt-1 size-2.5 shrink-0 rounded-full"
+          className={cn(
+            "mt-1 size-2.5 shrink-0 rounded-full",
+            ms && "ring-2 ring-sky-400/50",
+          )}
           style={{ backgroundColor: eventChipStyle(event.backgroundColor).backgroundColor }}
         />
         <div className="min-w-0 flex-1">
           <p className={cn("font-medium break-words", declined && "text-muted-foreground line-through")}>
             {event.summary || "Ohne Titel"}
+            {ms ? (
+              <span className="ml-2 inline-flex align-middle rounded bg-[#0078D4]/15 px-1.5 py-0.5 text-[0.625rem] font-semibold tracking-wide text-[#0078D4]">
+                M365
+              </span>
+            ) : null}
           </p>
           <p className="mt-0.5 text-sm text-muted-foreground">{subtitle}</p>
           {event.location ? (
@@ -58,15 +89,7 @@ export function EventCardBody({
           ) : null}
         </div>
       </div>
-      <EventArtBanner
-        summary={event.summary}
-        description={event.description}
-        calendarSummary={event.calendarSummary}
-        eventType={event.eventType}
-        eventId={event.id}
-        attachments={event.attachments}
-        coverUrl={event.coverUrl}
-      />
+      {!ms ? art : null}
     </div>
   );
 }

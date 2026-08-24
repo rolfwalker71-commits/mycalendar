@@ -80,3 +80,41 @@ export function googleConfigured(): boolean {
       !GOOGLE_CLIENT_SECRET.startsWith("bitte-durch"),
   );
 }
+
+export const MS_CLIENT_ID = process.env.MS_CLIENT_ID ?? "";
+export const MS_CLIENT_SECRET = process.env.MS_CLIENT_SECRET ?? "";
+export const MS_TENANT_ID = process.env.MS_TENANT_ID ?? "common";
+export const MS_REDIRECT_URI =
+  process.env.MS_REDIRECT_URI ?? "http://localhost:3366/api/auth/microsoft/callback";
+
+export const ALLOWED_MS_EMAILS = (process.env.ALLOWED_MS_EMAILS ?? "")
+  .split(",")
+  .map((s) => s.trim().toLowerCase())
+  .filter(Boolean);
+
+export function isMsEmailAllowed(email: string): boolean {
+  if (ALLOWED_MS_EMAILS.length === 0) {
+    return NODE_ENV !== "production";
+  }
+  return ALLOWED_MS_EMAILS.includes(email.trim().toLowerCase());
+}
+
+export const MS_SCOPES = [
+  "openid",
+  "profile",
+  "email",
+  "offline_access",
+  "User.Read",
+  "Calendars.ReadWrite",
+  "Tasks.ReadWrite",
+  "Group.Read.All",
+] as const;
+
+export function msConfigured(): boolean {
+  return Boolean(
+    MS_CLIENT_ID &&
+      MS_CLIENT_SECRET &&
+      !MS_CLIENT_ID.startsWith("ihre-") &&
+      !MS_CLIENT_SECRET.startsWith("bitte-"),
+  );
+}

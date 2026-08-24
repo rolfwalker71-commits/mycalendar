@@ -55,7 +55,7 @@ app.use(
         manifestSrc: ["'self'"],
         objectSrc: ["'none'"],
         baseUri: ["'self'"],
-        formAction: ["'self'", "https://accounts.google.com"],
+        formAction: ["'self'", "https://accounts.google.com", "https://login.microsoftonline.com"],
         frameAncestors: ["'none'"],
         // Lokal über HTTP: sonst versucht der Browser Assets auf HTTPS zu laden.
         upgradeInsecureRequests: NODE_ENV === "production" ? [] : null,

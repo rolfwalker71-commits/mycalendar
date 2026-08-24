@@ -265,12 +265,26 @@ export async function syncCalendarList(user: UserRow): Promise<CalendarRow[]> {
     );
   }
 
+  return listUserCalendars(user.id);
+}
+
+async function listUserCalendars(userId: string): Promise<CalendarRow[]> {
   const { rows } = await query<CalendarRow>(
     `SELECT * FROM calendars WHERE user_id = $1
      ORDER BY primary_cal DESC, summary ASC`,
-    [user.id],
+    [userId],
   );
   return rows;
+}
+
+async function loadCalendarsForSync(user: UserRow, full: boolean): Promise<CalendarRow[]> {
+  if (!full && user.last_sync_at) {
+    const ageMs = Date.now() - new Date(user.last_sync_at).getTime();
+    if (ageMs >= 0 && ageMs < 2 * 60 * 1000) {
+      return listUserCalendars(user.id);
+    }
+  }
+  return syncCalendarList(user);
 }
 
 async function applyEventPage(
@@ -392,10 +406,11 @@ async function incrementalSync(
   calendar: CalendarRow,
   api: calendar_v3.Calendar,
   hidden: Set<string>,
-): Promise<void> {
-  if (!calendar.sync_token) return;
+): Promise<number> {
+  if (!calendar.sync_token) return 0;
   let pageToken: string | undefined;
   let syncToken: string | undefined = calendar.sync_token;
+  let changed = 0;
   do {
     const res = await api.events.list({
       calendarId: calendar.google_cal_id,
@@ -404,7 +419,9 @@ async function incrementalSync(
       maxResults: 2500,
       supportsAttachments: true,
     } as calendar_v3.Params$Resource$Events$List);
-    await applyEventPage(user, calendar, res.data.items, hidden);
+    const items = res.data.items ?? [];
+    changed += items.length;
+    await applyEventPage(user, calendar, items, hidden);
     pageToken = res.data.nextPageToken ?? undefined;
     syncToken = undefined;
     if (res.data.nextSyncToken) {
@@ -414,9 +431,33 @@ async function incrementalSync(
       );
     }
   } while (pageToken);
+  return changed;
 }
 
+const syncInflight = new Map<
+  string,
+  { full: boolean; promise: Promise<{ calendars: number; error?: string }> }
+>();
+
 export async function syncUserEvents(
+  user: UserRow,
+  timeMin?: string,
+  timeMax?: string,
+  full = false,
+): Promise<{ calendars: number; error?: string }> {
+  const existing = syncInflight.get(user.id);
+  if (existing) {
+    if (!full || existing.full) return existing.promise;
+    await existing.promise.catch(() => undefined);
+  }
+  const promise = runSyncUserEvents(user, timeMin, timeMax, full).finally(() => {
+    if (syncInflight.get(user.id)?.promise === promise) syncInflight.delete(user.id);
+  });
+  syncInflight.set(user.id, { full, promise });
+  return promise;
+}
+
+async function runSyncUserEvents(
   user: UserRow,
   timeMin?: string,
   timeMax?: string,
@@ -436,7 +477,7 @@ export async function syncUserEvents(
   invalidateShiftArtCache();
 
   try {
-    const calendars = await syncCalendarList(user);
+    const calendars = await loadCalendarsForSync(user, full);
     if (full) {
       await query("UPDATE calendars SET sync_token = NULL WHERE user_id = $1", [user.id]);
     }
@@ -447,27 +488,30 @@ export async function syncUserEvents(
     for (const calendar of list) {
       if (
         calendar.google_cal_id.startsWith("ics:") ||
-        calendar.google_cal_id.startsWith("birthday:")
+        calendar.google_cal_id.startsWith("birthday:") ||
+        calendar.google_cal_id.startsWith("ms:") ||
+        calendar.source === "microsoft"
       ) {
         continue;
       }
       try {
         if (calendar.sync_token) {
           try {
-            await incrementalSync(user, calendar, api, hidden);
+            const changed = await incrementalSync(user, calendar, api, hidden);
+            if (changed > 0) {
+              await rangeSync(user, calendar, api, from, to, false, hidden);
+            }
           } catch (err) {
             if (isGoneError(err)) {
               await query(
                 "UPDATE calendars SET sync_token = NULL WHERE id = $1",
                 [calendar.id],
               );
-              await query("DELETE FROM events WHERE calendar_id = $1", [calendar.id]);
               await rangeSync(user, { ...calendar, sync_token: null }, api, from, to, true, hidden);
               continue;
             }
             throw err;
           }
-          await rangeSync(user, calendar, api, from, to, false, hidden);
         } else {
           await rangeSync(user, calendar, api, from, to, true, hidden);
         }
@@ -480,6 +524,12 @@ export async function syncUserEvents(
     }
 
     await syncAllIcsFeeds(user).catch((err) => console.warn("ICS-Feeds:", err));
+    try {
+      const { syncMicrosoftCalendars } = await import("./microsoft.js");
+      await syncMicrosoftCalendars(user, from, to);
+    } catch (err) {
+      console.warn("Microsoft-Sync:", err);
+    }
     await query("UPDATE users SET last_sync_at = NOW() WHERE id = $1", [user.id]);
     return { calendars: calendars.length };
   } catch (err) {

@@ -65,9 +65,22 @@ export function invalidateContactCache(userId: string): void {
 
 const contactCache = new Map<string, { at: number; contacts: ContactPerson[] }>();
 
+const contactRefresh = new Set<string>();
+
 export async function loadContacts(user: UserRow): Promise<ContactPerson[]> {
   const hit = contactCache.get(user.id);
   if (hit && Date.now() - hit.at < 5 * 60 * 1000) return hit.contacts;
+  if (hit) {
+    if (!contactRefresh.has(user.id)) {
+      contactRefresh.add(user.id);
+      void refreshContacts(user).finally(() => contactRefresh.delete(user.id));
+    }
+    return hit.contacts;
+  }
+  return refreshContacts(user);
+}
+
+async function refreshContacts(user: UserRow): Promise<ContactPerson[]> {
   const people = await getAuthedPeople(user);
   const out: ContactPerson[] = [];
   const seen = new Set<string>();

@@ -55,7 +55,22 @@ function handleGoogleError(res: import("express").Response, err: unknown): boole
   return false;
 }
 
-function serializeEvent(e: EventRow & { background_color?: string | null; calendar_summary?: string | null; calendar_timezone?: string | null }) {
+function serializeEvent(e: EventRow & {
+  background_color?: string | null;
+  calendar_summary?: string | null;
+  calendar_timezone?: string | null;
+  source?: string | null;
+  google_cal_id?: string | null;
+}) {
+  const source =
+    e.source ??
+    (e.google_cal_id?.startsWith("ms:")
+      ? "microsoft"
+      : e.google_cal_id?.startsWith("ics:")
+        ? "ics"
+        : e.google_cal_id?.startsWith("birthday:")
+          ? "birthday"
+          : "google");
   return {
     id: e.id,
     calendarId: e.calendar_id,
@@ -87,6 +102,7 @@ function serializeEvent(e: EventRow & { background_color?: string | null; calend
     calendarTimezone: e.calendar_timezone ?? null,
     updatedAt: e.updated_at,
     coverUrl: coverUrlFor(e),
+    source,
   };
 }
 
@@ -98,10 +114,11 @@ async function getOwnedEvent(userId: string, id: string) {
       calendar_summary: string | null;
       calendar_timezone: string | null;
       access_role: string | null;
+      source: string | null;
     }
   >(
     `SELECT e.*, c.google_cal_id, c.background_color, c.summary AS calendar_summary,
-            c.timezone AS calendar_timezone, c.access_role, c.id AS calendar_uuid
+            c.timezone AS calendar_timezone, c.access_role, c.id AS calendar_uuid, c.source
        FROM events e
        JOIN calendars c ON c.id = e.calendar_id
       WHERE e.id = $1 AND e.user_id = $2`,
@@ -155,7 +172,8 @@ eventsRouter.get("/", async (req, res) => {
       calendar_timezone: string | null;
     }
   >(
-    `SELECT e.*, c.background_color, c.summary AS calendar_summary, c.timezone AS calendar_timezone
+    `SELECT e.*, c.background_color, c.summary AS calendar_summary, c.timezone AS calendar_timezone,
+            c.source, c.google_cal_id
        FROM events e
        JOIN calendars c ON c.id = e.calendar_id
       WHERE e.user_id = $1
@@ -181,16 +199,23 @@ eventsRouter.get("/", async (req, res) => {
       birthdayCal.selected &&
       (!calendarIds.length || calendarIds.includes(birthdayCal.id));
     if (includeBirthday) {
-      const contacts = await loadContacts(req.user!);
-      const hidden = await hiddenKeySet(req.user!.id);
-      const extras = birthdayEventsForRange(
-        contacts,
-        birthdayCal,
-        fromDt.setZone(TZ),
-        toDt.setZone(TZ),
-        hidden,
-      );
-      events.push(...extras.map((e) => ({ ...serializeEvent(e), readOnly: true })));
+      const contacts = await Promise.race([
+        loadContacts(req.user!),
+        new Promise<null>((resolve) => {
+          setTimeout(() => resolve(null), 800);
+        }),
+      ]);
+      if (contacts) {
+        const hidden = await hiddenKeySet(req.user!.id);
+        const extras = birthdayEventsForRange(
+          contacts,
+          birthdayCal,
+          fromDt.setZone(TZ),
+          toDt.setZone(TZ),
+          hidden,
+        );
+        events.push(...extras.map((e) => ({ ...serializeEvent(e), readOnly: true })));
+      }
     }
   } catch {
     /* Kontakte nicht freigegeben */
@@ -404,6 +429,73 @@ eventsRouter.patch("/:id", async (req, res) => {
     }
   }
 
+  if (activeCalendar.source === "microsoft" || activeCalendar.google_cal_id.startsWith("ms:")) {
+    try {
+      const { patchMsEvent } = await import("../microsoft.js");
+      await patchMsEvent(req.user!, activeCalendar, event.google_event_id, {
+        summary: body.summary ?? event.summary ?? undefined,
+        description: body.description !== undefined ? body.description ?? undefined : undefined,
+        location: body.location !== undefined ? body.location ?? undefined : undefined,
+        allDay: body.allDay ?? event.all_day,
+        start: body.start ?? (event.all_day ? event.all_day_start ?? "" : event.start_at?.toISOString() ?? ""),
+        end: body.end ?? (event.all_day ? event.all_day_end ?? "" : event.end_at?.toISOString() ?? ""),
+        timezone: body.timezone || event.timezone || activeCalendar.timezone || TZ,
+      });
+      // Refresh local cache from patch fields
+      const allDay = body.allDay ?? event.all_day;
+      const start = body.start ?? (event.all_day ? event.all_day_start : event.start_at?.toISOString());
+      const end = body.end ?? (event.all_day ? event.all_day_end : event.end_at?.toISOString());
+      await query(
+        `UPDATE events SET
+           summary = COALESCE($3, summary),
+           description = CASE WHEN $4::boolean THEN $5 ELSE description END,
+           location = CASE WHEN $6::boolean THEN $7 ELSE location END,
+           all_day = $8,
+           start_at = CASE WHEN $9::boolean THEN $10::timestamptz ELSE start_at END,
+           end_at = CASE WHEN $11::boolean THEN $12::timestamptz ELSE end_at END,
+           all_day_start = CASE WHEN $8 AND $9::boolean THEN ($10::timestamptz)::date ELSE all_day_start END,
+           all_day_end = CASE WHEN $8 AND $11::boolean THEN ($12::timestamptz)::date ELSE all_day_end END,
+           updated_at = NOW()
+         WHERE id = $1 AND user_id = $2`,
+        [
+          event.id,
+          req.user!.id,
+          body.summary ?? null,
+          body.description !== undefined,
+          body.description ?? null,
+          body.location !== undefined,
+          body.location ?? null,
+          allDay,
+          Boolean(start),
+          start ? new Date(start) : null,
+          Boolean(end),
+          end ? new Date(end) : null,
+        ],
+      );
+      const { rows } = await query<
+        EventRow & {
+          background_color: string | null;
+          calendar_summary: string | null;
+          calendar_timezone: string | null;
+          source: string | null;
+          google_cal_id: string | null;
+        }
+      >(
+        `SELECT e.*, c.background_color, c.summary AS calendar_summary, c.timezone AS calendar_timezone,
+                c.source, c.google_cal_id
+           FROM events e JOIN calendars c ON c.id = e.calendar_id
+          WHERE e.id = $1`,
+        [event.id],
+      );
+      res.json({ event: rows[0] ? serializeEvent(rows[0]) : null });
+      return;
+    } catch (err) {
+      console.error(err);
+      res.status(502).json({ error: "Microsoft-Termin konnte nicht gespeichert werden." });
+      return;
+    }
+  }
+
   const scope = body.scope ?? "this";
   const patchBody = eventToGoogleBody({
     summary: (body.summary ?? event.summary ?? "").trim() || "(Ohne Titel)",
@@ -556,6 +648,20 @@ eventsRouter.delete("/:id", async (req, res) => {
     | "thisAndFollowing"
     | "all";
   const birthday = isBirthdayEvent(event, calendar);
+
+  if (calendar.source === "microsoft" || calendar.google_cal_id.startsWith("ms:")) {
+    try {
+      const { deleteMsEvent } = await import("../microsoft.js");
+      await deleteMsEvent(req.user!, event.google_event_id);
+      await query("DELETE FROM events WHERE id = $1 AND user_id = $2", [event.id, req.user!.id]);
+      res.json({ ok: true });
+    } catch (err) {
+      console.error(err);
+      res.status(502).json({ error: "Microsoft-Termin konnte nicht gelöscht werden." });
+    }
+    return;
+  }
+
   try {
     const api = await getAuthedCalendar(req.user!);
     let eventId = event.google_event_id;

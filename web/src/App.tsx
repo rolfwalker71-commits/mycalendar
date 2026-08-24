@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { DateTime } from "luxon";
 import { ChevronLeft, ChevronRight, Plus, RefreshCw, Search } from "lucide-react";
 import { toast } from "sonner";
@@ -171,8 +171,16 @@ function CalendarApp({
     }
   }, []);
 
+  const syncInflight = useRef(false);
+  const lastSilentSync = useRef(0);
+
   const sync = useCallback(
     async (silent = false) => {
+      if (silent) {
+        if (syncInflight.current) return;
+        if (Date.now() - lastSilentSync.current < 30_000) return;
+      }
+      syncInflight.current = true;
       if (!silent) setSyncing(true);
       try {
         await apiClient.sync(
@@ -180,15 +188,15 @@ function CalendarApp({
           silent ? range.to.toUTC().toISO() ?? undefined : undefined,
           !silent,
         );
-        await loadCalendars();
-        await loadEvents();
-        await loadTasks();
+        await Promise.all([loadCalendars(), loadEvents(), loadTasks()]);
+        lastSilentSync.current = Date.now();
         if (!silent) toast.success("Kalender aktualisiert.");
       } catch (err) {
         if (!handleAuthError(err, onLogout) && !silent) {
           toast.error(err instanceof ApiError ? err.message : "Aktualisierung fehlgeschlagen.");
         }
       } finally {
+        syncInflight.current = false;
         setSyncing(false);
       }
     },
@@ -202,6 +210,10 @@ function CalendarApp({
   useEffect(() => {
     loadEvents().catch((err) => handleAuthError(err, onLogout));
   }, [loadEvents, onLogout]);
+
+  useEffect(() => {
+    loadTasks().catch(() => undefined);
+  }, [loadTasks]);
 
   useEffect(() => {
     sync(true).catch(() => undefined);
@@ -223,11 +235,7 @@ function CalendarApp({
       if (document.visibilityState === "visible") sync(true).catch(() => undefined);
     };
     document.addEventListener("visibilitychange", onVis);
-    window.addEventListener("focus", onVis);
-    return () => {
-      document.removeEventListener("visibilitychange", onVis);
-      window.removeEventListener("focus", onVis);
-    };
+    return () => document.removeEventListener("visibilitychange", onVis);
   }, [sync]);
 
   const visibleEvents = useMemo(() => {

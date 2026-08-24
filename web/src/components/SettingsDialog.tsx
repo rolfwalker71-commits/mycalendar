@@ -465,6 +465,46 @@ export function SettingsDialog({
           {calNote ? <p className="text-xs text-muted-foreground">{calNote}</p> : null}
         </section>
         <section className="flex flex-col gap-2">
+          <h2 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Microsoft 365</h2>
+          {me.msConnected ? (
+            <>
+              <p className="text-xs text-muted-foreground">
+                Verbunden als {me.msEmail || "Microsoft-Konto"}. Kalender, To Do und Planner werden mitgeladen.
+              </p>
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => {
+                  void apiClient
+                    .disconnectMicrosoft()
+                    .then(() => {
+                      onMeChange({ ...me, msConnected: false, msEmail: null });
+                      toast.success("Microsoft getrennt.");
+                    })
+                    .catch((err) =>
+                      toast.error(err instanceof ApiError ? err.message : "Trennen fehlgeschlagen."),
+                    );
+                }}
+              >
+                Microsoft trennen
+              </Button>
+            </>
+          ) : me.msConfigured ? (
+            <>
+              <p className="text-xs text-muted-foreground">
+                Geschäftskalender, Planner und To Do für freigeschaltete Konten (z. B. an-group.one).
+              </p>
+              <a href="/api/auth/microsoft">
+                <Button className="w-full bg-[#0078D4] text-white hover:bg-[#006cbe]">Microsoft verbinden</Button>
+              </a>
+            </>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Nicht konfiguriert. In der <code>.env</code> MS_CLIENT_ID, MS_CLIENT_SECRET und ALLOWED_MS_EMAILS setzen.
+            </p>
+          )}
+        </section>
+        <section className="flex flex-col gap-2">
           <h2 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Google</h2>
           <p className="text-xs text-muted-foreground">
             Nach neuen Berechtigungen (Kontakte, Aufgaben, Gmail-Einstellungen) bitte neu anmelden. In der Cloud Console ggf. People API, Tasks API und Gmail API aktivieren.

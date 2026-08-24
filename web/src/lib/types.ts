@@ -72,6 +72,7 @@ export type CalendarEvent = {
   updatedAt?: string;
   coverUrl?: string | null;
   readOnly?: boolean;
+  source?: "google" | "microsoft" | "ics" | "birthday" | string;
 };
 
 export type ContactCard = {
@@ -113,6 +114,9 @@ export type Me = {
   secondTimezone: string | null;
   workingHours: WorkingHours | null;
   geminiAvailable: boolean;
+  msConfigured?: boolean;
+  msConnected?: boolean;
+  msEmail?: string | null;
 };
 
 export type ViewId = "day" | "week" | "month" | "year" | "agenda";

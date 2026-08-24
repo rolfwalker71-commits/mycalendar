@@ -93,6 +93,8 @@ export const apiClient = {
       body: JSON.stringify({ from, to }),
     }),
   logout: () => api<{ ok: boolean }>("/api/auth/logout", { method: "POST" }),
+  disconnectMicrosoft: () =>
+    api<{ ok: boolean }>("/api/auth/microsoft/disconnect", { method: "POST" }),
   calendars: () => api<{ calendars: CalendarItem[] }>("/api/calendars"),
   patchCalendar: (id: string, selected: boolean) =>
     api<{ id: string; selected: boolean }>(`/api/calendars/${id}`, {

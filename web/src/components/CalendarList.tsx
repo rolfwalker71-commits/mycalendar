@@ -18,9 +18,16 @@ export function CalendarList({
   onToggle: (id: string, selected: boolean) => void;
   onFeedsChanged?: () => void;
 }) {
-  const mine = calendars.filter((c) => (c.accessRole === "owner" || c.primary) && c.source !== "ics");
+  const mine = calendars.filter(
+    (c) =>
+      (c.accessRole === "owner" || c.primary) &&
+      c.source !== "ics" &&
+      c.source !== "microsoft" &&
+      !c.googleCalId.startsWith("ms:"),
+  );
+  const ms = calendars.filter((c) => c.source === "microsoft" || c.googleCalId.startsWith("ms:"));
   const ics = calendars.filter((c) => c.source === "ics" || c.googleCalId.startsWith("ics:"));
-  const other = calendars.filter((c) => !mine.includes(c) && !ics.includes(c));
+  const other = calendars.filter((c) => !mine.includes(c) && !ics.includes(c) && !ms.includes(c));
   const [url, setUrl] = useState("");
   const [name, setName] = useState("");
   const [feeds, setFeeds] = useState<{ id: string; url: string; name: string | null }[]>([]);
@@ -88,9 +95,20 @@ export function CalendarList({
       <AccordionItem value="mine">
         <AccordionTrigger>Meine Kalender</AccordionTrigger>
         <AccordionContent>
-          <Group items={mine.length ? mine : calendars.filter((c) => c.source !== "ics")} />
+          <Group items={mine.length ? mine : calendars.filter((c) => c.source !== "ics" && c.source !== "microsoft")} />
         </AccordionContent>
       </AccordionItem>
+      {ms.length ? (
+        <AccordionItem value="microsoft">
+          <AccordionTrigger>Microsoft 365</AccordionTrigger>
+          <AccordionContent>
+            <p className="mb-2 px-1 text-[0.6875rem] text-muted-foreground">
+              Geschäftskalender · Outlook-Blau
+            </p>
+            <Group items={ms} />
+          </AccordionContent>
+        </AccordionItem>
+      ) : null}
       {other.length ? (
         <AccordionItem value="other">
           <AccordionTrigger>Weitere</AccordionTrigger>

@@ -28,7 +28,7 @@ calendarsRouter.get("/", async (req, res) => {
       primary: c.primary_cal,
       accessRole: c.access_role,
       defaultReminders: c.default_reminders ?? [],
-      source: c.source ?? (c.google_cal_id.startsWith("ics:") ? "ics" : c.google_cal_id.startsWith("birthday:") ? "birthday" : "google"),
+      source: c.source ?? (c.google_cal_id.startsWith("ics:") ? "ics" : c.google_cal_id.startsWith("birthday:") ? "birthday" : c.google_cal_id.startsWith("ms:") ? "microsoft" : "google"),
     })),
   });
 });

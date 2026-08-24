@@ -7,6 +7,7 @@ import { HOUR_HEIGHT, minutesFromClick, packDayEvents } from "@/lib/layout";
 import type { CalendarEvent, TaskItem, WorkingHours } from "@/lib/types";
 import { EventChip, isDeclined } from "@/components/EventChip";
 import { Button } from "@/components/ui/button";
+import { DayOverlapBanner } from "@/components/DayOverlapBanner";
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 const WEEKDAY_KEYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
@@ -244,9 +245,16 @@ export function TimeGrid({
               className={cn(
                 "absolute overflow-hidden rounded-[3px] px-1.5 py-0.5 text-left text-xs leading-tight touch-none",
                 isDeclined(e) && "opacity-50 line-through",
+                e.source === "microsoft" && "border-l-[3px] border-l-[#0078D4]",
               )}
               style={{
-                ...eventChipStyle(e.backgroundColor),
+                ...(e.source === "microsoft"
+                  ? {
+                      ...eventChipStyle(e.backgroundColor || "#0078D4"),
+                      backgroundColor: "color-mix(in srgb, #0078D4 18%, var(--card))",
+                      color: "var(--foreground)",
+                    }
+                  : eventChipStyle(e.backgroundColor)),
                 top: e.top,
                 height: e.height,
                 left: `calc(3.25rem + ${(e.col / e.cols) * 100}% * 0.92)`,
@@ -319,6 +327,7 @@ export function DayView({
   return (
     <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <DayOverlapBanner day={day} events={events} onOpen={onOpen} />
         {tzBanner ? (
           <p className="px-3 py-1 text-xs text-muted-foreground">
             Manche Termine in {tzBanner.timezone}

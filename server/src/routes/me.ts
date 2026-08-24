@@ -3,7 +3,7 @@ import { requireAuth, clearSessionCookie, loadUserById } from "../auth.js";
 import { query } from "../db.js";
 import { GoogleAuthError, isAuthError } from "../google.js";
 import { syncUserEvents } from "../sync.js";
-import { TZ } from "../config.js";
+import { TZ, msConfigured } from "../config.js";
 import type { UserRow, WorkingHoursJson } from "../types.js";
 import { geminiAvailable, loadGeminiKey } from "../gemini.js";
 import { describeGoogleApiError, getAuthedCalendar } from "../google.js";
@@ -25,6 +25,9 @@ function meJson(u: UserRow) {
     secondTimezone: u.second_timezone,
     workingHours: u.working_hours,
     geminiAvailable: geminiAvailable(),
+    msConfigured: msConfigured(),
+    msConnected: Boolean(u.ms_refresh_token_enc),
+    msEmail: u.ms_email,
   };
 }
 

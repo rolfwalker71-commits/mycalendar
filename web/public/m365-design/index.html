@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>M365 Design · Kalender &amp; Mail</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #f4f4f5;
+        --fg: #18181b;
+        --card: #fff;
+        --muted: #71717a;
+        --check: #e4e4e7;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #18181b;
+          --fg: #fafafa;
+          --card: #27272a;
+          --muted: #a1a1aa;
+          --check: #3f3f46;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: system-ui, sans-serif;
+        background: var(--bg);
+        color: var(--fg);
+        padding: 1.5rem;
+        line-height: 1.45;
+      }
+      h1 {
+        font-size: 1.35rem;
+        margin: 0 0 0.35rem;
+      }
+      h2 {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--muted);
+        margin: 2rem 0 0.75rem;
+      }
+      p {
+        max-width: 44rem;
+        color: var(--muted);
+        margin: 0 0 1rem;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+        gap: 1rem;
+      }
+      .logos {
+        grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+      }
+      figure {
+        margin: 0;
+        background: var(--card);
+        border-radius: 1rem;
+        padding: 0.75rem;
+      }
+      figure img.mock {
+        width: 100%;
+        height: auto;
+        border-radius: 0.5rem;
+        display: block;
+      }
+      .swatches {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.4rem;
+      }
+      .swatch {
+        aspect-ratio: 1;
+        display: grid;
+        place-items: center;
+        border-radius: 0.75rem;
+        background: #fff;
+      }
+      .swatch.dark {
+        background: #1c1c1e;
+      }
+      .swatch.check {
+        background-image: linear-gradient(45deg, var(--check) 25%, transparent 25%),
+          linear-gradient(-45deg, var(--check) 25%, transparent 25%),
+          linear-gradient(45deg, transparent 75%, var(--check) 75%),
+          linear-gradient(-45deg, transparent 75%, var(--check) 75%);
+        background-size: 12px 12px;
+        background-position: 0 0, 0 6px, 6px -6px, -6px 0;
+      }
+      .swatch img {
+        width: 70%;
+        height: auto;
+      }
+      figcaption {
+        margin-top: 0.6rem;
+        font-size: 0.875rem;
+      }
+      figcaption span {
+        display: block;
+        color: var(--muted);
+        font-size: 0.8125rem;
+      }
+      ul {
+        max-width: 44rem;
+        color: var(--muted);
+      }
+      code {
+        font-size: 0.85em;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Microsoft 365 · Designvorschläge</h1>
+    <p>
+      Google bleibt privat. M365 (Kalender, Planner, To Do) für
+      <code>rolf.walker@an-group.one</code> — erweiterbar per Allowlist. Geschäftstermine
+      optisch getrennt; Überschneidungen oben in der Tagesansicht.
+    </p>
+
+    <h2>UI-Mockups</h2>
+    <div class="grid">
+      <figure>
+        <img class="mock" src="m365-mockup-a-sidebar-day.png" alt="" />
+        <figcaption>
+          <strong>A · Sidebar + Tag</strong>
+          <span>Google / M365 getrennt · Überschneidungsbanner</span>
+        </figcaption>
+      </figure>
+      <figure>
+        <img class="mock" src="m365-mockup-b-week-chips.png" alt="" />
+        <figcaption>
+          <strong>B · Woche</strong>
+          <span>M365-Chips mit blauem Akzentstreifen</span>
+        </figcaption>
+      </figure>
+      <figure>
+        <img class="mock" src="m365-mockup-c-mobile-overlap.png" alt="" />
+        <figcaption>
+          <strong>C · Mobile / PWA</strong>
+          <span>Overlap-Hinweis sticky · Karten mit Quelle</span>
+        </figcaption>
+      </figure>
+      <figure>
+        <img class="mock" src="m365-mockup-d-planner-todo.png" alt="" />
+        <figcaption>
+          <strong>D · Planner + To Do</strong>
+          <span>Board links, Aufgaben rechts</span>
+        </figcaption>
+      </figure>
+      <figure>
+        <img class="mock" src="m365-mockup-e-connect.png" alt="" />
+        <figcaption>
+          <strong>E · Verbinden</strong>
+          <span>Einstellungen · Scopes · Allowlist-Konto</span>
+        </figcaption>
+      </figure>
+    </div>
+
+    <h2>Darstellung Geschäftskalender</h2>
+    <ul>
+      <li><strong>Farbe:</strong> Outlook-Blau (#0078D4) als linker Streifen / Chip-Rand — Google bleibt bunt/warm.</li>
+      <li><strong>Quelle:</strong> kleines Pill „M365“ oder Windows-Quadrat, Tooltip mit Konto.</li>
+      <li><strong>Sidebar:</strong> zwei Blöcke „Google“ und „Microsoft 365“, getrennt wählbar.</li>
+      <li><strong>Overlap:</strong> oberhalb der Tageszeitleiste Banner mit Anzahl + kurzer Liste der Paare; Tippen scrollt zum Konflikt.</li>
+      <li><strong>Aktionen:</strong> wie Google — öffnen, verschieben (Drag), löschen (mit Bestätigung), Duplizieren wo Graph es zulässt.</li>
+      <li><strong>Responsive:</strong> Desktop Sidebar+Grid; PWA sticky Banner + Dock; Tablet wie Desktop mit schmalerer Sidebar.</li>
+    </ul>
+
+    <h2>.env (geplant)</h2>
+    <ul>
+      <li><code>MS_CLIENT_ID</code> / <code>MS_CLIENT_SECRET</code> / <code>MS_TENANT_ID</code></li>
+      <li><code>MS_REDIRECT_URI</code></li>
+      <li><code>ALLOWED_MS_EMAILS=rolf.walker@an-group.one</code></li>
+      <li>Scopes: Calendars.ReadWrite, Tasks.ReadWrite, Group.ReadWrite.All (Planner) — minimal halten</li>
+    </ul>
+
+    <p>Mockups: <code>web/public/m365-design/</code> · Logos: <code>web/public/logo-proposals/logo-m365-*</code></p>
+  </body>
+</html>

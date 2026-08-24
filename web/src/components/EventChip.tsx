@@ -74,9 +74,17 @@ export function EventChip({
         "flex w-full min-h-0 items-start gap-1 overflow-hidden rounded-[3px] px-1.5 text-left text-xs leading-snug whitespace-normal",
         compact ? "min-h-5 items-center py-0" : "min-h-6 py-0.5",
         declined && "opacity-50 line-through",
+        event.source === "microsoft" && "border-l-[3px] border-l-[#0078D4]",
         className,
       )}
-      style={eventChipStyle(event.backgroundColor)}
+      style={
+        event.source === "microsoft"
+          ? {
+              ...eventChipStyle(event.backgroundColor || "#0078D4"),
+              backgroundColor: "color-mix(in srgb, #0078D4 14%, var(--card))",
+            }
+          : eventChipStyle(event.backgroundColor)
+      }
       title={event.summary ?? "Ohne Titel"}
     >
       <span className="min-w-0 flex-1 break-words font-medium line-clamp-2">
