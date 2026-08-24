@@ -640,7 +640,7 @@ function CalendarApp({
         onOpen={onOpenEvent}
         onCreate={(s) => openNew(s)}
         onMove={onMove}
-        agendaBeside={desktop}
+        agendaBeside={false}
         secondTimezone={me.secondTimezone}
         workingHours={me.workingHours}
         tasks={tasks}
@@ -728,7 +728,6 @@ function CalendarApp({
               }
             }}
           />
-          <TasksView tasks={tasks} error={tasksError} onReload={() => void loadTasks()} compact />
           <div className="mt-auto flex min-h-11 items-center justify-between gap-3 pt-4">
             <Label className="text-muted-foreground">Dunkel</Label>
             <Switch checked={dark} onCheckedChange={(v) => setTheme(v ? "dark" : "light")} />
@@ -749,9 +748,21 @@ function CalendarApp({
             {main}
           </PullToRefresh>
         </div>
+        <aside className="hidden w-80 shrink-0 flex-col overflow-hidden border-l border-border lg:flex">
+          <div className="min-h-0 flex-1 overflow-auto p-4">
+            <TasksView
+              tasks={tasks}
+              error={tasksError}
+              onReload={() => void loadTasks()}
+              compact
+              composeOpen={taskCompose}
+              onComposeOpenChange={setTaskCompose}
+            />
+          </div>
+        </aside>
       </div>
       <Button
-        className="fixed right-4 z-40 size-14 rounded-full shadow-lg lg:bottom-6"
+        className="fixed right-4 z-40 size-14 rounded-full shadow-lg lg:right-[21.5rem] lg:bottom-6"
         style={{ bottom: desktop ? undefined : "calc(5.5rem + env(safe-area-inset-bottom))" }}
         size="icon"
         aria-label={tasksTab ? "Neue Aufgabe" : "Neuer Termin"}

@@ -6,6 +6,9 @@ import { DATABASE_URL } from "./config.js";
 
 const { Pool } = pg;
 
+/** Keep DATE columns as `yyyy-MM-dd` — JS Date midnight shifts the calendar day in non-UTC zones. */
+pg.types.setTypeParser(1082, (value) => value);
+
 if (!DATABASE_URL) {
   console.warn("DATABASE_URL fehlt — Datenbankverbindung wird fehlschlagen.");
 }

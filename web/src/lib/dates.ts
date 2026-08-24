@@ -25,10 +25,13 @@ export function fromISO(value: string | null | undefined): DateTime | null {
   return dt.isValid ? dt : null;
 }
 
-/** Normalizes date-only or Date-JSON (`…T00:00:00.000Z`) to `yyyy-MM-dd`. */
+/** Normalizes date-only or Date-JSON to `yyyy-MM-dd` without UTC day-shift for local midnights. */
 export function toIsoDate(value: string | null | undefined): string | null {
   if (!value) return null;
   if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  // Pure UTC midnight → calendar day is the UTC date (Google/Postgres DATE convention).
+  const utcMidnight = /^(\d{4}-\d{2}-\d{2})T00:00:00(?:\.000)?Z$/.exec(value);
+  if (utcMidnight) return utcMidnight[1];
   const dt = DateTime.fromISO(value, { setZone: true }).setZone(ZONE);
   return dt.isValid ? dt.toISODate() : value.slice(0, 10);
 }

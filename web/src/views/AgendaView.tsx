@@ -5,11 +5,6 @@ import { EventCardBody } from "@/components/EventCardBody";
 import { SwipeableEventCard } from "@/components/SwipeableEventCard";
 import { LineWeather } from "@/components/WeatherMark";
 
-function eventDayKey(e: CalendarEvent): string | null {
-  if (e.allDay) return toIsoDate(e.allDayStart) ?? toIsoDate(e.startAt);
-  return fromISO(e.startAt)?.toISODate() ?? null;
-}
-
 function sortDayEvents(items: CalendarEvent[]): CalendarEvent[] {
   return [...items].sort((a, b) => {
     if (a.allDay !== b.allDay) return a.allDay ? -1 : 1;
@@ -19,11 +14,37 @@ function sortDayEvents(items: CalendarEvent[]): CalendarEvent[] {
   });
 }
 
+/** Place each event on every agenda day it overlaps (all-day spans included). */
 function groupByDay(events: CalendarEvent[], from: DateTime) {
   const map = new Map<string, CalendarEvent[]>();
   const fromDay = from.setZone(ZONE).startOf("day");
+  const horizon = fromDay.plus({ days: 120 });
   for (const e of events) {
-    const key = eventDayKey(e);
+    if (e.allDay && e.allDayStart && e.allDayEnd) {
+      let day = DateTime.fromISO(toIsoDate(e.allDayStart) ?? e.allDayStart, { zone: ZONE }).startOf("day");
+      const endEx = DateTime.fromISO(toIsoDate(e.allDayEnd) ?? e.allDayEnd, { zone: ZONE }).startOf("day");
+      if (!day.isValid || !endEx.isValid) continue;
+      if (day < fromDay) day = fromDay;
+      for (; day < endEx && day < horizon; day = day.plus({ days: 1 })) {
+        const key = day.toISODate();
+        if (!key) continue;
+        const list = map.get(key) ?? [];
+        list.push(e);
+        map.set(key, list);
+      }
+      continue;
+    }
+    if (e.allDay) {
+      const key = toIsoDate(e.allDayStart) ?? toIsoDate(e.startAt);
+      if (!key) continue;
+      const day = DateTime.fromISO(key, { zone: ZONE });
+      if (!day.isValid || day < fromDay) continue;
+      const list = map.get(key) ?? [];
+      list.push(e);
+      map.set(key, list);
+      continue;
+    }
+    const key = fromISO(e.startAt)?.toISODate() ?? null;
     if (!key) continue;
     const day = DateTime.fromISO(key, { zone: ZONE });
     if (!day.isValid || day < fromDay) continue;

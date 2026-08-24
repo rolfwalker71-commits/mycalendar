@@ -24,15 +24,18 @@ import { loadContacts } from "./contacts.js";
 export const eventsRouter = Router();
 eventsRouter.use(requireAuth);
 
-/** pg DATE → JS Date often JSON-serializes as `…T00:00:00.000Z`; keep calendar `yyyy-MM-dd`. */
+/** Calendar date only — never shift via UTC midnight (breaks all-day overlap in Europe/Berlin). */
 function asIsoDate(value: string | Date | null | undefined): string | null {
   if (value == null) return null;
   if (typeof value === "string") {
     if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+    const m = /^(\d{4}-\d{2}-\d{2})/.exec(value);
+    if (m) return m[1];
     const dt = DateTime.fromISO(value, { setZone: true });
     return dt.isValid ? dt.setZone(TZ).toISODate() : value.slice(0, 10);
   }
-  return DateTime.fromJSDate(value, { zone: "utc" }).toISODate();
+  // Legacy: if a Date slips through, use app TZ calendar day (not UTC).
+  return DateTime.fromJSDate(value, { zone: TZ }).toISODate();
 }
 
 function handleGoogleError(res: import("express").Response, err: unknown): boolean {
