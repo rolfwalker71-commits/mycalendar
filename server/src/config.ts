@@ -85,7 +85,8 @@ export const MS_CLIENT_ID = process.env.MS_CLIENT_ID ?? "";
 export const MS_CLIENT_SECRET = process.env.MS_CLIENT_SECRET ?? "";
 export const MS_TENANT_ID = process.env.MS_TENANT_ID ?? "common";
 export const MS_REDIRECT_URI =
-  process.env.MS_REDIRECT_URI ?? "http://localhost:3366/api/auth/microsoft/callback";
+  process.env.MS_REDIRECT_URI ??
+  "https://gws.rolfwalker.ch/api/auth/microsoft/callback";
 
 export const ALLOWED_MS_EMAILS = (process.env.ALLOWED_MS_EMAILS ?? "")
   .split(",")
