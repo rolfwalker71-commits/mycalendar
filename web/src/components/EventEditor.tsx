@@ -756,17 +756,19 @@ export function EventEditor({
       ) : null}
       <LocationField id="location" value={location} onValueChange={setLocation} />
       {location ? <EventMapSnippet location={location} summary={summary} /> : null}
-      <div className="flex min-h-11 items-center justify-between gap-3">
-        <Label htmlFor="meet" className="flex items-center gap-2">
-          <Video className="size-4" />
-          Google Meet
-        </Label>
-        <Switch
-          id="meet"
-          checked={createMeet || Boolean(event?.hangoutLink)}
-          onCheckedChange={(v) => setCreateMeet(Boolean(v))}
-        />
-      </div>
+      {event?.source === "microsoft" ? null : (
+        <div className="flex min-h-11 items-center justify-between gap-3">
+          <Label htmlFor="meet" className="flex items-center gap-2">
+            <Video className="size-4" />
+            Google Meet
+          </Label>
+          <Switch
+            id="meet"
+            checked={createMeet || Boolean(event?.hangoutLink)}
+            onCheckedChange={(v) => setCreateMeet(Boolean(v))}
+          />
+        </div>
+      )}
       {event?.hangoutLink ? (
         <a
           href={event.hangoutLink}
@@ -774,7 +776,7 @@ export function EventEditor({
           target="_blank"
           rel="noreferrer"
         >
-          Meet-Link öffnen
+          {meetingKind(event) === "teams" ? "Teams-Link öffnen" : "Google-Meet-Link öffnen"}
         </a>
       ) : null}
       <div className="flex flex-col gap-1.5">
