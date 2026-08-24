@@ -33,6 +33,7 @@ import {
 import { apiClient, ApiError } from "@/lib/api";
 import { EventMapSnippet } from "@/components/EventMap";
 import { EventArtBanner } from "@/components/EventArt";
+import { EventSourceMark } from "@/components/EventSourceMark";
 import { LocationField } from "@/components/LocationField";
 import { nthWeekdayOfMonth, ZONE } from "@/lib/dates";
 import type { CalendarEvent, CalendarItem, EventAttachment, RecurrenceScope } from "@/lib/types";
@@ -988,9 +989,7 @@ export function EventEditor({
             <DialogHeader>
               <DialogTitle>
                 {event ? "Termin bearbeiten" : "Neuer Termin"}
-                {ms ? (
-                  <span className="ml-2 align-middle text-xs font-semibold text-[#0078D4]">M365</span>
-                ) : null}
+                <EventSourceMark source={event?.source ?? (ms ? "microsoft" : "google")} />
               </DialogTitle>
               <DialogDescription>
                 {ms
@@ -1027,7 +1026,7 @@ export function EventEditor({
         <SheetHeader>
           <SheetTitle>
             {event ? "Termin bearbeiten" : "Neuer Termin"}
-            {ms ? <span className="ml-2 text-xs font-semibold text-[#0078D4]">M365</span> : null}
+            <EventSourceMark source={event?.source ?? (ms ? "microsoft" : "google")} />
           </SheetTitle>
           <SheetDescription>
             {ms

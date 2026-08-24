@@ -4,6 +4,7 @@ import { parseFlightRoute } from "@/lib/flights";
 import type { CalendarEvent } from "@/lib/types";
 import { isDeclined } from "@/components/EventChip";
 import { EventArtBanner } from "@/components/EventArt";
+import { EventSourceMark } from "@/components/EventSourceMark";
 import { cn } from "@/lib/utils";
 
 function FlightPathLabel({ from, to }: { from: string; to: string }) {
@@ -64,11 +65,7 @@ export function EventCardBody({
         <div className="min-w-0 flex-1">
           <p className={cn("font-medium break-words", declined && "text-muted-foreground line-through")}>
             {event.summary || "Ohne Titel"}
-            {ms ? (
-              <span className="ml-2 inline-flex align-middle rounded bg-[#0078D4]/15 px-1.5 py-0.5 text-[0.625rem] font-semibold tracking-wide text-[#0078D4]">
-                M365
-              </span>
-            ) : null}
+            <EventSourceMark source={event.source} size="sm" />
           </p>
           <p className="mt-0.5 text-sm text-muted-foreground">{subtitle}</p>
           {event.location ? (
