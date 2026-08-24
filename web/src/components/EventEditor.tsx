@@ -34,6 +34,7 @@ import { apiClient, ApiError } from "@/lib/api";
 import { EventMapSnippet } from "@/components/EventMap";
 import { EventArtBanner } from "@/components/EventArt";
 import { EventSourceMark } from "@/components/EventSourceMark";
+import { meetingKind } from "@/components/MeetingLinkHint";
 import { LocationField } from "@/components/LocationField";
 import { nthWeekdayOfMonth, ZONE } from "@/lib/dates";
 import type { CalendarEvent, CalendarItem, EventAttachment, RecurrenceScope } from "@/lib/types";

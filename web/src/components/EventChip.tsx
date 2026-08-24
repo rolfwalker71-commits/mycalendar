@@ -1,9 +1,10 @@
 import { useRef } from "react";
-import { MapPin, Video } from "lucide-react";
+import { MapPin } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { eventChipStyle } from "@/lib/colors";
 import { formatTime, fromISO } from "@/lib/dates";
 import type { CalendarEvent } from "@/lib/types";
+import { MeetingChipIcon } from "@/components/MeetingLinkHint";
 
 const LONG_PRESS_MS = 480;
 
@@ -91,7 +92,9 @@ export function EventChip({
         {event.summary || "Ohne Titel"}
       </span>
       {!compact && event.location ? <MapPin className="size-3 shrink-0" /> : null}
-      {!compact && event.hangoutLink ? <Video className="size-3 shrink-0" /> : null}
+      {!compact ? (
+        <MeetingChipIcon source={event.source} hangoutLink={event.hangoutLink} />
+      ) : null}
       {!compact && !event.allDay ? (
         <span className="shrink-0 opacity-90">{time}</span>
       ) : null}

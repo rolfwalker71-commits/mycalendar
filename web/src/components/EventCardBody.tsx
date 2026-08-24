@@ -1,10 +1,11 @@
-import { MapPin, Plane, Video } from "lucide-react";
+import { MapPin, Plane } from "lucide-react";
 import { eventChipStyle } from "@/lib/colors";
 import { parseFlightRoute } from "@/lib/flights";
 import type { CalendarEvent } from "@/lib/types";
 import { isDeclined } from "@/components/EventChip";
 import { EventArtBanner } from "@/components/EventArt";
 import { EventSourceMark } from "@/components/EventSourceMark";
+import { MeetingLinkHint } from "@/components/MeetingLinkHint";
 import { cn } from "@/lib/utils";
 
 function FlightPathLabel({ from, to }: { from: string; to: string }) {
@@ -78,12 +79,7 @@ export function EventCardBody({
               )}
             </p>
           ) : null}
-          {event.hangoutLink ? (
-            <p className="mt-1 flex items-center gap-1 text-sm text-muted-foreground">
-              <Video className="size-3.5" />
-              Meet
-            </p>
-          ) : null}
+          <MeetingLinkHint source={event.source} hangoutLink={event.hangoutLink} />
         </div>
       </div>
       {!ms ? art : null}
