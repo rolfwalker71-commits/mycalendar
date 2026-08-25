@@ -421,9 +421,17 @@ function ThreadDetail({
   const [loadImages, setLoadImages] = useState(false);
   const [summary, setSummary] = useState<string | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
-  const first = thread.messages[0];
-  const last = thread.messages[thread.messages.length - 1];
-  if (!first || !last) {
+  const messagesAsc = useMemo(() => {
+    return [...thread.messages].sort((a, b) => {
+      const da = Number(a.internalDate) || Date.parse(a.date) || 0;
+      const db = Number(b.internalDate) || Date.parse(b.date) || 0;
+      return da - db;
+    });
+  }, [thread.messages]);
+  const oldest = messagesAsc[0];
+  const newest = messagesAsc[messagesAsc.length - 1];
+  const messagesNewestFirst = useMemo(() => [...messagesAsc].reverse(), [messagesAsc]);
+  if (!oldest || !newest) {
     return <p className="p-6 text-sm text-muted-foreground">Keine Nachrichten.</p>;
   }
   const hasRemoteImages = thread.messages.some((m) => /<img/i.test(m.html));
@@ -453,7 +461,7 @@ function ThreadDetail({
           </Button>
         ) : null}
         <h2 className="min-w-0 flex-1 break-words px-2 text-base font-semibold leading-snug line-clamp-2">
-          {first.subject || "(kein Betreff)"}
+          {newest.subject || oldest.subject || "(kein Betreff)"}
         </h2>
         <Button variant="ghost" size="icon" aria-label="Markieren" onClick={onToggleStar}>
           <Star className={cn("size-5", thread.starred ? "fill-amber-400 text-amber-400" : "text-mail")} />
@@ -464,10 +472,10 @@ function ThreadDetail({
         <Button variant="ghost" size="icon" aria-label="Löschen" onClick={onTrash}>
           <Trash2 className="size-5 text-mail" />
         </Button>
-        <Button variant="ghost" size="icon" aria-label="Antworten" onClick={() => onReply(last)}>
+        <Button variant="ghost" size="icon" aria-label="Antworten" onClick={() => onReply(newest)}>
           <Reply className="size-5 text-mail" />
         </Button>
-        <Button variant="ghost" size="icon" aria-label="Allen antworten" onClick={() => onReplyAll(last)}>
+        <Button variant="ghost" size="icon" aria-label="Allen antworten" onClick={() => onReplyAll(newest)}>
           <ReplyAll className="size-5 text-mail" />
         </Button>
         <DropdownMenu>
@@ -475,7 +483,7 @@ function ThreadDetail({
             <MoreHorizontal className="size-5 text-mail" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => onForward(last)}>
+            <DropdownMenuItem onClick={() => onForward(newest)}>
               <Forward className="size-4" />
               Weiterleiten
             </DropdownMenuItem>
@@ -494,11 +502,11 @@ function ThreadDetail({
               <BellOff className="size-4" />
               Stummschalten
             </DropdownMenuItem>
-            {last.from.email ? (
+            {newest.from.email ? (
               <DropdownMenuItem
                 onClick={() =>
                   void apiClient
-                    .mailBlock(last.from.email, thread.id)
+                    .mailBlock(newest.from.email, thread.id)
                     .then(() => toast.success("Absender blockiert."))
                     .catch((err) => toast.error(err instanceof ApiError ? err.message : "Blockieren fehlgeschlagen."))
                 }
@@ -624,7 +632,7 @@ function ThreadDetail({
             </Button>
           </div>
         ) : null}
-        {thread.messages.map((message) => (
+        {messagesNewestFirst.map((message) => (
           <article key={message.id} className="border-b border-border px-4 py-4">
             <div className="flex items-start gap-3">
               <MailAvatar addr={message.from} selfEmail={selfEmail} selfPhoto={selfPhoto} />

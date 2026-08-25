@@ -20,6 +20,14 @@ import {
 import type { Me } from "@/lib/types";
 import { useTheme } from "@/components/ThemeProvider";
 import type { Theme } from "@/lib/theme";
+import {
+  FONT_SCALE_MAX,
+  FONT_SCALE_MIN,
+  FONT_SCALE_STEP,
+  fontScalePercent,
+  persistFontScale,
+  readFontScale,
+} from "@/lib/fontScale";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -74,6 +82,7 @@ export function SettingsDialog({
   onThreadedChange: (next: boolean) => void;
 }) {
   const { theme, setTheme } = useTheme();
+  const [fontScale, setFontScale] = useState(readFontScale);
   const supported = pushSupported();
   const [subscribed, setSubscribed] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -97,6 +106,11 @@ export function SettingsDialog({
   const [whEnd, setWhEnd] = useState(me.workingHours?.days?.mon?.end ?? "17:00");
   const denied =
     supported && typeof Notification !== "undefined" && Notification.permission === "denied";
+
+  useEffect(() => {
+    if (!open) return;
+    setFontScale(readFontScale());
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -221,6 +235,29 @@ export function SettingsDialog({
               ))}
             </div>
           </div>
+          <div className="flex flex-col gap-2 pt-1">
+            <div className="flex items-center justify-between gap-3">
+              <Label htmlFor="font-scale">Schriftgröße</Label>
+              <span className="text-sm tabular-nums text-muted-foreground">{fontScalePercent(fontScale)}</span>
+            </div>
+            <input
+              id="font-scale"
+              type="range"
+              min={FONT_SCALE_MIN}
+              max={FONT_SCALE_MAX}
+              step={FONT_SCALE_STEP}
+              value={fontScale}
+              className="w-full accent-foreground"
+              onChange={(e) => {
+                const next = Number(e.target.value);
+                setFontScale(next);
+                persistFontScale(next);
+              }}
+            />
+            <p className="text-xs text-muted-foreground">
+              Listen, Termine, Mails und Kontakte skalieren mit — gilt sofort.
+            </p>
+          </div>
         </section>
         <section className="flex flex-col gap-2">
           <h2 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -269,7 +306,7 @@ export function SettingsDialog({
           <Row
             id="mail-threaded"
             title="Unterhaltungen gruppieren"
-            hint="Antworten zur selben Nachricht als Thread anzeigen"
+            hint="Antworten als Thread; neueste Nachricht oben. Aus = einzelne Mails."
             checked={threaded}
             onCheckedChange={onThreadedChange}
           />
