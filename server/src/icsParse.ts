@@ -181,7 +181,7 @@ export function extractEventFromText(subject: string, body: string): ParsedVEven
     );
     found = day.isValid;
   } else {
-    const wd = text.toLowerCase().match(/\b(montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag|mo|di|mi|do|fr|sa|so)\b/);
+    const wd = text.toLowerCase().match(/\b(montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag)\b/);
     if (wd) {
       const target = WEEKDAYS[wd[1] ?? ""];
       if (target != null) {
@@ -195,8 +195,7 @@ export function extractEventFromText(subject: string, body: string): ParsedVEven
 
   const timeMatch =
     text.match(/\b(\d{1,2})[:.](\d{2})\s*uhr\b/i) ||
-    text.match(/\b(\d{1,2})\s*uhr\b/i) ||
-    text.match(/\b(\d{1,2})[:.](\d{2})\b/);
+    text.match(/\b(\d{1,2})\s*uhr\b/i);
   let hour = 10;
   let minute = 0;
   let timed = false;

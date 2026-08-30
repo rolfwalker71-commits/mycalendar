@@ -11,6 +11,7 @@ import {
   readChromeStyle,
   type ChromeStyle,
 } from "@/lib/platform";
+import { applyTheme, readTheme } from "@/lib/theme";
 
 type ChromeContextValue = {
   chrome: ChromeStyle;
@@ -31,6 +32,7 @@ export function ChromeProvider({ children }: { children: ReactNode }) {
       chrome,
       setChrome(next) {
         persistChromeStyle(next);
+        applyTheme(readTheme());
         setChromeState(next);
       },
     }),

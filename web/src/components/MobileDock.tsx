@@ -1,10 +1,10 @@
 import type { ReactNode } from "react";
 import { CalendarDays, ListTodo, MoreHorizontal, Search, Sun } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { MobileTab } from "@/lib/types";
 import { useChrome } from "@/components/ChromeProvider";
-import { dockBarClass, dockItemClass, isIslandChrome } from "@/lib/platform";
+import { ChromeDockItem } from "@/components/ChromeDockItem";
+import { dockBarClass, isIslandChrome } from "@/lib/platform";
 
 const ITEMS: { id: MobileTab; label: string; icon: typeof Sun }[] = [
   { id: "today", label: "Agenda", icon: Sun },
@@ -34,24 +34,15 @@ export function MobileDock({
         className,
       )}
     >
-      {ITEMS.map((item) => {
-        const Icon = item.icon;
-        const active = value === item.id;
-        return (
-          <Button
-            key={item.id}
-            type="button"
-            variant="ghost"
-            onClick={() => onChange(item.id)}
-            className={cn(
-              dockItemClass(chrome, active),
-            )}
-          >
-            <Icon className="size-5" />
-            <span>{item.label}</span>
-          </Button>
-        );
-      })}
+      {ITEMS.map((item) => (
+        <ChromeDockItem
+          key={item.id}
+          active={value === item.id}
+          label={item.label}
+          icon={item.icon}
+          onClick={() => onChange(item.id)}
+        />
+      ))}
     </nav>
   );
 }

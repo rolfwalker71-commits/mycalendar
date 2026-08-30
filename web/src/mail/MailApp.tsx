@@ -48,7 +48,7 @@ import { Input } from "@/components/ui/input";
 import { apiClient, ApiError } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useChrome } from "@/components/ChromeProvider";
-import { fabClearance } from "@/lib/platform";
+import { fabClass, fabClearance } from "@/lib/platform";
 import type { Me } from "@/lib/types";
 import { ComposeSheet, type ComposeState } from "./ComposeSheet";
 import { MailAvatar } from "./MailAvatar";
@@ -458,31 +458,30 @@ function ThreadDetail({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <header className="flex items-center gap-1 border-b border-border px-2 py-2">
-        {showBack ? (
-          <Button variant="ghost" size="icon" aria-label="Zurück" onClick={onBack}>
-            <ArrowLeft className="size-5 text-mail" />
-          </Button>
-        ) : null}
-        <h2 className="min-w-0 flex-1 break-words px-2 text-base font-semibold leading-snug line-clamp-2">
-          {newest.subject || oldest.subject || "(kein Betreff)"}
-        </h2>
-        <Button variant="ghost" size="icon" aria-label="Markieren" onClick={onToggleStar}>
-          <Star className={cn("size-5", thread.starred ? "fill-amber-400 text-amber-400" : "text-mail")} />
-        </Button>
-        <Button variant="ghost" size="icon" aria-label="Archivieren" onClick={onArchive}>
-          <Archive className="size-5 text-mail" />
-        </Button>
-        <Button variant="ghost" size="icon" aria-label="Löschen" onClick={onTrash}>
-          <Trash2 className="size-5 text-mail" />
-        </Button>
-        <Button variant="ghost" size="icon" aria-label="Antworten" onClick={() => onReply(newest)}>
-          <Reply className="size-5 text-mail" />
-        </Button>
-        <Button variant="ghost" size="icon" aria-label="Allen antworten" onClick={() => onReplyAll(newest)}>
-          <ReplyAll className="size-5 text-mail" />
-        </Button>
-        <DropdownMenu>
+      <header className="flex flex-col gap-1 border-b border-border px-2 py-2">
+        <div className="flex items-center gap-0.5">
+          {showBack ? (
+            <Button variant="ghost" size="icon" className="shrink-0" aria-label="Zurück" onClick={onBack}>
+              <ArrowLeft className="size-5 text-mail" />
+            </Button>
+          ) : null}
+          <div className="ml-auto flex min-w-0 items-center">
+            <Button variant="ghost" size="icon" aria-label="Markieren" onClick={onToggleStar}>
+              <Star className={cn("size-5", thread.starred ? "fill-amber-400 text-amber-400" : "text-mail")} />
+            </Button>
+            <Button variant="ghost" size="icon" aria-label="Archivieren" onClick={onArchive}>
+              <Archive className="size-5 text-mail" />
+            </Button>
+            <Button variant="ghost" size="icon" aria-label="Löschen" onClick={onTrash}>
+              <Trash2 className="size-5 text-mail" />
+            </Button>
+            <Button variant="ghost" size="icon" aria-label="Antworten" onClick={() => onReply(newest)}>
+              <Reply className="size-5 text-mail" />
+            </Button>
+            <Button variant="ghost" size="icon" aria-label="Allen antworten" onClick={() => onReplyAll(newest)}>
+              <ReplyAll className="size-5 text-mail" />
+            </Button>
+            <DropdownMenu>
           <DropdownMenuTrigger render={<Button variant="ghost" size="icon" aria-label="Weitere Aktionen" />}>
             <MoreHorizontal className="size-5 text-mail" />
           </DropdownMenuTrigger>
@@ -546,7 +545,12 @@ function ThreadDetail({
               );
             })}
           </DropdownMenuContent>
-        </DropdownMenu>
+            </DropdownMenu>
+          </div>
+        </div>
+        <h2 className="break-words px-3 pb-1 text-base font-semibold leading-snug">
+          {newest.subject || oldest.subject || "(kein Betreff)"}
+        </h2>
       </header>
       <div className="min-h-0 flex-1 overflow-auto">
         {appliedUserLabels.length ? (
@@ -573,16 +577,16 @@ function ThreadDetail({
           available={geminiAvailable}
           onGenerate={() => void loadSummary()}
         />
-        {(thread.invites?.length || thread.eventHint) ? (
+        {thread.invites?.length ? (
           <div className="mx-4 mt-3 flex flex-col gap-2 rounded-xl bg-muted px-3 py-2">
-            {thread.invites?.map((inv) => (
+            {thread.invites.map((inv) => (
               <div key={`${inv.messageId}-${inv.attachmentId}`} className="flex items-center justify-between gap-2">
-                <span className="min-w-0 truncate text-sm">
+                <span className="min-w-0 break-words text-sm leading-snug">
                   {inv.events[0]?.summary || inv.filename}
                 </span>
                 <Button
                   variant="ghost"
-                  className="text-mail"
+                  className="shrink-0 text-mail"
                   onClick={() =>
                     void apiClient
                       .mailToEvent({ messageId: inv.messageId, attachmentId: inv.attachmentId })
@@ -597,35 +601,6 @@ function ThreadDetail({
                 </Button>
               </div>
             ))}
-            {!thread.invites?.length && thread.eventHint ? (
-              <div className="flex items-center justify-between gap-2">
-                <span className="min-w-0 truncate text-sm">{thread.eventHint.summary}</span>
-                <Button
-                  variant="ghost"
-                  className="text-mail"
-                  onClick={() =>
-                    void apiClient
-                      .mailToEvent({
-                        event: {
-                          summary: thread.eventHint!.summary,
-                          start: thread.eventHint!.start,
-                          end: thread.eventHint!.end,
-                          allDay: thread.eventHint!.allDay,
-                          location: thread.eventHint!.location,
-                          description: thread.eventHint!.description,
-                        },
-                      })
-                      .then(() => toast.success("Termin liegt im Kalender."))
-                      .catch((err) =>
-                        toast.error(err instanceof ApiError ? err.message : "Termin fehlgeschlagen."),
-                      )
-                  }
-                >
-                  <CalendarPlus className="size-4" />
-                  Vorschlag übernehmen
-                </Button>
-              </div>
-            ) : null}
           </div>
         ) : null}
         {hasRemoteImages && !loadImages ? (
@@ -1590,7 +1565,10 @@ export function MailApp({
       ) : (
         <>
           <Button
-            className="fixed right-4 z-40 size-14 rounded-full bg-mail text-mail-foreground shadow-lg hover:bg-mail/90 lg:bottom-6"
+            className={cn(
+              "fixed right-4 z-40 bg-mail text-mail-foreground hover:bg-mail/90 lg:bottom-6",
+              fabClass(chrome),
+            )}
             style={{
               bottom: desktop ? undefined : fabClearance(chrome, 1),
             }}

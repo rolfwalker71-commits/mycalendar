@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useChrome } from "@/components/ChromeProvider";
-import { fabClearance, listTileClass } from "@/lib/platform";
+import { fabClass, fabClearance, listTileClass } from "@/lib/platform";
 import { AppLogo } from "@/components/AppLogo";
 import { AppSwitcher } from "@/components/AppSwitcher";
 import { MobileBottomStack } from "@/components/MobileDock";
@@ -512,7 +512,7 @@ export function ContactsView({
         {me.name || me.email} · Tippen öffnet den Kontakt. Bearbeiten ändert ihn in Google Kontakte.
       </p>
       <Button
-        className="fixed right-4 z-40 size-14 rounded-full shadow-lg bottom-[var(--fab-clearance)] lg:!bottom-6"
+        className={cn("fixed right-4 z-40 bottom-[var(--fab-clearance)] lg:!bottom-6", fabClass(chrome))}
         style={{ ["--fab-clearance" as string]: fabClearance(chrome, 1) }}
         size="icon"
         aria-label="Neuer Kontakt"

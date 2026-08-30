@@ -1,9 +1,9 @@
 import { CalendarDays, Mail, Users } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { AppModule } from "@/mail/types";
 import { useChrome } from "@/components/ChromeProvider";
-import { dockBarClass, dockItemClass } from "@/lib/platform";
+import { ChromeDockItem } from "@/components/ChromeDockItem";
+import { dockBarClass } from "@/lib/platform";
 
 const ITEMS: { id: AppModule; label: string; icon: typeof CalendarDays }[] = [
   { id: "calendar", label: "Kalender", icon: CalendarDays },
@@ -30,24 +30,15 @@ export function ModuleDock({
         className,
       )}
     >
-      {ITEMS.map((item) => {
-        const Icon = item.icon;
-        const active = value === item.id;
-        return (
-          <Button
-            key={item.id}
-            type="button"
-            variant="ghost"
-            onClick={() => onChange(item.id)}
-            className={cn(
-              dockItemClass(chrome, active),
-            )}
-          >
-            <Icon className="size-5" />
-            <span>{item.label}</span>
-          </Button>
-        );
-      })}
+      {ITEMS.map((item) => (
+        <ChromeDockItem
+          key={item.id}
+          active={value === item.id}
+          label={item.label}
+          icon={item.icon}
+          onClick={() => onChange(item.id)}
+        />
+      ))}
     </nav>
   );
 }

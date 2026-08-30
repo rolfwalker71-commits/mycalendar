@@ -15,8 +15,15 @@
             t === "dark" ||
             (t === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
           if (dark) document.documentElement.classList.add("dark");
+          var chrome = localStorage.getItem("kalender-chrome");
+          if (chrome === "ios" || chrome === "android" || chrome === "desktop") {
+            document.documentElement.dataset.chrome = chrome;
+          }
+          var color = dark ? "#1c1c1e" : "#ffffff";
+          if (chrome === "android") color = dark ? "#141218" : "#f7f2fa";
+          else if (chrome === "desktop") color = dark ? "#202020" : "#f3f3f3";
           var c = document.getElementById("theme-color");
-          if (c) c.setAttribute("content", dark ? "#1c1c1e" : "#ffffff");
+          if (c) c.setAttribute("content", color);
         } catch (e) {}
       })();
     </script>

@@ -9,9 +9,9 @@ import { applyChromeStyle, readChromeStyle } from "@/lib/platform";
 import { ChromeProvider } from "@/components/ChromeProvider";
 import "./index.css";
 
-applyTheme(readTheme());
 applyFontScale(readFontScale());
 applyChromeStyle(readChromeStyle());
+applyTheme(readTheme());
 registerSW({ immediate: true });
 
 createRoot(document.getElementById("root")!).render(

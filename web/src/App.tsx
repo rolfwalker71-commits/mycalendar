@@ -66,7 +66,7 @@ import { useLiveSync } from "@/lib/liveSync";
 import { useTheme } from "@/components/ThemeProvider";
 import { useChrome } from "@/components/ChromeProvider";
 import { ChromeSwitcher } from "@/components/ChromeSwitcher";
-import { fabClearance, panelClass } from "@/lib/platform";
+import { fabClass, fabClearance, panelClass } from "@/lib/platform";
 import { PullToRefresh } from "@/components/PullToRefresh";
 import { DateField, TimeField } from "@/components/DateTimeFields";
 import { cn } from "@/lib/utils";
@@ -768,7 +768,7 @@ function CalendarApp({
         </aside>
       </div>
       <Button
-        className="fixed right-4 z-40 size-14 rounded-full shadow-lg lg:right-[21.5rem] lg:bottom-6"
+        className={cn("fixed right-4 z-40 lg:right-[21.5rem] lg:bottom-6", fabClass(chrome))}
         style={{
           bottom: desktop
             ? undefined
