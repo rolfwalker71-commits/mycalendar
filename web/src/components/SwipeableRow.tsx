@@ -212,7 +212,7 @@ export function SwipeableRow({
   }, [x]);
 
   return (
-    <div ref={rootRef} className={cn("relative overflow-hidden rounded-2xl bg-card", className)}>
+    <div ref={rootRef} className={cn("relative overflow-hidden rounded-[var(--tile-radius)] bg-card", className)}>
       <div className="absolute inset-y-0 right-0 flex">
         {actions.map((action) => (
           <button

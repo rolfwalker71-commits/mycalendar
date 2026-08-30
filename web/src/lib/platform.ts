@@ -1,32 +1,34 @@
-export type AppPlatform = "ios" | "android" | "desktop";
-export type ChromeStyle = AppPlatform;
+export type ChromeStyle = "ios" | "android" | "desktop";
+export type ChromePreference = "auto" | ChromeStyle;
 
 export const CHROME_KEY = "kalender-chrome";
+export const DESKTOP_MQ = "(min-width: 1024px)";
 
-export const CHROME_OPTIONS: { value: ChromeStyle; label: string; hint: string }[] = [
-  { value: "ios", label: "iOS", hint: "Schwebende Inseln, SF-ähnlich, starke Rundungen" },
-  {
-    value: "android",
-    label: "Android",
-    hint: "Material You 3 Expressive — folgt Hell/Dunkel, nicht der Wallpaper-Farbe",
-  },
-  { value: "desktop", label: "Windows", hint: "Fluent 2 — Mica-ähnlich, Accent-Linie, eckiger" },
+export const CHROME_OPTIONS: { value: ChromePreference; label: string; hint: string }[] = [
+  { value: "auto", label: "Auto", hint: "Handy = Material You 3 Expressive, PC = Fluent 2" },
+  { value: "android", label: "Android", hint: "Material You 3 Expressive — tonal, Pills, Squircle-FAB" },
+  { value: "desktop", label: "Windows", hint: "Fluent 2 — Mica, Accent-Linie, kompakte Radien" },
+  { value: "ios", label: "iOS", hint: "Nur zum Vergleich — Inseln und graue Flächen" },
 ];
 
-export function detectAppPlatform(): AppPlatform {
-  if (typeof navigator === "undefined") return "desktop";
-  const ua = navigator.userAgent;
-  if (/iPhone|iPad|iPod/i.test(ua)) return "ios";
-  if (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1) return "ios";
-  if (/Android/i.test(ua)) return "android";
-  return "desktop";
+export function isWideViewport(): boolean {
+  return typeof window !== "undefined" && window.matchMedia(DESKTOP_MQ).matches;
+}
+
+export function readChromePreference(): ChromePreference {
+  if (typeof window === "undefined") return "auto";
+  const value = window.localStorage.getItem(CHROME_KEY);
+  if (value === "auto" || value === "ios" || value === "android" || value === "desktop") return value;
+  return "auto";
+}
+
+export function resolveChromeStyle(pref: ChromePreference, wide = isWideViewport()): ChromeStyle {
+  if (pref === "ios" || pref === "android" || pref === "desktop") return pref;
+  return wide ? "desktop" : "android";
 }
 
 export function readChromeStyle(): ChromeStyle {
-  if (typeof window === "undefined") return "desktop";
-  const value = window.localStorage.getItem(CHROME_KEY);
-  if (value === "ios" || value === "android" || value === "desktop") return value;
-  return detectAppPlatform();
+  return resolveChromeStyle(readChromePreference());
 }
 
 export function applyChromeStyle(style: ChromeStyle): void {
@@ -34,9 +36,16 @@ export function applyChromeStyle(style: ChromeStyle): void {
   document.documentElement.dataset.chrome = style;
 }
 
+export function persistChromePreference(pref: ChromePreference): ChromeStyle {
+  window.localStorage.setItem(CHROME_KEY, pref);
+  const resolved = resolveChromeStyle(pref);
+  applyChromeStyle(resolved);
+  return resolved;
+}
+
+/** @deprecated use persistChromePreference */
 export function persistChromeStyle(style: ChromeStyle): void {
-  window.localStorage.setItem(CHROME_KEY, style);
-  applyChromeStyle(style);
+  persistChromePreference(style);
 }
 
 export function isIslandChrome(style: ChromeStyle): boolean {
@@ -62,8 +71,8 @@ export function dockItemClass(style: ChromeStyle, active: boolean): string {
 
 export function listTileClass(style: ChromeStyle): string {
   if (style === "ios") return "rounded-2xl shadow-lg shadow-black/10 ring-1 ring-border";
-  if (style === "android") return "rounded-3xl shadow-none ring-0";
-  return "rounded-md shadow-none ring-1 ring-border/80";
+  if (style === "android") return "rounded-[var(--tile-radius)] shadow-none ring-0";
+  return "rounded-[var(--tile-radius)] shadow-none ring-1 ring-border/80";
 }
 
 export function panelClass(style: ChromeStyle): string {
@@ -76,7 +85,6 @@ export function fabClass(style: ChromeStyle): string {
   return "size-12 rounded-md shadow-sm";
 }
 
-/** Space above the bottom chrome so the FAB stays clear of the docks. */
 export function fabClearance(style: ChromeStyle, docks: 1 | 2): string {
   if (style === "ios") {
     return docks === 2
