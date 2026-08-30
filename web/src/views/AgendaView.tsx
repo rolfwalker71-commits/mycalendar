@@ -3,6 +3,8 @@ import { formatTime, fromISO, isSameDay, now, toIsoDate, ZONE } from "@/lib/date
 import type { CalendarEvent } from "@/lib/types";
 import { EventCardBody } from "@/components/EventCardBody";
 import { SwipeableEventCard } from "@/components/SwipeableEventCard";
+import { listTileClass } from "@/lib/platform";
+import { useChrome } from "@/components/ChromeProvider";
 import { LineWeather } from "@/components/WeatherMark";
 
 function sortDayEvents(items: CalendarEvent[]): CalendarEvent[] {
@@ -72,6 +74,7 @@ export function AgendaView({
   onDuplicate: (e: CalendarEvent) => void;
   onMove: (e: CalendarEvent) => void;
 }) {
+  const { chrome } = useChrome();
   const groups = groupByDay(events, from);
   const today = now();
 
@@ -121,7 +124,7 @@ export function AgendaView({
                       onDelete={() => onDelete(event)}
                       onDuplicate={() => onDuplicate(event)}
                       onMove={() => onMove(event)}
-                      className="shadow-lg shadow-black/10 ring-1 ring-border"
+                      className={listTileClass(chrome)}
                     >
                       <EventCardBody event={event} subtitle={subtitle} />
                     </SwipeableEventCard>

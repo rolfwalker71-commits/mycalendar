@@ -7,6 +7,8 @@ import type { CalendarEvent } from "@/lib/types";
 import { toast } from "sonner";
 import { EventCardBody } from "@/components/EventCardBody";
 import { SwipeableEventCard } from "@/components/SwipeableEventCard";
+import { useChrome } from "@/components/ChromeProvider";
+import { listTileClass } from "@/lib/platform";
 
 export function SearchView({
   onOpen,
@@ -19,6 +21,7 @@ export function SearchView({
   onDuplicate: (e: CalendarEvent) => void;
   onMove: (e: CalendarEvent) => void;
 }) {
+  const { chrome } = useChrome();
   const [q, setQ] = useState("");
   const [results, setResults] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(false);
@@ -73,7 +76,7 @@ export function SearchView({
               onDelete={() => onDelete(event)}
               onDuplicate={() => onDuplicate(event)}
               onMove={() => onMove(event)}
-              className="shadow-lg shadow-black/10 ring-1 ring-border"
+              className={listTileClass(chrome)}
             >
               <EventCardBody
                 event={event}

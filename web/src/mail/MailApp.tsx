@@ -47,6 +47,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { apiClient, ApiError } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { useChrome } from "@/components/ChromeProvider";
+import { fabClearance } from "@/lib/platform";
 import type { Me } from "@/lib/types";
 import { ComposeSheet, type ComposeState } from "./ComposeSheet";
 import { MailAvatar } from "./MailAvatar";
@@ -712,6 +714,7 @@ export function MailApp({
   onComposeToConsumed?: () => void;
 }) {
   const desktop = useDesktop();
+  const { chrome } = useChrome();
   const [labels, setLabels] = useState<MailLabel[]>(
     () => readJsonCache<MailLabel[]>(MAIL_LABELS_CACHE, 30 * 60 * 1000) ?? [],
   );
@@ -1589,7 +1592,7 @@ export function MailApp({
           <Button
             className="fixed right-4 z-40 size-14 rounded-full bg-mail text-mail-foreground shadow-lg hover:bg-mail/90 lg:bottom-6"
             style={{
-              bottom: desktop ? undefined : "calc(5.5rem + env(safe-area-inset-bottom))",
+              bottom: desktop ? undefined : fabClearance(chrome, 1),
             }}
             size="icon"
             aria-label="Neue Nachricht"

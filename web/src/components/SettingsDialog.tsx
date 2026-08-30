@@ -19,6 +19,7 @@ import {
 } from "@/lib/push";
 import type { Me } from "@/lib/types";
 import { useTheme } from "@/components/ThemeProvider";
+import { ChromeSwitcher } from "@/components/ChromeSwitcher";
 import type { Theme } from "@/lib/theme";
 import {
   FONT_SCALE_MAX,
@@ -234,6 +235,10 @@ export function SettingsDialog({
                 </button>
               ))}
             </div>
+          </div>
+          <div className="flex flex-col gap-1.5 pt-1">
+            <Label>Oberfläche</Label>
+            <ChromeSwitcher />
           </div>
           <div className="flex flex-col gap-2 pt-1">
             <div className="flex items-center justify-between gap-3">

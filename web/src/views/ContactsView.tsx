@@ -16,6 +16,8 @@ import {
   UserPlus,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useChrome } from "@/components/ChromeProvider";
+import { fabClearance, listTileClass } from "@/lib/platform";
 import { AppLogo } from "@/components/AppLogo";
 import { AppSwitcher } from "@/components/AppSwitcher";
 import { MobileBottomStack } from "@/components/MobileDock";
@@ -87,12 +89,13 @@ function ContactRow({
   onAdopt?: (contact: ContactCard) => void;
   adopting?: boolean;
 }) {
+  const { chrome } = useChrome();
   const email = contact.emails[0];
   const phone = contact.phones[0]?.value;
   const address = contact.addresses[0];
   const bday = birthdayLabel(contact.birthday);
   return (
-    <li className="overflow-hidden rounded-2xl bg-card shadow-lg shadow-black/10 ring-1 ring-border">
+    <li className={cn("overflow-hidden bg-card", listTileClass(chrome))}>
       <button
         type="button"
         className="flex min-h-11 w-full items-center gap-3 px-4 py-3 text-left hover:bg-muted"
@@ -203,6 +206,7 @@ export function ContactsView({
   onOpenSettings: () => void;
   onMailTo: (email: string) => void;
 }) {
+  const { chrome } = useChrome();
   const [contacts, setContacts] = useState<ContactCard[]>([]);
   const [other, setOther] = useState<ContactCard[]>([]);
   const [q, setQ] = useState("");
@@ -508,7 +512,8 @@ export function ContactsView({
         {me.name || me.email} · Tippen öffnet den Kontakt. Bearbeiten ändert ihn in Google Kontakte.
       </p>
       <Button
-        className="fixed right-4 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-40 size-14 rounded-full shadow-lg lg:bottom-6"
+        className="fixed right-4 z-40 size-14 rounded-full shadow-lg bottom-[var(--fab-clearance)] lg:!bottom-6"
+        style={{ ["--fab-clearance" as string]: fabClearance(chrome, 1) }}
         size="icon"
         aria-label="Neuer Kontakt"
         onClick={() => openEditor()}

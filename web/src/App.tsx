@@ -64,6 +64,9 @@ import { ContactsView } from "@/views/ContactsView";
 import type { AppModule } from "@/mail/types";
 import { useLiveSync } from "@/lib/liveSync";
 import { useTheme } from "@/components/ThemeProvider";
+import { useChrome } from "@/components/ChromeProvider";
+import { ChromeSwitcher } from "@/components/ChromeSwitcher";
+import { fabClearance, panelClass } from "@/lib/platform";
 import { PullToRefresh } from "@/components/PullToRefresh";
 import { DateField, TimeField } from "@/components/DateTimeFields";
 import { cn } from "@/lib/utils";
@@ -105,6 +108,7 @@ function CalendarApp({
 }) {
   const desktop = useDesktop();
   const { setTheme, dark } = useTheme();
+  const { chrome } = useChrome();
   const [weekStart, setWeekStart] = useState<0 | 1>(me.weekStart);
   const [cursor, setCursor] = useState(() => now());
   const [view, setView] = useState<ViewId>(desktop ? "week" : "agenda");
@@ -539,7 +543,8 @@ function CalendarApp({
       <div className="flex flex-col gap-6 px-4 py-4 pb-44">
         <section>
           <h2 className="mb-2 text-sm font-medium text-muted-foreground">Darstellung</h2>
-          <div className="rounded-2xl bg-card p-4 shadow-lg shadow-black/10 ring-1 ring-border">
+          <div className={cn("p-4", panelClass(chrome))}>
+            <ChromeSwitcher className="mb-3" />
             <div className="flex min-h-11 items-center justify-between gap-3">
               <Label>Dunkles Design</Label>
               <Switch
@@ -563,7 +568,7 @@ function CalendarApp({
         </section>
         <section>
           <h2 className="mb-2 text-sm font-medium text-muted-foreground">Kalender</h2>
-          <div className="rounded-2xl bg-card p-3 shadow-lg shadow-black/10 ring-1 ring-border">
+          <div className={cn("p-3", panelClass(chrome))}>
             <CalendarList
               calendars={calendars}
               onFeedsChanged={() => void loadCalendars().then(() => loadEvents())}
@@ -767,7 +772,7 @@ function CalendarApp({
         style={{
           bottom: desktop
             ? undefined
-            : "calc(10.25rem + env(safe-area-inset-bottom))",
+            : fabClearance(chrome, 2),
         }}
         size="icon"
         aria-label={tasksTab ? "Neue Aufgabe" : "Neuer Termin"}

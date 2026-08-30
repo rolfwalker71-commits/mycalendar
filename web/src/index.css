@@ -124,6 +124,12 @@ select {
   padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
 }
 
+html[data-chrome="android"] .nav-dock,
+html[data-chrome="desktop"] .nav-dock {
+  padding-inline: 0;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
 input[type="date"][data-empty="true"]:not(:focus)::-webkit-datetime-edit,
 input[type="time"][data-empty="true"]:not(:focus)::-webkit-datetime-edit,
 input[type="date"][data-empty="true"]:not(:focus)::-webkit-datetime-edit-fields-wrapper,

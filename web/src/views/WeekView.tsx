@@ -6,6 +6,8 @@ import { eventOverlapsDay } from "@/lib/dates";
 import type { CalendarEvent, TaskItem, WorkingHours } from "@/lib/types";
 import { TimeGrid } from "@/views/DayView";
 import { DayWeather } from "@/components/WeatherMark";
+import { useChrome } from "@/components/ChromeProvider";
+import { listTileClass } from "@/lib/platform";
 
 export function WeekView({
   cursor,
@@ -32,6 +34,7 @@ export function WeekView({
   tasks?: TaskItem[];
   onToggleTask?: (task: TaskItem) => void;
 }) {
+  const { chrome } = useChrome();
   const start = startOfWeek(cursor, weekStart);
   const days = Array.from({ length: 7 }, (_, i) => start.plus({ days: i }));
   const labels = weekdayShort(weekStart);
@@ -60,7 +63,7 @@ export function WeekView({
           {days.map((day, i) => (
             <div
               key={day.toISODate()}
-              className="flex min-h-0 min-w-[12rem] shrink-0 flex-col rounded-2xl bg-card p-2 ring-1 ring-border"
+              className={cn("flex min-h-0 min-w-[12rem] shrink-0 flex-col bg-card p-2", listTileClass(chrome))}
             >
               <div className="mb-2 flex items-center justify-between gap-1 px-1">
                 <span className="flex min-w-0 items-center gap-1">
