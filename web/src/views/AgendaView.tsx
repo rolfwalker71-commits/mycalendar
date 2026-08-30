@@ -87,7 +87,7 @@ export function AgendaView({
   }
 
   return (
-    <div className="flex flex-col gap-6 pb-28 lg:pb-6">
+    <div className="flex flex-col gap-6 pb-44 lg:pb-6">
       {groups.map(([iso, items]) => {
         const day = DateTime.fromISO(iso, { zone: ZONE }).setLocale("de");
         return (

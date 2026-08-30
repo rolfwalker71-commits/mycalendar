@@ -16,8 +16,9 @@ import { Label } from "@/components/ui/label";
 import { LoginScreen } from "@/components/LoginScreen";
 import { AppLogo } from "@/components/AppLogo";
 import { AppSwitcher } from "@/components/AppSwitcher";
-import { MobileDock } from "@/components/MobileDock";
-import { MiniMonth, MiniNavigator, type MiniRange } from "@/components/MiniMonth";
+import { MobileBottomStack, MobileDock } from "@/components/MobileDock";
+import { ModuleDock } from "@/components/ModuleDock";
+import { MiniNavigator, type MiniRange } from "@/components/MiniMonth";
 import { CalendarList } from "@/components/CalendarList";
 import { ViewSwitcher } from "@/components/ViewSwitcher";
 import { EventEditor, type EditorState } from "@/components/EventEditor";
@@ -244,11 +245,12 @@ function CalendarApp({
   }, [calendars, events, me.hideDeclined]);
 
   function shift(dir: number) {
-    if (view === "day" || view === "agenda" || (!desktop && mobileTab === "today")) {
+    const v = effectiveView;
+    if (v === "day" || v === "agenda") {
       setCursor((c) => c.plus({ days: dir }));
-    } else if (view === "week") {
+    } else if (v === "week") {
       setCursor((c) => c.plus({ weeks: dir }));
-    } else if (view === "year") {
+    } else if (v === "year") {
       setCursor((c) => c.plus({ years: dir }));
     } else {
       setCursor((c) => c.plus({ months: dir }));
@@ -396,32 +398,30 @@ function CalendarApp({
     return () => window.removeEventListener("keydown", onKey);
   });
 
-  const dayHeading = view === "day" || view === "agenda" || (!desktop && mobileTab === "today");
-  const agendaHeading = view === "agenda" || (!desktop && mobileTab === "today");
+  const dayHeading =
+    effectiveView === "day" || effectiveView === "agenda" || (!desktop && mobileTab === "today");
+  const agendaHeading = effectiveView === "agenda" || (!desktop && mobileTab === "today");
   const tasksTab = !desktop && mobileTab === "tasks";
   const title = useMemo(() => {
     if (tasksTab) return "Aufgaben";
     if (dayHeading) return dayTitleParts(cursor);
-    if (view === "year") return String(cursor.year);
-    if (view === "week") {
+    if (effectiveView === "year") return String(cursor.year);
+    if (effectiveView === "week") {
       const s = startOfWeek(cursor, weekStart);
-      return `${s.toFormat("d.")}–${s.plus({ days: 6 }).toFormat("d. LLLL yyyy")}`;
+      const kw = s.weekNumber;
+      return `KW ${kw} · ${s.toFormat("d.")}–${s.plus({ days: 6 }).toFormat("d. LLLL yyyy")}`;
     }
     return monthTitle(cursor);
-  }, [cursor, dayHeading, tasksTab, view, weekStart]);
+  }, [cursor, dayHeading, effectiveView, tasksTab, weekStart]);
 
   const header = (
     <header className="flex flex-col gap-2 border-b border-border px-3 py-2 lg:flex-row lg:items-center lg:gap-3 lg:px-6 lg:py-3">
-      <div className="flex items-center gap-2 lg:hidden">
-        <AppLogo className="size-8" size={32} />
-        <AppSwitcher className="flex-1" value={module} onChange={onModule} />
-      </div>
-      <div className="flex items-center gap-1 lg:gap-2">
+      <div className="flex min-w-0 items-center gap-1 lg:gap-2">
         {tasksTab ? null : (
           <>
             <Button
               variant="outline"
-              className="h-8 min-h-8 px-2.5 text-[0.8125rem] lg:h-11 lg:min-h-11 lg:px-4 lg:text-sm"
+              className="h-8 min-h-8 shrink-0 px-2.5 text-[0.8125rem] lg:h-11 lg:min-h-11 lg:px-4 lg:text-sm"
               onClick={() => setCursor(now())}
             >
               Heute
@@ -429,7 +429,7 @@ function CalendarApp({
             <Button
               variant="ghost"
               size="icon"
-              className="size-8 lg:size-11"
+              className="size-8 shrink-0 lg:size-11"
               aria-label="Zurück"
               onClick={() => shift(-1)}
             >
@@ -438,7 +438,7 @@ function CalendarApp({
             <Button
               variant="ghost"
               size="icon"
-              className="size-8 lg:size-11"
+              className="size-8 shrink-0 lg:size-11"
               aria-label="Weiter"
               onClick={() => shift(1)}
             >
@@ -446,7 +446,7 @@ function CalendarApp({
             </Button>
           </>
         )}
-        <h1 className="min-w-0 flex-1 text-base font-semibold tracking-tight capitalize leading-tight lg:text-xl">
+        <h1 className="min-w-0 flex-1 break-words text-base font-semibold tracking-tight capitalize leading-tight lg:text-xl">
           {typeof title === "string" ? (
             title
           ) : agendaHeading ? (
@@ -464,7 +464,7 @@ function CalendarApp({
         <Button
           variant="ghost"
           size="icon"
-          className="size-8 lg:size-11"
+          className="size-8 shrink-0 lg:size-11"
           aria-label="Aktualisieren"
           disabled={syncing}
           onClick={() => void sync()}
@@ -536,7 +536,7 @@ function CalendarApp({
     main = <SearchView onOpen={onOpenEvent} onDelete={setPendingDelete} onDuplicate={(e) => void duplicateEvent(e)} onMove={openReschedule} />;
   } else if (!desktop && mobileTab === "more") {
     main = (
-      <div className="flex flex-col gap-6 px-4 py-4 pb-28">
+      <div className="flex flex-col gap-6 px-4 py-4 pb-44">
         <section>
           <h2 className="mb-2 text-sm font-medium text-muted-foreground">Darstellung</h2>
           <div className="rounded-2xl bg-card p-4 shadow-lg shadow-black/10 ring-1 ring-border">
@@ -612,6 +612,7 @@ function CalendarApp({
               cursor={cursor}
               weekStart={weekStart}
               range={miniRange}
+              collapsible
               onRangeChange={(next) => {
                 setMiniRange(next);
                 localStorage.setItem("kalender-mini-range", next);
@@ -763,7 +764,11 @@ function CalendarApp({
       </div>
       <Button
         className="fixed right-4 z-40 size-14 rounded-full shadow-lg lg:right-[21.5rem] lg:bottom-6"
-        style={{ bottom: desktop ? undefined : "calc(5.5rem + env(safe-area-inset-bottom))" }}
+        style={{
+          bottom: desktop
+            ? undefined
+            : "calc(10.25rem + env(safe-area-inset-bottom))",
+        }}
         size="icon"
         aria-label={tasksTab ? "Neue Aufgabe" : "Neuer Termin"}
         onClick={() => {
@@ -774,15 +779,18 @@ function CalendarApp({
         <Plus className="size-6" />
       </Button>
       {!desktop ? (
-        <MobileDock
-          value={mobileTab}
-          onChange={(tab) => {
-            setMobileTab(tab);
-            if (tab !== "tasks") setTaskCompose(false);
-            if (tab === "today") setView("agenda");
-            if (tab === "calendar" && view === "agenda") setView("month");
-          }}
-        />
+        <MobileBottomStack>
+          <MobileDock
+            value={mobileTab}
+            onChange={(tab) => {
+              setMobileTab(tab);
+              if (tab !== "tasks") setTaskCompose(false);
+              if (tab === "today") setView("agenda");
+              if (tab === "calendar" && view === "agenda") setView("month");
+            }}
+          />
+          <ModuleDock value={module} onChange={onModule} />
+        </MobileBottomStack>
       ) : null}
       <EventEditor
         state={editor}

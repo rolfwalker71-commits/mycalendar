@@ -57,7 +57,7 @@ export function SearchView({
           />
         </div>
       </div>
-      <div className="flex flex-col gap-2 px-3 py-4 pb-28">
+      <div className="flex flex-col gap-2 px-3 py-4 pb-44">
         {loading ? (
           <p className="text-sm text-muted-foreground">Suche…</p>
         ) : null}

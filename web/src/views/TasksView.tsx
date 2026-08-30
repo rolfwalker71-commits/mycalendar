@@ -128,7 +128,7 @@ export function TasksView({
   const openCount = order.reduce((n, id) => n + groups[id].length, 0);
 
   return (
-    <div className={cn("flex min-h-0 flex-1 flex-col", compact ? "gap-3" : "gap-5 pb-28 lg:pb-6")}>
+    <div className={cn("flex min-h-0 flex-1 flex-col", compact ? "gap-3" : "gap-5 pb-44 lg:pb-6")}>
       {error ? (
         <p className={cn("text-sm text-muted-foreground", !compact && "px-4 pt-3")}>
           {error}{" "}

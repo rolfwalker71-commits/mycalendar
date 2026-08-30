@@ -18,6 +18,8 @@ import {
 import { toast } from "sonner";
 import { AppLogo } from "@/components/AppLogo";
 import { AppSwitcher } from "@/components/AppSwitcher";
+import { MobileBottomStack } from "@/components/MobileDock";
+import { ModuleDock } from "@/components/ModuleDock";
 import { EventMapSnippet } from "@/components/EventMap";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -416,13 +418,16 @@ export function ContactsView({
       <header className="flex items-center justify-between gap-3 border-b border-border px-3 py-2 lg:px-4">
         <div className="flex min-w-0 items-center gap-2">
           <AppLogo className="size-8" size={32} />
-          <AppSwitcher className="flex-1" value={module} onChange={onModule} />
+          <div className="hidden min-w-0 flex-1 lg:block">
+            <AppSwitcher value={module} onChange={onModule} />
+          </div>
+          <h1 className="text-base font-semibold tracking-tight lg:hidden">Kontakte</h1>
         </div>
         <div className="flex items-center gap-1">
           <Button variant="ghost" size="icon" aria-label="Einstellungen" onClick={onOpenSettings}>
             <Settings className="size-5" />
           </Button>
-          <Button variant="ghost" onClick={() => apiClient.logout().finally(onLogout)}>
+          <Button variant="ghost" className="hidden lg:inline-flex" onClick={() => apiClient.logout().finally(onLogout)}>
             Abmelden
           </Button>
         </div>
@@ -499,17 +504,20 @@ export function ContactsView({
           </>
         )}
       </div>
-      <p className="px-4 py-2 pb-24 text-[0.6875rem] text-muted-foreground lg:pb-2">
+      <p className="px-4 py-2 pb-36 text-[0.6875rem] text-muted-foreground lg:pb-2">
         {me.name || me.email} · Tippen öffnet den Kontakt. Bearbeiten ändert ihn in Google Kontakte.
       </p>
       <Button
-        className="fixed right-4 bottom-6 z-40 size-14 rounded-full shadow-lg"
+        className="fixed right-4 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-40 size-14 rounded-full shadow-lg lg:bottom-6"
         size="icon"
         aria-label="Neuer Kontakt"
         onClick={() => openEditor()}
       >
         <Plus className="size-6" />
       </Button>
+      <MobileBottomStack>
+        <ModuleDock value={module} onChange={onModule} />
+      </MobileBottomStack>
       <Dialog open={Boolean(eventFor)} onOpenChange={(open) => !open && setEventFor(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>

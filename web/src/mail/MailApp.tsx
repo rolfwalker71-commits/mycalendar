@@ -33,6 +33,8 @@ import {
 import { toast } from "sonner";
 import { AppLogo } from "@/components/AppLogo";
 import { AppSwitcher } from "@/components/AppSwitcher";
+import { MobileBottomStack } from "@/components/MobileDock";
+import { ModuleDock } from "@/components/ModuleDock";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -1030,7 +1032,10 @@ export function MailApp({
         <header className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
           <div className="flex min-w-0 items-center gap-2">
             <AppLogo className="size-8" size={32} />
-            <AppSwitcher className="flex-1" value={module} onChange={onModule} />
+            <div className="hidden min-w-0 flex-1 lg:block">
+              <AppSwitcher value={module} onChange={onModule} />
+            </div>
+            <h1 className="text-base font-semibold tracking-tight lg:hidden">Mail</h1>
           </div>
           <div className="flex items-center gap-1">
             <Button variant="ghost" size="icon" aria-label="Einstellungen" onClick={onOpenSettings}>
@@ -1049,6 +1054,9 @@ export function MailApp({
             <Button className="bg-mail text-mail-foreground hover:bg-mail/90">Mit Google fortfahren</Button>
           </a>
         </div>
+        <MobileBottomStack>
+          <ModuleDock value={module} onChange={onModule} />
+        </MobileBottomStack>
       </div>
     );
   }
@@ -1307,7 +1315,12 @@ export function MailApp({
         }}
         disabled={loadingList}
       >
-        <div className={cn("min-h-0 flex-1 overflow-auto touch-pan-y", selectMode && "pb-24")}>
+        <div
+          className={cn(
+            "min-h-0 flex-1 overflow-auto touch-pan-y",
+            selectMode ? "pb-24" : "pb-36 lg:pb-0",
+          )}
+        >
           {loadingList && !threads.length ? (
             <div className="flex items-center justify-center gap-2 p-8 text-sm text-muted-foreground">
               <LoaderCircle className="size-4 animate-spin" />
@@ -1505,7 +1518,10 @@ export function MailApp({
       <header className="flex items-center justify-between gap-3 border-b border-border px-3 py-2 lg:px-4">
         <div className="flex min-w-0 items-center gap-2">
           <AppLogo className="size-8" size={32} />
-          <AppSwitcher value={module} onChange={onModule} />
+          <div className="hidden min-w-0 lg:block">
+            <AppSwitcher value={module} onChange={onModule} />
+          </div>
+          <h1 className="text-base font-semibold tracking-tight lg:hidden">Mail</h1>
         </div>
         <div className="flex items-center gap-1">
           <Button variant="ghost" size="icon" aria-label="Einstellungen" onClick={onOpenSettings}>
@@ -1569,14 +1585,24 @@ export function MailApp({
           </Button>
         </div>
       ) : (
-        <Button
-          className="fixed right-4 bottom-6 z-40 size-14 rounded-full bg-mail text-mail-foreground shadow-lg hover:bg-mail/90"
-          size="icon"
-          aria-label="Neue Nachricht"
-          onClick={() => setCompose({ open: true, mode: "new" })}
-        >
-          <Pencil className="size-6" />
-        </Button>
+        <>
+          <Button
+            className="fixed right-4 z-40 size-14 rounded-full bg-mail text-mail-foreground shadow-lg hover:bg-mail/90 lg:bottom-6"
+            style={{
+              bottom: desktop ? undefined : "calc(5.5rem + env(safe-area-inset-bottom))",
+            }}
+            size="icon"
+            aria-label="Neue Nachricht"
+            onClick={() => setCompose({ open: true, mode: "new" })}
+          >
+            <Pencil className="size-6" />
+          </Button>
+          {!desktop ? (
+            <MobileBottomStack>
+              <ModuleDock value={module} onChange={onModule} />
+            </MobileBottomStack>
+          ) : null}
+        </>
       )}
       {compose.open ? (
         <ComposeSheet

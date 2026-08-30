@@ -18,7 +18,7 @@ export default defineConfig({
       srcDir: "src",
       filename: "sw.ts",
       registerType: "autoUpdate",
-      includeAssets: ["icons/*.png", "apple-touch-icon.png", "logo.png"],
+      includeAssets: ["icons/*.png", "apple-touch-icon.png", "logo.png", "logo-dark.png"],
       manifest: false,
       injectManifest: {
         globPatterns: ["**/*.{js,css,html,ico,png,jpg,svg,webmanifest}"],

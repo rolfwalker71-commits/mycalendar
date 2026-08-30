@@ -1,11 +1,14 @@
+import { useState } from "react";
 import { DateTime } from "luxon";
-import { CalendarDays, CalendarRange } from "lucide-react";
+import { CalendarDays, CalendarRange, ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { isSameDay, now, startOfWeek, weekdayLabels } from "@/lib/dates";
 
 export type MiniRange = "week" | "month";
+
+const MINI_OPEN_KEY = "kalender-mini-open";
 
 export function MiniMonth({
   cursor,
@@ -103,33 +106,69 @@ export function MiniNavigator({
   range,
   onRangeChange,
   onSelect,
+  collapsible = false,
 }: {
   cursor: DateTime;
   weekStart: 0 | 1;
   range: MiniRange;
   onRangeChange: (range: MiniRange) => void;
   onSelect: (day: DateTime) => void;
+  /** Mobile agenda: start collapsed; toggle persists in localStorage. */
+  collapsible?: boolean;
 }) {
+  const [open, setOpen] = useState(() => {
+    if (!collapsible) return true;
+    const stored = localStorage.getItem(MINI_OPEN_KEY);
+    if (stored === null) return false;
+    return stored === "true";
+  });
+
+  function toggle() {
+    setOpen((prev) => {
+      const next = !prev;
+      localStorage.setItem(MINI_OPEN_KEY, String(next));
+      return next;
+    });
+  }
+
+  const showBody = !collapsible || open;
+
   return (
-    <div className="flex flex-col gap-3">
-      <Tabs value={range} onValueChange={(v) => onRangeChange(v as MiniRange)}>
-        <TabsList className="w-full">
-          <TabsTrigger value="week">
-            <CalendarRange />
-            Woche
-          </TabsTrigger>
-          <TabsTrigger value="month">
-            <CalendarDays />
-            Monat
-          </TabsTrigger>
-        </TabsList>
-      </Tabs>
-      <MiniMonth
-        cursor={cursor}
-        weekStart={weekStart}
-        range={range}
-        onSelect={onSelect}
-      />
+    <div className="flex flex-col gap-2">
+      {collapsible ? (
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={toggle}
+          className="h-10 min-h-10 w-full justify-between gap-2 rounded-full bg-muted px-3 text-sm font-medium"
+          aria-expanded={open}
+        >
+          <span>{open ? "Mini-Kalender ausblenden" : "Mini-Kalender einblenden"}</span>
+          {open ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
+        </Button>
+      ) : null}
+      {showBody ? (
+        <div className="flex flex-col gap-3">
+          <Tabs value={range} onValueChange={(v) => onRangeChange(v as MiniRange)}>
+            <TabsList className="w-full">
+              <TabsTrigger value="week">
+                <CalendarRange />
+                Woche
+              </TabsTrigger>
+              <TabsTrigger value="month">
+                <CalendarDays />
+                Monat
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+          <MiniMonth
+            cursor={cursor}
+            weekStart={weekStart}
+            range={range}
+            onSelect={onSelect}
+          />
+        </div>
+      ) : null}
     </div>
   );
 }
