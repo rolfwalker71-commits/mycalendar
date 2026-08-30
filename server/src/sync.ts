@@ -260,7 +260,9 @@ export async function syncCalendarList(user: UserRow): Promise<CalendarRow[]> {
         WHERE user_id = $1
           AND google_cal_id <> ALL($2::text[])
           AND google_cal_id NOT LIKE 'ics:%'
-          AND google_cal_id NOT LIKE 'birthday:%'`,
+          AND google_cal_id NOT LIKE 'birthday:%'
+          AND google_cal_id NOT LIKE 'ms:%'
+          AND COALESCE(source, '') <> 'microsoft'`,
       [user.id, [...seen]],
     );
   }
