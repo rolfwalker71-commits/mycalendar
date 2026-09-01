@@ -308,6 +308,33 @@ export function EventEditor({
   }
 
   async function save() {
+    if (!calendarId) {
+      toast.error("Bitte einen Kalender wählen.");
+      return;
+    }
+    if (!startDate || !endDate) {
+      toast.error("Bitte Start- und Endedatum setzen.");
+      return;
+    }
+    if (!allDay && (!startTime || !endTime)) {
+      toast.error("Bitte eine Uhrzeit setzen.");
+      return;
+    }
+    if (!startDt.isValid) {
+      toast.error("Das Startdatum ist ungültig. Bitte tt.mm.jjjj wählen.");
+      return;
+    }
+    const chosen = calendars.find((c) => c.id === calendarId);
+    const calKey = chosen?.googleCalId ?? "";
+    if (
+      chosen?.source === "ics" ||
+      chosen?.source === "birthday" ||
+      calKey.startsWith("ics:") ||
+      calKey.startsWith("birthday:")
+    ) {
+      toast.error("In diesen Kalender kann nicht geschrieben werden.");
+      return;
+    }
     setSaving(true);
     try {
       if (event) {
@@ -988,7 +1015,7 @@ export function EventEditor({
             coverUrl={event?.coverUrl}
             source={event?.source}
           />
-          <div className={cn("min-h-0 flex-1 overflow-y-auto px-4 pt-4", ms && "bg-sky-50/80 dark:bg-sky-950/30")}>
+          <div className="min-h-0 flex-1 overflow-y-auto bg-popover px-4 pt-4">
             <DialogHeader>
               <DialogTitle>
                 {event ? "Termin bearbeiten" : "Neuer Termin"}
@@ -1002,7 +1029,7 @@ export function EventEditor({
             </DialogHeader>
             <div className="mt-4">{form}</div>
           </div>
-          <DialogFooter className={cn("shrink-0 px-4 py-4", ms && "bg-sky-50/80 dark:bg-sky-950/30")}>
+          <DialogFooter className="shrink-0 bg-popover px-4 py-4">
             {footer(true)}
           </DialogFooter>
         </DialogContent>
@@ -1013,32 +1040,34 @@ export function EventEditor({
   const ms = event?.source === "microsoft";
   return (
     <Sheet open={state.open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className={cn("gap-0 overflow-y-auto p-0", ms && "bg-sky-50/80 dark:bg-sky-950/30")}>
-        <EventArtBanner
-          variant="header"
-          className="h-28 w-full rounded-t-2xl"
-          summary={summary}
-          description={description || event?.description}
-          eventType={eventType}
-          calendarSummary={event?.calendarSummary}
-          eventId={event?.id}
-          attachments={attachments}
-          coverUrl={event?.coverUrl}
-          source={event?.source}
-        />
-        <SheetHeader>
-          <SheetTitle>
-            {event ? "Termin bearbeiten" : "Neuer Termin"}
-            <EventSourceMark source={event?.source ?? (ms ? "microsoft" : "google")} />
-          </SheetTitle>
-          <SheetDescription>
-            {ms
-              ? "Änderungen werden mit Microsoft 365 synchronisiert."
-              : "Änderungen werden mit Google Calendar synchronisiert."}
-          </SheetDescription>
-        </SheetHeader>
-        <div className="px-4 pb-4">{form}</div>
-        <div className="border-t border-border px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+      <SheetContent side="bottom" className="gap-0 overflow-hidden bg-popover p-0">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-popover">
+          <EventArtBanner
+            variant="header"
+            className="h-28 w-full rounded-t-2xl"
+            summary={summary}
+            description={description || event?.description}
+            eventType={eventType}
+            calendarSummary={event?.calendarSummary}
+            eventId={event?.id}
+            attachments={attachments}
+            coverUrl={event?.coverUrl}
+            source={event?.source}
+          />
+          <SheetHeader>
+            <SheetTitle>
+              {event ? "Termin bearbeiten" : "Neuer Termin"}
+              <EventSourceMark source={event?.source ?? (ms ? "microsoft" : "google")} />
+            </SheetTitle>
+            <SheetDescription>
+              {ms
+                ? "Änderungen werden mit Microsoft 365 synchronisiert."
+                : "Änderungen werden mit Google Calendar synchronisiert."}
+            </SheetDescription>
+          </SheetHeader>
+          <div className="bg-popover px-4 pb-4">{form}</div>
+        </div>
+        <div className="shrink-0 border-t border-border bg-popover px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
           {footer(false)}
         </div>
       </SheetContent>

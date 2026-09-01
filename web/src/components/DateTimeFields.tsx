@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Calendar, Clock } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { formatIsoDate, parseDateInput, parseTimeInput } from "@/lib/dates";
@@ -9,7 +9,29 @@ type FieldProps = {
   onValueChange: (value: string) => void;
 };
 
+function openNativePicker(el: HTMLInputElement | null) {
+  if (!el) return;
+  // Anchor the native popover in the viewport so overflow:auto sheets cannot clip it.
+  el.style.position = "fixed";
+  el.style.left = "50%";
+  el.style.top = "28%";
+  el.style.width = "1px";
+  el.style.height = "1px";
+  el.style.opacity = "0";
+  try {
+    el.focus({ preventScroll: true });
+    if (typeof el.showPicker === "function") {
+      el.showPicker();
+      return;
+    }
+  } catch {
+    /* InvalidStateError if not triggered by a gesture — fall through */
+  }
+  el.click();
+}
+
 export function DateField({ id, value, onValueChange }: FieldProps) {
+  const pickerRef = useRef<HTMLInputElement>(null);
   const [text, setText] = useState(() => formatIsoDate(value));
 
   useEffect(() => {
@@ -45,23 +67,31 @@ export function DateField({ id, value, onValueChange }: FieldProps) {
         }}
         className="pr-11"
       />
-      <div className="absolute inset-y-0 right-0 w-11">
-        <input
-          type="date"
-          lang="de-DE"
-          tabIndex={-1}
-          aria-hidden
-          value={value}
-          onChange={(e) => onValueChange(e.target.value)}
-          className="absolute inset-0 cursor-pointer opacity-0"
-        />
-        <Calendar className="pointer-events-none absolute top-1/2 left-1/2 size-4 -translate-x-1/2 -translate-y-1/2 text-muted-foreground" />
-      </div>
+      <input
+        ref={pickerRef}
+        type="date"
+        lang="de-DE"
+        tabIndex={-1}
+        aria-hidden
+        value={value}
+        onChange={(e) => onValueChange(e.target.value)}
+        className="pointer-events-none absolute h-px w-px opacity-0"
+      />
+      <button
+        type="button"
+        aria-label="Datum wählen"
+        className="absolute inset-y-0 right-0 z-10 flex w-11 items-center justify-center text-muted-foreground"
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={() => openNativePicker(pickerRef.current)}
+      >
+        <Calendar className="size-4" />
+      </button>
     </div>
   );
 }
 
 export function TimeField({ id, value, onValueChange }: FieldProps) {
+  const pickerRef = useRef<HTMLInputElement>(null);
   const [text, setText] = useState(() => parseTimeInput(value) || value);
 
   useEffect(() => {
@@ -97,19 +127,26 @@ export function TimeField({ id, value, onValueChange }: FieldProps) {
         }}
         className="pr-11"
       />
-      <div className="absolute inset-y-0 right-0 w-11">
-        <input
-          type="time"
-          lang="de-DE"
-          step={60}
-          tabIndex={-1}
-          aria-hidden
-          value={value}
-          onChange={(e) => onValueChange(e.target.value)}
-          className="absolute inset-0 cursor-pointer opacity-0"
-        />
-        <Clock className="pointer-events-none absolute top-1/2 left-1/2 size-4 -translate-x-1/2 -translate-y-1/2 text-muted-foreground" />
-      </div>
+      <input
+        ref={pickerRef}
+        type="time"
+        lang="de-DE"
+        step={60}
+        tabIndex={-1}
+        aria-hidden
+        value={value}
+        onChange={(e) => onValueChange(e.target.value)}
+        className="pointer-events-none absolute h-px w-px opacity-0"
+      />
+      <button
+        type="button"
+        aria-label="Uhrzeit wählen"
+        className="absolute inset-y-0 right-0 z-10 flex w-11 items-center justify-center text-muted-foreground"
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={() => openNativePicker(pickerRef.current)}
+      >
+        <Clock className="size-4" />
+      </button>
     </div>
   );
 }

@@ -299,6 +299,15 @@ html[data-chrome="desktop"] [data-slot="tabs-trigger"][data-active] {
   box-shadow: none;
 }
 
+[data-slot="sheet-content"],
+[data-slot="dialog-content"] {
+  background-color: var(--popover);
+  background-image: none;
+  background-clip: padding-box;
+  color: var(--popover-foreground);
+  isolation: isolate;
+}
+
 html[data-chrome="android"] [data-slot="dialog-content"] {
   border-radius: 1.75rem;
   box-shadow: none;

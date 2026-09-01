@@ -270,7 +270,8 @@ function CalendarApp({
       defaults: {
         start: rounded,
         end: rounded.plus({ hours: 1 }),
-        calendarId: calendars.find((c) => c.primary)?.id,
+        calendarId: calendars.find((c) => c.primary && ["owner", "writer"].includes(c.accessRole ?? ""))?.id
+          ?? calendars.find((c) => ["owner", "writer"].includes(c.accessRole ?? "") && c.source !== "ics" && c.source !== "birthday")?.id,
       },
     });
   }

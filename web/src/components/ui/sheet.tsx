@@ -25,7 +25,7 @@ function SheetOverlay({ className, ...props }: SheetPrimitive.Backdrop.Props) {
     <SheetPrimitive.Backdrop
       data-slot="sheet-overlay"
       className={cn(
-        "fixed inset-0 z-[1100] bg-black/20 transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0",
+        "fixed inset-0 z-[1100] bg-black/45 transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0",
         className,
       )}
       {...props}
@@ -50,7 +50,7 @@ function SheetContent({
         data-slot="sheet-content"
         data-side={side}
         className={cn(
-          "fixed z-[1100] flex flex-col gap-4 bg-popover text-sm text-popover-foreground shadow-lg transition duration-200 ease-in-out data-ending-style:opacity-0 data-starting-style:opacity-0",
+          "fixed z-[1100] flex flex-col gap-4 bg-popover text-sm text-popover-foreground shadow-lg isolate transition duration-200 ease-in-out data-open:opacity-100 data-ending-style:opacity-0 data-starting-style:opacity-0",
           "data-[side=bottom]:inset-x-0 data-[side=bottom]:bottom-0 data-[side=bottom]:max-h-[90dvh] data-[side=bottom]:rounded-t-2xl data-[side=bottom]:border-t data-[side=bottom]:border-border data-[side=bottom]:data-ending-style:translate-y-[2.5rem] data-[side=bottom]:data-starting-style:translate-y-[2.5rem]",
           "data-[side=top]:inset-x-0 data-[side=top]:top-0 data-[side=top]:h-auto data-[side=top]:border-b data-[side=top]:border-border",
           "data-[side=left]:inset-y-0 data-[side=left]:left-0 data-[side=left]:h-full data-[side=left]:w-[min(100%,24rem)] data-[side=left]:border-r data-[side=left]:border-border",
@@ -59,6 +59,10 @@ function SheetContent({
         )}
         {...props}
       >
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 -z-10 rounded-[inherit] bg-popover"
+        />
         {children}
         {showCloseButton && (
           <SheetPrimitive.Close

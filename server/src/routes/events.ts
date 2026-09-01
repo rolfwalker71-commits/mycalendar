@@ -38,6 +38,33 @@ function asIsoDate(value: string | Date | null | undefined): string | null {
   return DateTime.fromJSDate(value, { zone: TZ }).toISODate();
 }
 
+function createEventErrorMessage(err: unknown): string {
+  const g = err as {
+    message?: string;
+    response?: { data?: { error?: { message?: string; errors?: { message?: string }[] } } };
+  };
+  const google =
+    g.response?.data?.error?.message ||
+    g.response?.data?.error?.errors?.[0]?.message ||
+    "";
+  const raw = (google || g.message || "").trim();
+  if (!raw) return "Termin konnte nicht erstellt werden.";
+  const lower = raw.toLowerCase();
+  if (lower.includes("not found") || lower.includes("404")) {
+    return "Dieser Kalender wurde beim Anbieter nicht gefunden.";
+  }
+  if (lower.includes("forbidden") || lower.includes("403") || lower.includes("insufficient")) {
+    return "Keine Berechtigung, in diesen Kalender zu schreiben.";
+  }
+  if (lower.includes("invalid") || lower.includes("bad request")) {
+    return raw.length < 180 ? raw : "Google hat den Termin abgelehnt.";
+  }
+  if (raw.startsWith("Graph ")) {
+    return "Microsoft hat den Termin abgelehnt.";
+  }
+  return raw.length < 180 ? raw : "Termin konnte nicht erstellt werden.";
+}
+
 function handleGoogleError(res: import("express").Response, err: unknown): boolean {
   const described = describeGoogleApiError(err, "calendar");
   if (described) {
@@ -275,7 +302,57 @@ eventsRouter.post("/", async (req, res) => {
     return;
   }
 
+  const calId = calendar.google_cal_id ?? "";
+  const source =
+    calendar.source ??
+    (calId.startsWith("ms:")
+      ? "microsoft"
+      : calId.startsWith("ics:")
+        ? "ics"
+        : calId.startsWith("birthday:")
+          ? "birthday"
+          : "google");
+  if (source === "ics" || source === "birthday") {
+    res.status(400).json({ error: "In diesen Kalender kann nicht geschrieben werden." });
+    return;
+  }
+
   try {
+    if (source === "microsoft" || calId.startsWith("ms:")) {
+      const { createMsEvent, MsAuthError } = await import("../microsoft.js");
+      try {
+        const createdId = await createMsEvent(req.user!, calendar, {
+          summary: body.summary.trim(),
+          description: body.description,
+          location: body.location,
+          allDay: Boolean(body.allDay),
+          start: body.start,
+          end: body.end,
+          timezone: body.timezone || calendar.timezone || TZ,
+        });
+        const { rows } = await query<
+          EventRow & {
+            background_color: string | null;
+            calendar_summary: string | null;
+            calendar_timezone: string | null;
+          }
+        >(
+          `SELECT e.*, c.background_color, c.summary AS calendar_summary, c.timezone AS calendar_timezone
+             FROM events e JOIN calendars c ON c.id = e.calendar_id
+            WHERE e.calendar_id = $1 AND e.google_event_id = $2`,
+          [calendar.id, createdId],
+        );
+        res.status(201).json({ event: rows[0] ? serializeEvent(rows[0]) : null });
+        return;
+      } catch (err) {
+        if (err instanceof MsAuthError) {
+          res.status(err.code === "reauth" ? 401 : 403).json({ error: err.message, code: err.code });
+          return;
+        }
+        throw err;
+      }
+    }
+
     const api = await getAuthedCalendar(req.user!);
     const requestBody = eventToGoogleBody({
       summary: body.summary.trim(),
@@ -324,7 +401,7 @@ eventsRouter.post("/", async (req, res) => {
   } catch (err) {
     if (handleGoogleError(res, err)) return;
     console.error(err);
-    res.status(502).json({ error: "Termin konnte nicht erstellt werden." });
+    res.status(502).json({ error: createEventErrorMessage(err) });
   }
 });
 

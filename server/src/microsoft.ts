@@ -385,6 +385,52 @@ export function graphCalId(googleCalId: string): string {
   return googleCalId.startsWith(MS_CAL_PREFIX) ? googleCalId.slice(MS_CAL_PREFIX.length) : googleCalId;
 }
 
+export async function createMsEvent(
+  user: UserRow,
+  calendar: CalendarRow,
+  body: {
+    summary: string;
+    start: string;
+    end: string;
+    allDay?: boolean;
+    location?: string;
+    description?: string;
+    timezone?: string;
+  },
+): Promise<string> {
+  const token = await getMsAccessToken(user);
+  const tz = body.timezone || calendar.timezone || TZ;
+  const payload: Record<string, unknown> = {
+    subject: body.summary,
+  };
+  if (body.location) payload.location = { displayName: body.location };
+  if (body.description) payload.body = { contentType: "text", content: body.description };
+  if (body.allDay) {
+    payload.isAllDay = true;
+    payload.start = { dateTime: body.start.slice(0, 10), timeZone: tz };
+    payload.end = { dateTime: body.end.slice(0, 10), timeZone: tz };
+  } else {
+    payload.isAllDay = false;
+    const start = DateTime.fromISO(body.start, { setZone: true }).setZone(tz);
+    const end = DateTime.fromISO(body.end, { setZone: true }).setZone(tz);
+    if (!start.isValid || !end.isValid) {
+      throw new Error("Start oder Ende ist kein gültiges Datum.");
+    }
+    payload.start = { dateTime: start.toFormat("yyyy-MM-dd'T'HH:mm:ss"), timeZone: tz };
+    payload.end = { dateTime: end.toFormat("yyyy-MM-dd'T'HH:mm:ss"), timeZone: tz };
+  }
+  const created = (await graphSend(
+    token,
+    `/me/calendars/${encodeURIComponent(graphCalId(calendar.google_cal_id))}/events`,
+    "POST",
+    payload,
+  )) as GraphEvent;
+  if (!created?.id) throw new Error("Microsoft hat keinen Termin zurückgegeben.");
+  const mapped = mapMsEvent(created, user.id, calendar.id);
+  if (mapped) await upsertMsEvent(mapped);
+  return created.id;
+}
+
 export async function patchMsEvent(
   user: UserRow,
   calendar: CalendarRow,

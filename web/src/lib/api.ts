@@ -42,13 +42,22 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
     credentials: "include",
     headers,
   });
-  const data = (await parse(res)) as { error?: string; code?: string } | null;
+  const data = (await parse(res)) as {
+    error?: string | { message?: string };
+    message?: string;
+    code?: string;
+  } | null;
   if (!res.ok) {
-    throw new ApiError(
-      data?.error ?? "Die Anfrage ist fehlgeschlagen.",
-      res.status,
-      data?.code,
-    );
+    const raw = data?.error;
+    const message =
+      typeof raw === "string" && raw.trim() && raw !== "[object Object]"
+        ? raw
+        : typeof raw === "object" && raw && typeof raw.message === "string"
+          ? raw.message
+          : typeof data?.message === "string"
+            ? data.message
+            : "Die Anfrage ist fehlgeschlagen.";
+    throw new ApiError(message, res.status, data?.code);
   }
   return data as T;
 }
