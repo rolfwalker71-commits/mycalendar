@@ -1,5 +1,5 @@
 import webpush from "web-push";
-import { ALLOWED_GOOGLE_EMAILS } from "./config.js";
+import { ALLOWED_GOOGLE_EMAILS, publicOrigin } from "./config.js";
 import { query } from "./db.js";
 
 export type VapidKeys = {
@@ -10,9 +10,31 @@ export type VapidKeys = {
 
 let cached: VapidKeys | null = null;
 
+/**
+ * Apple's push service (web.push.apple.com) rejects the JWT with 403 BadJwtToken unless
+ * `sub` is a real mailto: address or an https: URL — "localhost" does not count.
+ */
+function validSubject(subject: string | undefined | null): boolean {
+  if (!subject) return false;
+  if (subject.startsWith("https://")) return !/localhost|127\.0\.0\.1/.test(subject);
+  if (subject.startsWith("mailto:")) {
+    const addr = subject.slice("mailto:".length).trim();
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(addr) && !addr.endsWith("@localhost");
+  }
+  return false;
+}
+
 function defaultSubject(): string {
   const mail = ALLOWED_GOOGLE_EMAILS[0];
-  return `mailto:${mail || "kalender@localhost"}`;
+  if (mail) return `mailto:${mail}`;
+  const origin = publicOrigin();
+  if (validSubject(origin)) return origin;
+  return "mailto:kalender@example.com";
+}
+
+function pickSubject(candidate: string | undefined | null): string {
+  const trimmed = candidate?.trim().replace(/^mailto:\s+/, "mailto:");
+  return validSubject(trimmed) ? trimmed! : defaultSubject();
 }
 
 export async function loadVapidKeys(): Promise<VapidKeys> {
@@ -25,7 +47,7 @@ export async function loadVapidKeys(): Promise<VapidKeys> {
     cached = {
       publicKey: envPub,
       privateKey: envPriv,
-      subject: envSub || defaultSubject(),
+      subject: pickSubject(envSub),
     };
     webpush.setVapidDetails(cached.subject, cached.publicKey, cached.privateKey);
     return cached;
@@ -39,7 +61,7 @@ export async function loadVapidKeys(): Promise<VapidKeys> {
     cached = {
       publicKey: map.vapid_public,
       privateKey: map.vapid_private,
-      subject: map.vapid_subject || defaultSubject(),
+      subject: pickSubject(map.vapid_subject),
     };
     webpush.setVapidDetails(cached.subject, cached.publicKey, cached.privateKey);
     console.log("VAPID-Schlüssel aus der Datenbank geladen.");

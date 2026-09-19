@@ -418,8 +418,8 @@ export function ContactsView({
   }
 
   return (
-    <div className="flex h-dvh flex-col bg-background">
-      <header className="flex items-center justify-between gap-3 border-b border-border px-3 py-2 lg:px-4">
+    <div className="app-shell flex h-dvh flex-col bg-background">
+      <header className="app-header flex shrink-0 items-center justify-between gap-3 border-b border-border px-3 py-2 lg:px-4">
         <div className="flex min-w-0 items-center gap-2">
           <AppLogo className="size-8" size={32} />
           <div className="hidden min-w-0 flex-1 lg:block">
@@ -448,7 +448,7 @@ export function ContactsView({
           />
         </div>
       </div>
-      <div className="min-h-0 flex-1 overflow-auto">
+      <div className="app-scroll min-h-0 flex-1">
         {loading ? (
           <div className="flex items-center justify-center gap-2 p-8 text-sm text-muted-foreground">
             <LoaderCircle className="size-4 animate-spin" />

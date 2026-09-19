@@ -17,11 +17,14 @@ Die App spricht **Deutsch** (`de-DE`). Standard-Zeitzone: **Europe/Berlin**. Die
 - Suche in Titel, Ort und Notiz (Cache)
 - Mail: Posteingang, Markiert, Entwürfe, Gesendet, Spam, Papierkorb, eigene Label
 - Lesen, antworten, senden, archivieren, löschen, markieren; Suche über Gmail
-- Hell- und Dunkelmodus, installierbare PWA (Desktop-Chrome und Android-Chrome)
+- Hell- und Dunkelmodus (oder „System“, folgt dem Gerät), installierbare PWA (iPhone, iPad, Desktop-Chrome, Android-Chrome)
+- Oberfläche je Gerät: **Liquid Glass** auf iPhone/iPad, Material You 3 auf Android, Fluent 2 am PC (Auto, umschaltbar)
+- Schriftgröße folgt der iOS-Textgröße (Einstellungen oder Kontrollzentrum › Textgröße), zusätzlich eigener Regler
+- Web-Push für Termine und neue Mails (auch iPhone/iPad ab iOS 16.4)
 
 ## Was v1 nicht kann
 
-Kein Chat, Kontakte, CalDAV, iCloud, Microsoft, Wear OS, native Widgets, Werbung oder Telemetrie. Räume, Arbeitsort, Fokus/OOO, Mail-Anhänge beim Senden, Geburtstags-Politur, Push-Benachrichtigungen und Drag zwischen Kalendern sind für spätere Versionen vorgesehen.
+Kein Chat, Kontakte, CalDAV, iCloud, Microsoft, Wear OS, native Widgets, Werbung oder Telemetrie. Räume, Arbeitsort, Fokus/OOO, Mail-Anhänge beim Senden, Geburtstags-Politur und Drag zwischen Kalendern sind für spätere Versionen vorgesehen.
 
 Google-Kalender-Webhooks (`calendar.events.watch`) sind vorbereitet (`PUBLIC_BASE_URL`, Route `/api/google/push`), Standard bleibt Polling.
 
@@ -47,6 +50,18 @@ npm run dev
 ```
 
 API auf Port 3366, Vite-Devserver mit Proxy auf `/api`.
+
+## iPhone und iPad
+
+1. Die App in **Safari** über HTTPS öffnen, dann Teilen › **Zum Home-Bildschirm**.
+2. Die App **vom Home-Bildschirm** starten (nur dort gibt Apple Web-Push frei).
+3. Einstellungen › Benachrichtigungen › **Push-Benachrichtigungen** einschalten und erlauben, danach „Testbenachrichtigung“.
+
+Hinweise:
+
+- Auf iPhone/iPad wählt „Auto“ automatisch **Liquid Glass**. Wer „Transparenz reduzieren“ oder „Kontrast erhöhen“ aktiviert hat, bekommt massive Flächen statt Glas.
+- Die Schriftgröße folgt der **iOS-Textgröße**, auch live über das Kontrollzentrum (Steuerelement „Textgröße“, optional nur für diese App). Abschaltbar in den Einstellungen.
+- Apple verlangt für Push ein gültiges VAPID-Subject (`mailto:` mit echter Adresse oder `https://`-URL). Die App nimmt die erste Adresse aus `ALLOWED_GOOGLE_EMAILS`, sonst `PUBLIC_BASE_URL`. Optional `VAPID_SUBJECT` setzen.
 
 ## Google Cloud OAuth
 

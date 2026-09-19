@@ -205,11 +205,11 @@ function FolderDrawer({
       />
       <nav
         className={cn(
-          "absolute inset-y-0 left-0 flex w-[min(17.5rem,78vw)] flex-col overflow-hidden bg-card shadow-2xl ring-1 ring-border transition-transform duration-[750ms] ease-in-out will-change-transform",
+          "app-sidebar absolute inset-y-0 left-0 flex w-[min(17.5rem,78vw)] flex-col overflow-hidden bg-card shadow-2xl ring-1 ring-border transition-transform duration-[750ms] ease-in-out will-change-transform",
           shown ? "translate-x-0" : "-translate-x-full",
         )}
       >
-        <div className="min-h-0 flex-1 overflow-auto text-[0.8125rem]">{children}</div>
+        <div className="app-scroll min-h-0 flex-1 text-[0.8125rem]">{children}</div>
       </nav>
     </div>
   );
@@ -552,7 +552,7 @@ function ThreadDetail({
           {newest.subject || oldest.subject || "(kein Betreff)"}
         </h2>
       </header>
-      <div className="min-h-0 flex-1 overflow-auto">
+      <div className="app-scroll min-h-0 flex-1">
         {appliedUserLabels.length ? (
           <div className="flex flex-wrap gap-1.5 px-4 pt-3">
             {appliedUserLabels.map((label) => (
@@ -1006,8 +1006,8 @@ export function MailApp({
 
   if (needsScope) {
     return (
-      <div className="flex h-dvh flex-col bg-background">
-        <header className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+      <div className="app-shell flex h-dvh flex-col bg-background">
+        <header className="app-header flex shrink-0 items-center justify-between gap-3 border-b border-border px-4 py-3">
           <div className="flex min-w-0 items-center gap-2">
             <AppLogo className="size-8" size={32} />
             <div className="hidden min-w-0 flex-1 lg:block">
@@ -1295,7 +1295,7 @@ export function MailApp({
       >
         <div
           className={cn(
-            "min-h-0 flex-1 overflow-auto touch-pan-y",
+            "app-scroll min-h-0 flex-1 touch-pan-y",
             selectMode ? "pb-24" : "pb-36 lg:pb-0",
           )}
         >
@@ -1492,8 +1492,8 @@ export function MailApp({
   );
 
   return (
-    <div className="flex h-dvh flex-col bg-background">
-      <header className="flex items-center justify-between gap-3 border-b border-border px-3 py-2 lg:px-4">
+    <div className="app-shell flex h-dvh flex-col bg-background">
+      <header className="app-header flex shrink-0 items-center justify-between gap-3 border-b border-border px-3 py-2 lg:px-4">
         <div className="flex min-w-0 items-center gap-2">
           <AppLogo className="size-8" size={32} />
           <div className="hidden min-w-0 lg:block">
@@ -1511,7 +1511,7 @@ export function MailApp({
       <div className="relative flex min-h-0 flex-1">
         {desktop ? (
           <>
-            <aside className="hidden w-64 shrink-0 overflow-auto border-r border-border lg:block">{boxes}</aside>
+            <aside className="app-sidebar app-scroll hidden w-64 shrink-0 border-r border-border lg:block">{boxes}</aside>
             <div className="flex w-[min(100%,24rem)] shrink-0">{list}</div>
             <div className="flex min-w-0 flex-1 flex-col">{detail}</div>
           </>
@@ -1525,7 +1525,7 @@ export function MailApp({
         </FolderDrawer>
       </div>
       {selectMode ? (
-        <div className="fixed inset-x-0 bottom-0 z-40 flex items-center gap-2 border-t border-border bg-card px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-8px_24px_rgba(0,0,0,0.12)]">
+        <div className="app-selectbar fixed inset-x-0 bottom-0 z-40 flex items-center gap-2 border-t border-border bg-card px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-8px_24px_rgba(0,0,0,0.12)]">
           <span className="min-w-0 flex-1 truncate text-sm font-medium">
             {selectedIds.size ? `${selectedIds.size} ausgewählt` : "Nachrichten antippen"}
           </span>

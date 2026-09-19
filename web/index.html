@@ -18,10 +18,18 @@
           var pref = localStorage.getItem("kalender-chrome") || "auto";
           var chrome = pref;
           if (pref === "auto" || (pref !== "ios" && pref !== "android" && pref !== "desktop")) {
-            chrome = window.matchMedia("(min-width: 1024px)").matches ? "desktop" : "android";
+            var ua = navigator.userAgent || "";
+            var apple =
+              /iPad|iPhone|iPod/.test(ua) ||
+              (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+            chrome = apple
+              ? "ios"
+              : window.matchMedia("(min-width: 1024px)").matches
+                ? "desktop"
+                : "android";
           }
           document.documentElement.dataset.chrome = chrome;
-          var color = dark ? "#1c1c1e" : "#ffffff";
+          var color = dark ? "#000000" : "#f2f2f7";
           if (chrome === "android") color = dark ? "#141218" : "#f7f2fa";
           else if (chrome === "desktop") color = dark ? "#202020" : "#f3f3f3";
           var c = document.getElementById("theme-color");
@@ -29,12 +37,18 @@
         } catch (e) {}
       })();
     </script>
+    <meta name="color-scheme" content="light dark" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="format-detection" content="telephone=no" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="Kalender & Mail" />
     <meta name="application-name" content="Kalender & Mail" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png" />
+    <link rel="apple-touch-icon" sizes="167x167" href="/icons/apple-touch-icon-167.png" />
+    <link rel="apple-touch-icon" sizes="152x152" href="/icons/apple-touch-icon-152.png" />
     <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
     <link rel="icon" type="image/png" media="(prefers-color-scheme: light)" href="/logo.png" />
     <link rel="icon" type="image/png" media="(prefers-color-scheme: dark)" href="/logo-dark.png" />

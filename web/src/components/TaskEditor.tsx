@@ -104,7 +104,7 @@ export function TaskEditor({
         <SheetHeader>
           <SheetTitle>{task ? "Aufgabe" : "Neue Aufgabe"}</SheetTitle>
         </SheetHeader>
-        <div className="flex flex-col gap-3 overflow-auto px-4 pb-4">
+        <div className="app-scroll flex min-h-0 flex-col gap-3 px-4 pb-4">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="task-title">Titel</Label>
             <Input

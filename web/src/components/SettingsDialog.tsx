@@ -16,18 +16,22 @@ import {
   enablePush,
   getExistingSubscription,
   pushSupported,
+  pushUnsupportedReason,
 } from "@/lib/push";
 import type { Me } from "@/lib/types";
-import { useTheme } from "@/components/ThemeProvider";
 import { ChromeSwitcher } from "@/components/ChromeSwitcher";
-import type { Theme } from "@/lib/theme";
+import { ThemeSwitcher } from "@/components/ThemeSwitcher";
 import {
   FONT_SCALE_MAX,
   FONT_SCALE_MIN,
   FONT_SCALE_STEP,
   fontScalePercent,
+  persistFollowSystemText,
   persistFontScale,
+  readFollowSystemText,
   readFontScale,
+  readSystemTextScale,
+  systemTextSupported,
 } from "@/lib/fontScale";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
@@ -58,7 +62,7 @@ function Row({
 }) {
   return (
     <div className="flex min-h-11 items-center justify-between gap-3 rounded-xl bg-muted/60 px-3 py-2">
-      <Label htmlFor={id} className="flex-1 cursor-pointer font-normal">
+      <Label htmlFor={id} className="min-w-0 flex-1 cursor-pointer flex-col items-start gap-0.5 font-normal leading-snug">
         <span className="block font-medium">{title}</span>
         <span className="block text-xs text-muted-foreground">{hint}</span>
       </Label>
@@ -82,8 +86,9 @@ export function SettingsDialog({
   threaded: boolean;
   onThreadedChange: (next: boolean) => void;
 }) {
-  const { theme, setTheme } = useTheme();
   const [fontScale, setFontScale] = useState(readFontScale);
+  const [followSystemText, setFollowSystemText] = useState(readFollowSystemText);
+  const systemText = systemTextSupported();
   const supported = pushSupported();
   const [subscribed, setSubscribed] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -111,6 +116,7 @@ export function SettingsDialog({
   useEffect(() => {
     if (!open) return;
     setFontScale(readFontScale());
+    setFollowSystemText(readFollowSystemText());
   }, [open]);
 
   useEffect(() => {
@@ -213,29 +219,7 @@ export function SettingsDialog({
           <h2 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Darstellung
           </h2>
-          <div className="rounded-full bg-muted p-0.5">
-            <div className="grid grid-cols-3 gap-0.5">
-              {(
-                [
-                  ["light", "Hell"],
-                  ["dark", "Dunkel"],
-                  ["system", "System"],
-                ] as [Theme, string][]
-              ).map(([value, label]) => (
-                <button
-                  key={value}
-                  type="button"
-                  className={cn(
-                    "h-8 rounded-full text-sm font-medium leading-none",
-                    theme === value ? "bg-background text-foreground shadow-sm" : "text-muted-foreground",
-                  )}
-                  onClick={() => setTheme(value)}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
+          <ThemeSwitcher />
           <div className="flex flex-col gap-1.5 pt-1">
             <Label>Oberfläche</Label>
             <ChromeSwitcher />
@@ -262,6 +246,18 @@ export function SettingsDialog({
             <p className="text-xs text-muted-foreground">
               Listen, Termine, Mails und Kontakte skalieren mit — gilt sofort.
             </p>
+            {systemText ? (
+              <Row
+                id="font-follow-system"
+                title="iOS-Textgröße übernehmen"
+                hint={`Folgt Einstellungen › Anzeige & Helligkeit › Textgröße und dem Kontrollzentrum (aktuell ${Math.round(readSystemTextScale() * 100)} %). Der Regler oben wirkt zusätzlich.`}
+                checked={followSystemText}
+                onCheckedChange={(v) => {
+                  setFollowSystemText(v);
+                  persistFollowSystemText(v);
+                }}
+              />
+            ) : null}
           </div>
         </section>
         <section className="flex flex-col gap-2">
@@ -269,13 +265,11 @@ export function SettingsDialog({
             Benachrichtigungen
           </h2>
           {!supported ? (
-            <p className="text-xs text-muted-foreground">
-              Dieser Browser unterstützt keine Web-Push-Benachrichtigungen.
-            </p>
+            <p className="text-xs text-muted-foreground">{pushUnsupportedReason()}</p>
           ) : denied ? (
             <p className="text-xs text-muted-foreground">
-              Benachrichtigungen sind blockiert. In den Browser-Einstellungen für diese Seite
-              erlauben.
+              Benachrichtigungen sind blockiert. Am iPhone/iPad unter Einstellungen › Mitteilungen ›
+              Kalender & Mail erlauben, sonst in den Browser-Einstellungen für diese Seite.
             </p>
           ) : null}
           <Row

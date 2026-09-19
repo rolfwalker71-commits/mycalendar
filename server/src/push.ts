@@ -42,8 +42,8 @@ export async function sendPushToUser(userId: string, payload: PushPayload): Prom
   if (!rows.length) return 0;
 
   const body = JSON.stringify({
-    title: payload.title,
-    body: payload.body,
+    title: payload.title.slice(0, 120),
+    body: payload.body.slice(0, 1200),
     icon: abs(payload.icon || "/icons/icon-192.png"),
     badge: abs(payload.badge || "/icons/icon-192.png"),
     image: payload.image ? abs(payload.image) : undefined,
@@ -71,7 +71,15 @@ export async function sendPushToUser(userId: string, payload: PushPayload): Prom
       if (status === 404 || status === 410) {
         await query("DELETE FROM push_subscriptions WHERE id = $1", [sub.id]);
       } else {
-        console.error("Web-Push:", err);
+        const host = (() => {
+          try {
+            return new URL(sub.endpoint).host;
+          } catch {
+            return "?";
+          }
+        })();
+        const detail = (err as { body?: string }).body ?? (err as Error).message;
+        console.error(`Web-Push an ${host} fehlgeschlagen (${status ?? "?"}):`, detail);
       }
     }
   }

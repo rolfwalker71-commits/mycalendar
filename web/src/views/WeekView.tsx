@@ -104,8 +104,7 @@ export function WeekView({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="grid shrink-0 grid-cols-[3rem_repeat(7,minmax(0,1fr))] border-b border-border">
-        <div />
+      <div className="grid shrink-0 grid-cols-7 border-b border-border">
         {days.map((day, i) => (
           <div key={day.toISODate()} className="py-2 text-center">
             <div className="flex items-center justify-center gap-1 text-xs">
@@ -123,7 +122,7 @@ export function WeekView({
           </div>
         ))}
       </div>
-      <div className="grid min-h-0 flex-1 grid-cols-7 overflow-hidden">
+      <div className="week-columns grid min-h-0 flex-1 grid-cols-7 overflow-hidden">
         {days.map((day, i) => (
           <div
             key={day.toISODate()}

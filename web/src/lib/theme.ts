@@ -1,3 +1,5 @@
+import { chromeThemeColor, type ChromeStyle } from "./platform";
+
 export type Theme = "light" | "dark" | "system";
 
 export const THEME_KEY = "kalender-theme";
@@ -19,18 +21,8 @@ export function applyTheme(theme: Theme): void {
   const dark = isDarkTheme(theme);
   document.documentElement.classList.toggle("dark", dark);
   const chrome = document.documentElement.dataset.chrome;
-  const color =
-    chrome === "android"
-      ? dark
-        ? "#141218"
-        : "#f7f2fa"
-      : chrome === "desktop"
-        ? dark
-          ? "#202020"
-          : "#f3f3f3"
-        : dark
-          ? "#1c1c1e"
-          : "#ffffff";
+  const style: ChromeStyle = chrome === "android" || chrome === "desktop" ? chrome : "ios";
+  const color = chromeThemeColor(style, dark);
   document.getElementById("theme-color")?.setAttribute("content", color);
 }
 

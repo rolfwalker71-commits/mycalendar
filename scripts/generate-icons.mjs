@@ -89,11 +89,40 @@ if (existsSync(darkProposal)) {
   writeFileSync(path.join(publicRoot, "logo-dark.png"), darkBuf);
 }
 
-async function writePng(name, size, { maskable = false, opaque = false, dest = outDir } = {}) {
-  const padRatio = maskable ? 0.18 : 0.04;
+/** Schneidet den weißen/transparenten Rand um das Motiv ab, damit Icons die Kachel füllen. */
+async function trimToArtwork(buf) {
+  const flat = await sharp(buf).flatten({ background: WHITE }).png().toBuffer();
+  const { info } = await sharp(flat)
+    .trim({ background: "#ffffff", threshold: 24 })
+    .toBuffer({ resolveWithObject: true });
+  const left = -(info.trimOffsetLeft ?? 0);
+  const top = -(info.trimOffsetTop ?? 0);
+  const side = Math.max(info.width, info.height);
+  const meta = await sharp(buf).metadata();
+  const cx = left + info.width / 2;
+  const cy = top + info.height / 2;
+  const x = Math.max(0, Math.round(cx - side / 2));
+  const y = Math.max(0, Math.round(cy - side / 2));
+  const w = Math.min(side, (meta.width ?? side) - x);
+  const h = Math.min(side, (meta.height ?? side) - y);
+  return sharp(buf).extract({ left: x, top: y, width: w, height: h }).png().toBuffer();
+}
+
+const artworkBuf = await trimToArtwork(cutoutBuf);
+
+/**
+ * padRatio: Rand je Seite. Apple-Touch-Icons werden von iOS/iPadOS selbst abgerundet
+ * und brauchen kaum Rand; maskable (Android) braucht die ~20 %-Sicherheitszone.
+ */
+async function writePng(
+  name,
+  size,
+  { maskable = false, opaque = false, apple = false, dest = outDir } = {},
+) {
+  const padRatio = maskable ? 0.18 : apple ? 0.02 : 0.03;
   const pad = Math.round(size * padRatio);
   const inner = size - pad * 2;
-  const icon = await sharp(cutoutBuf)
+  const icon = await sharp(artworkBuf)
     .resize(inner, inner, {
       fit: "contain",
       background: TRANSPARENT,
@@ -117,7 +146,9 @@ await writePng("icon-192.png", 192);
 await writePng("icon-512.png", 512);
 await writePng("icon-192-maskable.png", 192, { maskable: true, opaque: true });
 await writePng("icon-512-maskable.png", 512, { maskable: true, opaque: true });
-await writePng("apple-touch-icon.png", 180, { opaque: true });
-await writePng("apple-touch-icon.png", 180, { opaque: true, dest: publicRoot });
+await writePng("apple-touch-icon.png", 180, { opaque: true, apple: true });
+await writePng("apple-touch-icon-152.png", 152, { opaque: true, apple: true });
+await writePng("apple-touch-icon-167.png", 167, { opaque: true, apple: true });
+await writePng("apple-touch-icon.png", 180, { opaque: true, apple: true, dest: publicRoot });
 
 console.log("Icons geschrieben nach", outDir);

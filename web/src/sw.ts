@@ -62,8 +62,18 @@ type PushData = {
   data?: { url?: string; module?: string };
 };
 
+function readPush(event: PushEvent): PushData {
+  if (!event.data) return {};
+  try {
+    return (event.data.json() ?? {}) as PushData;
+  } catch {
+    return { body: event.data.text() };
+  }
+}
+
+// iOS/iPadOS revoke the subscription if a push does not show a notification, so always show one.
 self.addEventListener("push", (event) => {
-  const data = (event.data?.json() ?? {}) as PushData;
+  const data = readPush(event);
   event.waitUntil(
     self.registration.showNotification(data.title || "Kalender & Mail", {
       body: data.body || "",
@@ -85,15 +95,52 @@ self.addEventListener("notificationclick", (event) => {
   const target = String(event.notification.data?.url || "/");
   event.waitUntil(
     (async () => {
+      const url = new URL(target, self.location.origin).href;
       const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
       for (const client of windows) {
-        if ("focus" in client) await client.focus();
-        if ("navigate" in client) {
-          await client.navigate(target);
-          return;
+        try {
+          const focused = "focus" in client ? await client.focus() : client;
+          if ("navigate" in focused) {
+            await (focused as WindowClient).navigate(url);
+            return;
+          }
+        } catch {
+          // Uncontrolled clients (e.g. first launch on iOS) cannot navigate — open fresh below.
         }
       }
-      await self.clients.openWindow(target);
+      await self.clients.openWindow(url);
     })(),
+  );
+});
+
+// Browsers may rotate the subscription; re-register it so pushes keep arriving.
+self.addEventListener("pushsubscriptionchange", (event) => {
+  const change = event as Event & {
+    oldSubscription?: PushSubscription | null;
+    newSubscription?: PushSubscription | null;
+    waitUntil: (p: Promise<unknown>) => void;
+  };
+  change.waitUntil(
+    (async () => {
+      let sub = change.newSubscription ?? null;
+      if (!sub) {
+        const res = await fetch("/api/push/vapid", { credentials: "same-origin" });
+        if (!res.ok) return;
+        const { publicKey } = (await res.json()) as { publicKey: string };
+        const padding = "=".repeat((4 - (publicKey.length % 4)) % 4);
+        const raw = atob((publicKey + padding).replace(/-/g, "+").replace(/_/g, "/"));
+        const key = Uint8Array.from(raw, (c) => c.charCodeAt(0));
+        sub = await self.registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: key,
+        });
+      }
+      await fetch("/api/push/subscribe", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(sub.toJSON()),
+      });
+    })().catch(() => undefined),
   );
 });

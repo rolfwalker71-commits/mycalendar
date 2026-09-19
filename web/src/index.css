@@ -93,6 +93,104 @@
   color-scheme: dark;
 }
 
+/* iOS 26 Liquid Glass — content on solid surfaces, navigation on translucent glass.
+   Colors are tuned for WCAG AA text contrast; glass stays opaque enough to read on. */
+html[data-chrome="ios"] {
+  --background: #f2f2f7;
+  --foreground: #0b0b0f;
+  --card: #ffffff;
+  --card-foreground: #0b0b0f;
+  --popover: #ffffff;
+  --popover-foreground: #0b0b0f;
+  --primary: #0066d6;
+  --primary-foreground: #ffffff;
+  --secondary: #e9e9ee;
+  --secondary-foreground: #0b0b0f;
+  --muted: #ececf1;
+  --muted-foreground: #55555c;
+  --accent: #e3e3e9;
+  --accent-foreground: #0b0b0f;
+  --destructive: #d70015;
+  --border: #d6d6dc;
+  --input: #c4c4cb;
+  --ring: #0066d6;
+  --today: #e0241b;
+  --today-foreground: #ffffff;
+  --mail: #0066d6;
+  --mail-foreground: #ffffff;
+  --radius: 1rem;
+  --grid-line: #e3e3e8;
+  --surface-container: #ffffff;
+  --tile-radius: 1.375rem;
+  --ease-emphasized: cubic-bezier(0.32, 0.72, 0, 1);
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro", system-ui, sans-serif;
+  --glass-bg: rgba(255, 255, 255, 0.72);
+  --glass-bg-strong: rgba(255, 255, 255, 0.9);
+  --glass-selected: rgba(0, 0, 0, 0.07);
+  --glass-stroke: rgba(0, 0, 0, 0.08);
+  --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.95), inset 0 -0.5px 0 rgba(255, 255, 255, 0.4);
+  --glass-shadow: 0 10px 30px -8px rgba(0, 0, 0, 0.18), 0 2px 6px rgba(0, 0, 0, 0.06);
+  --glass-filter: blur(22px) saturate(1.8);
+  --scrim: rgba(0, 0, 0, 0.28);
+}
+
+html.dark[data-chrome="ios"] {
+  --background: #000000;
+  --foreground: #f5f5f7;
+  --card: #1c1c1e;
+  --card-foreground: #f5f5f7;
+  --popover: #1c1c1e;
+  --popover-foreground: #f5f5f7;
+  --primary: #0a84ff;
+  --primary-foreground: #ffffff;
+  --secondary: #2c2c2e;
+  --secondary-foreground: #f5f5f7;
+  --muted: #2c2c2e;
+  --muted-foreground: #b4b4bb;
+  --accent: #3a3a3c;
+  --accent-foreground: #f5f5f7;
+  --destructive: #ff5a52;
+  --border: #38383a;
+  --input: #4a4a4e;
+  --ring: #0a84ff;
+  --today: #ff453a;
+  --today-foreground: #ffffff;
+  --mail: #0a84ff;
+  --mail-foreground: #ffffff;
+  --grid-line: #2c2c2e;
+  --surface-container: #1c1c1e;
+  --glass-bg: rgba(30, 30, 32, 0.7);
+  --glass-bg-strong: rgba(28, 28, 30, 0.9);
+  --glass-selected: rgba(255, 255, 255, 0.14);
+  --glass-stroke: rgba(255, 255, 255, 0.12);
+  --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.16), inset 0 -0.5px 0 rgba(255, 255, 255, 0.05);
+  --glass-shadow: 0 10px 30px -8px rgba(0, 0, 0, 0.7), 0 2px 6px rgba(0, 0, 0, 0.4);
+  --scrim: rgba(0, 0, 0, 0.5);
+}
+
+/* Readability first: solid materials when the user reduces transparency or raises contrast. */
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  html[data-chrome="ios"] {
+    --glass-bg: #ffffff;
+    --glass-bg-strong: #ffffff;
+    --glass-stroke: rgba(0, 0, 0, 0.22);
+    --muted-foreground: #3f3f45;
+  }
+  html.dark[data-chrome="ios"] {
+    --glass-bg: #1c1c1e;
+    --glass-bg-strong: #1c1c1e;
+    --glass-stroke: rgba(255, 255, 255, 0.3);
+    --muted-foreground: #d1d1d6;
+  }
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  html[data-chrome="ios"] {
+    --glass-bg: var(--card);
+    --glass-bg-strong: var(--card);
+  }
+}
+
 /* Material You 3 Expressive — tonal surfaces, larger shapes, colorful primary */
 html[data-chrome="android"] {
   --background: #f7f2fa;
@@ -234,6 +332,33 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Top safe area (notch / Dynamic Island / iPad status bar) for every shell header and sidebar. */
+.app-header {
+  padding-top: calc(0.5rem + env(safe-area-inset-top, 0px));
+}
+
+/* Landscape iPhone: keep content clear of the notch / Dynamic Island. */
+.app-shell {
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
+@media (min-width: 1024px) {
+  .app-header {
+    padding-top: calc(0.75rem + env(safe-area-inset-top, 0px));
+  }
+}
+
+.app-safe-top {
+  padding-top: calc(1rem + env(safe-area-inset-top, 0px));
+}
+
+.app-scroll {
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
 html[data-chrome="android"] header {
   border-bottom-color: transparent;
   background: var(--surface-container);
@@ -335,6 +460,176 @@ html[data-chrome="android"] [data-slot="sheet-content"][data-side="bottom"]::bef
   transform: translateX(-50%);
 }
 
+/* ---------- Liquid Glass (iOS / iPadOS) ---------- */
+
+.lg-glass {
+  background: var(--glass-bg, var(--card));
+  -webkit-backdrop-filter: var(--glass-filter, none);
+  backdrop-filter: var(--glass-filter, none);
+  box-shadow: var(--glass-highlight, none), var(--glass-shadow, none), 0 0 0 0.5px var(--glass-stroke, var(--border));
+}
+
+.lg-glass-selected {
+  background: var(--glass-selected, var(--muted));
+  box-shadow: var(--glass-highlight, none);
+}
+
+.lg-glass-tint {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0) 55%),
+    color-mix(in srgb, var(--primary) 92%, transparent);
+  color: var(--primary-foreground);
+  -webkit-backdrop-filter: var(--glass-filter, none);
+  backdrop-filter: var(--glass-filter, none);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.12),
+    0 10px 24px -6px color-mix(in srgb, var(--primary) 55%, transparent),
+    0 0 0 0.5px rgba(255, 255, 255, 0.25);
+}
+
+html[data-chrome="ios"] .lg-glass-tint:hover {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0) 55%),
+    var(--primary);
+}
+
+html[data-chrome="ios"] body {
+  letter-spacing: -0.01em;
+}
+
+html[data-chrome="ios"] header {
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: var(--glass-filter);
+  backdrop-filter: var(--glass-filter);
+  border-bottom-color: var(--glass-stroke);
+  position: relative;
+  z-index: 30;
+}
+
+html[data-chrome="ios"] .app-sidebar {
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: var(--glass-filter);
+  backdrop-filter: var(--glass-filter);
+  border-color: var(--glass-stroke);
+}
+
+html[data-chrome="ios"] .nav-dock {
+  padding-inline: max(0.75rem, env(safe-area-inset-left, 0px));
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+}
+
+html[data-chrome="ios"] [data-slot="button"] {
+  border-radius: 999px;
+}
+
+html[data-chrome="ios"] [data-slot="button"]:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+html[data-chrome="ios"] [data-slot="input"],
+html[data-chrome="ios"] [data-slot="textarea"],
+html[data-chrome="ios"] [data-slot="select-trigger"] {
+  border-radius: 0.875rem;
+}
+
+/* iOS zooms into inputs under 16px — keep form text at least 1rem. */
+html[data-chrome="ios"] input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+html[data-chrome="ios"] textarea,
+html[data-chrome="ios"] select {
+  font-size: max(1rem, 16px);
+}
+
+html[data-chrome="ios"] [data-slot="tabs-list"] {
+  border-radius: 999px;
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: var(--glass-filter);
+  backdrop-filter: var(--glass-filter);
+  box-shadow: var(--glass-highlight), 0 0 0 0.5px var(--glass-stroke);
+}
+
+html[data-chrome="ios"] [data-slot="tabs-trigger"] {
+  border-radius: 999px;
+}
+
+html[data-chrome="ios"] [data-slot="tabs-trigger"][data-active] {
+  background: var(--card);
+  color: var(--foreground);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12), 0 0 0 0.5px var(--glass-stroke);
+}
+
+html[data-chrome="ios"] [data-slot="dialog-overlay"],
+html[data-chrome="ios"] [data-slot="sheet-overlay"] {
+  background: var(--scrim);
+}
+
+html[data-chrome="ios"] [data-slot="dialog-content"] {
+  border-radius: 1.75rem;
+  background-color: var(--glass-bg-strong);
+  -webkit-backdrop-filter: var(--glass-filter);
+  backdrop-filter: var(--glass-filter);
+  box-shadow: var(--glass-highlight), var(--glass-shadow), 0 0 0 0.5px var(--glass-stroke);
+  --tw-ring-color: transparent;
+}
+
+html[data-chrome="ios"] [data-slot="sheet-content"] {
+  background-color: var(--glass-bg-strong);
+  -webkit-backdrop-filter: var(--glass-filter);
+  backdrop-filter: var(--glass-filter);
+  box-shadow: var(--glass-highlight), var(--glass-shadow);
+  border-color: var(--glass-stroke);
+}
+
+html[data-chrome="ios"] [data-slot="sheet-content"] > [aria-hidden].-z-10 {
+  background: transparent;
+}
+
+html[data-chrome="ios"] [data-slot="sheet-content"][data-side="bottom"] {
+  border-top-left-radius: 2rem;
+  border-top-right-radius: 2rem;
+  transition-timing-function: var(--ease-emphasized);
+}
+
+html[data-chrome="ios"] [data-slot="sheet-content"][data-side="bottom"]::before {
+  content: "";
+  position: absolute;
+  top: 0.4rem;
+  left: 50%;
+  width: 2.25rem;
+  height: 0.3125rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--foreground) 22%, transparent);
+  transform: translateX(-50%);
+}
+
+html[data-chrome="ios"] [data-slot="dropdown-menu-content"],
+html[data-chrome="ios"] [data-slot="select-content"],
+html[data-chrome="ios"] [data-slot="popover-content"] {
+  border-radius: 1.25rem;
+  background-color: var(--glass-bg-strong);
+  -webkit-backdrop-filter: var(--glass-filter);
+  backdrop-filter: var(--glass-filter);
+  box-shadow: var(--glass-highlight), var(--glass-shadow), 0 0 0 0.5px var(--glass-stroke);
+  --tw-ring-color: transparent;
+}
+
+html[data-chrome="ios"] [data-slot="dropdown-menu-item"],
+html[data-chrome="ios"] [data-slot="select-item"] {
+  border-radius: 0.75rem;
+  min-height: 2.75rem;
+}
+
+html[data-chrome="ios"] [data-sonner-toaster] [data-sonner-toast] {
+  border-radius: 1.5rem;
+  -webkit-backdrop-filter: var(--glass-filter);
+  backdrop-filter: var(--glass-filter);
+  box-shadow: var(--glass-highlight), var(--glass-shadow);
+}
+
+html[data-chrome="ios"] [data-sonner-toaster] {
+  --offset-top: calc(0.75rem + env(safe-area-inset-top, 0px)) !important;
+}
+
 input[type="date"][data-empty="true"]:not(:focus)::-webkit-datetime-edit,
 input[type="time"][data-empty="true"]:not(:focus)::-webkit-datetime-edit,
 input[type="date"][data-empty="true"]:not(:focus)::-webkit-datetime-edit-fields-wrapper,
@@ -363,4 +658,45 @@ input[type="date"]::-webkit-datetime-edit-year-field,
 input[type="time"]::-webkit-datetime-edit-hour-field,
 input[type="time"]::-webkit-datetime-edit-minute-field {
   color: var(--foreground);
+}
+
+/* Bottom sheets never slide under the status bar / Dynamic Island. */
+[data-slot="sheet-content"][data-side="bottom"] {
+  max-height: calc(100dvh - env(safe-area-inset-top, 0px) - 0.75rem);
+}
+
+[data-slot="sheet-content"][data-side="top"],
+[data-slot="sheet-content"][data-side="left"],
+[data-slot="sheet-content"][data-side="right"] {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+html[data-chrome="ios"] .app-selectbar {
+  left: max(0.75rem, env(safe-area-inset-left, 0px));
+  right: max(0.75rem, env(safe-area-inset-right, 0px));
+  bottom: max(0.5rem, env(safe-area-inset-bottom, 0px));
+  padding-bottom: 0.75rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--glass-bg-strong);
+  -webkit-backdrop-filter: var(--glass-filter);
+  backdrop-filter: var(--glass-filter);
+  box-shadow: var(--glass-highlight), var(--glass-shadow), 0 0 0 0.5px var(--glass-stroke);
+}
+
+/* Week columns scroll in sync — show a single scrollbar on the last column only. */
+.week-columns > :not(:last-child) .overflow-y-auto {
+  scrollbar-width: none;
+}
+
+.week-columns > :not(:last-child) .overflow-y-auto::-webkit-scrollbar {
+  display: none;
+}
+
+/* Centered dialogs stay clear of the notch, Dynamic Island and home indicator. */
+[data-slot="dialog-content"] {
+  max-height: min(
+    44rem,
+    calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 2rem)
+  );
 }

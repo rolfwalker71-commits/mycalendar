@@ -63,9 +63,10 @@ import { MailApp } from "@/mail/MailApp";
 import { ContactsView } from "@/views/ContactsView";
 import type { AppModule } from "@/mail/types";
 import { useLiveSync } from "@/lib/liveSync";
-import { useTheme } from "@/components/ThemeProvider";
 import { useChrome } from "@/components/ChromeProvider";
+import { useTheme } from "@/components/ThemeProvider";
 import { ChromeSwitcher } from "@/components/ChromeSwitcher";
+import { ThemeSwitcher } from "@/components/ThemeSwitcher";
 import { fabClass, fabClearance, panelClass } from "@/lib/platform";
 import { PullToRefresh } from "@/components/PullToRefresh";
 import { DateField, TimeField } from "@/components/DateTimeFields";
@@ -107,7 +108,6 @@ function CalendarApp({
   onOpenSettings: () => void;
 }) {
   const desktop = useDesktop();
-  const { setTheme, dark } = useTheme();
   const { chrome } = useChrome();
   const [weekStart, setWeekStart] = useState<0 | 1>(me.weekStart);
   const [cursor, setCursor] = useState(() => now());
@@ -420,8 +420,8 @@ function CalendarApp({
   }, [cursor, dayHeading, effectiveView, tasksTab, weekStart]);
 
   const header = (
-    <header className="flex flex-col gap-2 border-b border-border px-3 py-2 lg:flex-row lg:items-center lg:gap-3 lg:px-6 lg:py-3">
-      <div className="flex min-w-0 items-center gap-1 lg:gap-2">
+    <header className="app-header flex shrink-0 flex-col gap-2 border-b border-border px-3 py-2 lg:flex-row lg:flex-wrap lg:items-center lg:gap-x-3 lg:gap-y-2 lg:px-6 lg:py-3">
+      <div className="flex min-w-0 items-center gap-1 lg:flex-[1_1_18rem] lg:gap-2">
         {tasksTab ? null : (
           <>
             <Button
@@ -477,7 +477,7 @@ function CalendarApp({
           <RefreshCw className={cn("size-5", syncing && "animate-spin")} />
         </Button>
       </div>
-      <div className="hidden flex-1 justify-center lg:flex">
+      <div className="hidden justify-center lg:flex lg:flex-[1_1_22rem]">
         <ViewSwitcher
           value={view}
           withAgenda
@@ -541,17 +541,18 @@ function CalendarApp({
     main = <SearchView onOpen={onOpenEvent} onDelete={setPendingDelete} onDuplicate={(e) => void duplicateEvent(e)} onMove={openReschedule} />;
   } else if (!desktop && mobileTab === "more") {
     main = (
-      <div className="flex flex-col gap-6 px-4 py-4 pb-44">
+      <div className="app-scroll min-h-0 flex-1">
+      <div
+        className="flex flex-col gap-6 px-4 py-4"
+        style={{ paddingBottom: `calc(${fabClearance(chrome, 2)} + 1rem)` }}
+      >
         <section>
           <h2 className="mb-2 text-sm font-medium text-muted-foreground">Darstellung</h2>
           <div className={cn("p-4", panelClass(chrome))}>
             <ChromeSwitcher className="mb-3" />
-            <div className="flex min-h-11 items-center justify-between gap-3">
-              <Label>Dunkles Design</Label>
-              <Switch
-                checked={dark}
-                onCheckedChange={(v) => setTheme(v ? "dark" : "light")}
-              />
+            <div className="flex flex-col gap-1.5">
+              <Label>Erscheinungsbild</Label>
+              <ThemeSwitcher />
             </div>
             <div className="mt-3 flex min-h-11 items-center justify-between gap-3">
               <Label>Woche beginnt am Sonntag</Label>
@@ -594,10 +595,11 @@ function CalendarApp({
           Abmelden
         </Button>
       </div>
+      </div>
     );
   } else if (!desktop && mobileTab === "tasks") {
     main = (
-      <div className="min-h-0 flex-1 overflow-auto">
+      <div className="app-scroll min-h-0 flex-1">
         <TasksView
           tasks={tasks}
           error={tasksError}
@@ -611,7 +613,7 @@ function CalendarApp({
     main = <SearchView onOpen={onOpenEvent} onDelete={setPendingDelete} onDuplicate={(e) => void duplicateEvent(e)} onMove={openReschedule} />;
   } else if (effectiveView === "agenda" || (!desktop && mobileTab === "today")) {
     main = (
-      <div className="min-h-0 flex-1 overflow-auto">
+      <div className="app-scroll min-h-0 flex-1">
         {!desktop ? (
           <div className="px-3 pt-2">
             <MiniNavigator
@@ -698,9 +700,9 @@ function CalendarApp({
   }
 
   return (
-    <div className="flex h-dvh flex-col bg-background">
+    <div className="app-shell flex h-dvh flex-col bg-background">
       <div className="flex min-h-0 flex-1">
-        <aside className="hidden w-72 shrink-0 flex-col gap-6 overflow-auto border-r border-border p-4 lg:flex">
+        <aside className="app-sidebar app-safe-top app-scroll hidden w-72 shrink-0 flex-col gap-6 border-r border-border p-4 lg:flex">
           <div className="flex items-center gap-2.5">
             <AppLogo className="size-9" size={36} />
             <div className="min-w-0">
@@ -735,9 +737,8 @@ function CalendarApp({
               }
             }}
           />
-          <div className="mt-auto flex min-h-11 items-center justify-between gap-3 pt-4">
-            <Label className="text-muted-foreground">Dunkel</Label>
-            <Switch checked={dark} onCheckedChange={(v) => setTheme(v ? "dark" : "light")} />
+          <div className="mt-auto pt-4">
+            <ThemeSwitcher />
           </div>
         </aside>
         <div className="flex min-w-0 flex-1 flex-col">
@@ -755,8 +756,8 @@ function CalendarApp({
             {main}
           </PullToRefresh>
         </div>
-        <aside className="hidden w-80 shrink-0 flex-col overflow-hidden border-l border-border lg:flex">
-          <div className="min-h-0 flex-1 overflow-auto p-4">
+        <aside className="app-sidebar hidden w-80 shrink-0 flex-col overflow-hidden border-l border-border lg:flex">
+          <div className="app-safe-top app-scroll min-h-0 flex-1 p-4">
             <TasksView
               tasks={tasks}
               error={tasksError}
@@ -887,6 +888,9 @@ function CalendarApp({
 }
 
 export function App() {
+  // Calendar colors are derived from the active theme at render time; subscribing here
+  // re-renders the tree when light/dark flips (also when iOS switches automatically).
+  useTheme();
   const [me, setMe] = useState<Me | null | undefined>(undefined);
   const [module, setModule] = useState<AppModule>(() => {
     if (typeof window === "undefined") return "calendar";

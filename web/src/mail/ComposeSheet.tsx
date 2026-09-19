@@ -402,7 +402,7 @@ export function ComposeSheet({
           <SheetTitle>{title}</SheetTitle>
           <SheetDescription className="sr-only">E-Mail verfassen</SheetDescription>
         </SheetHeader>
-        <div className="overflow-auto px-4 pb-2">{body}</div>
+        <div className="app-scroll min-h-0 px-4 pb-2">{body}</div>
         <SheetFooter className="flex-row flex-wrap justify-end">{actions}</SheetFooter>
       </SheetContent>
     </Sheet>
