@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { DateTime } from "luxon";
-import { ChevronLeft, ChevronRight, Plus, RefreshCw, Search } from "lucide-react";
+import { ChevronLeft, ChevronRight, LayoutGrid, Plus, RefreshCw, Search } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -58,6 +58,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { SettingsDialog } from "@/components/SettingsDialog";
+import { WidgetsDialog } from "@/components/WidgetsDialog";
 import { Toaster } from "@/components/ui/sonner";
 import { MailApp } from "@/mail/MailApp";
 import { ContactsView } from "@/views/ContactsView";
@@ -100,12 +101,14 @@ function CalendarApp({
   module,
   onModule,
   onOpenSettings,
+  onOpenWidgets,
 }: {
   me: Me;
   onLogout: () => void;
   module: AppModule;
   onModule: (next: AppModule) => void;
   onOpenSettings: () => void;
+  onOpenWidgets: () => void;
 }) {
   const desktop = useDesktop();
   const { chrome } = useChrome();
@@ -588,6 +591,10 @@ function CalendarApp({
         <Button variant="outline" onClick={onOpenSettings}>
           Einstellungen
         </Button>
+        <Button variant="outline" onClick={onOpenWidgets}>
+          <LayoutGrid className="size-4" />
+          Widgets für Home-Bildschirm
+        </Button>
         <Button
           variant="outline"
           onClick={() => apiClient.logout().finally(onLogout)}
@@ -905,6 +912,7 @@ export function App() {
     return new URLSearchParams(window.location.search).get("to");
   });
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [widgetsOpen, setWidgetsOpen] = useState(false);
   const [threaded, setThreaded] = useState(() => {
     if (typeof window === "undefined") return true;
     return window.localStorage.getItem("mail-threaded") !== "false";
@@ -999,6 +1007,7 @@ export function App() {
           module={module}
           onModule={onModule}
           onOpenSettings={() => setSettingsOpen(true)}
+          onOpenWidgets={() => setWidgetsOpen(true)}
         />
       )}
       <SettingsDialog
@@ -1008,7 +1017,12 @@ export function App() {
         onMeChange={setMe}
         threaded={threaded}
         onThreadedChange={onThreadedChange}
+        onOpenWidgets={() => {
+          setSettingsOpen(false);
+          setWidgetsOpen(true);
+        }}
       />
+      <WidgetsDialog open={widgetsOpen} onOpenChange={setWidgetsOpen} />
       <Toaster />
     </>
   );

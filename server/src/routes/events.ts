@@ -9,7 +9,7 @@ import {
   refreshCachedEvent,
   syncUserEvents,
 } from "../sync.js";
-import type { CalendarRow, EventRow } from "../types.js";
+import type { CalendarRow, EventRow, UserRow } from "../types.js";
 import { buildVcalendar } from "../ics.js";
 import { coverUrlFor, loadCoverFile } from "../shiftCover.js";
 import {
@@ -165,28 +165,19 @@ async function getOwnedCalendar(userId: string, calendarId: string) {
   return rows[0] ?? null;
 }
 
-eventsRouter.get("/", async (req, res) => {
-  const from = String(req.query.from ?? "");
-  const to = String(req.query.to ?? "");
-  if (!from || !to) {
-    res.status(400).json({ error: "Parameter from und to sind erforderlich." });
-    return;
-  }
-  const fromDt = DateTime.fromISO(from, { setZone: true });
-  const toDt = DateTime.fromISO(to, { setZone: true });
-  if (!fromDt.isValid || !toDt.isValid) {
-    res.status(400).json({ error: "Ungültiger Zeitraum." });
-    return;
-  }
-
-  const calendarIdsRaw = String(req.query.calendarIds ?? "");
-  const calendarIds = calendarIdsRaw
-    ? calendarIdsRaw.split(",").map((s) => s.trim()).filter(Boolean)
-    : [];
-
+/**
+ * Events overlapping [from, to) for the user's selected calendars (or the given ids),
+ * minus hidden events, plus contact birthdays. Shared by the app and home-screen widgets.
+ */
+export async function listEventsForUser(
+  user: UserRow,
+  fromDt: DateTime,
+  toDt: DateTime,
+  calendarIds: string[] = [],
+): Promise<(ReturnType<typeof serializeEvent> & { readOnly?: boolean })[]> {
   const fromDate = fromDt.toISODate();
   const toDate = toDt.toISODate();
-  const params: unknown[] = [req.user!.id, fromDt.toUTC().toISO(), toDt.toUTC().toISO(), toDate, fromDate];
+  const params: unknown[] = [user.id, fromDt.toUTC().toISO(), toDt.toUTC().toISO(), toDate, fromDate];
   let extra = "";
   if (calendarIds.length) {
     params.push(calendarIds);
@@ -224,19 +215,20 @@ eventsRouter.get("/", async (req, res) => {
   );
   const events = rows.map(serializeEvent);
   try {
-    const birthdayCal = await ensureLocalCalendar(req.user!.id, "birthday:contacts", "Geburtstage", "#f4511e");
-    const includeBirthday =
-      birthdayCal.selected &&
-      (!calendarIds.length || calendarIds.includes(birthdayCal.id));
+    const birthdayCal = await ensureLocalCalendar(user.id, "birthday:contacts", "Geburtstage", "#f4511e");
+    // An explicit list (widgets) wins over the app's visibility toggle.
+    const includeBirthday = calendarIds.length
+      ? calendarIds.includes(birthdayCal.id)
+      : birthdayCal.selected;
     if (includeBirthday) {
       const contacts = await Promise.race([
-        loadContacts(req.user!),
+        loadContacts(user),
         new Promise<null>((resolve) => {
           setTimeout(() => resolve(null), 800);
         }),
       ]);
       if (contacts) {
-        const hidden = await hiddenKeySet(req.user!.id);
+        const hidden = await hiddenKeySet(user.id);
         const extras = birthdayEventsForRange(
           contacts,
           birthdayCal,
@@ -250,6 +242,28 @@ eventsRouter.get("/", async (req, res) => {
   } catch {
     /* Kontakte nicht freigegeben */
   }
+  return events;
+}
+
+eventsRouter.get("/", async (req, res) => {
+  const from = String(req.query.from ?? "");
+  const to = String(req.query.to ?? "");
+  if (!from || !to) {
+    res.status(400).json({ error: "Parameter from und to sind erforderlich." });
+    return;
+  }
+  const fromDt = DateTime.fromISO(from, { setZone: true });
+  const toDt = DateTime.fromISO(to, { setZone: true });
+  if (!fromDt.isValid || !toDt.isValid) {
+    res.status(400).json({ error: "Ungültiger Zeitraum." });
+    return;
+  }
+
+  const calendarIdsRaw = String(req.query.calendarIds ?? "");
+  const calendarIds = calendarIdsRaw
+    ? calendarIdsRaw.split(",").map((s) => s.trim()).filter(Boolean)
+    : [];
+  const events = await listEventsForUser(req.user!, fromDt, toDt, calendarIds);
   res.json({ events });
 });
 

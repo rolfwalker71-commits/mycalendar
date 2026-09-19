@@ -166,3 +166,19 @@ CREATE TABLE IF NOT EXISTS hidden_events (
   PRIMARY KEY (user_id, event_key)
 );
 
+
+-- Home-screen widgets (Scriptable). Each widget has its own read-only token:
+-- the SHA-256 hash is used for lookup, the encrypted copy lets the app show the script again.
+CREATE TABLE IF NOT EXISTS widgets (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  kind TEXT NOT NULL DEFAULT 'calendar',
+  config JSONB NOT NULL DEFAULT '{}'::jsonb,
+  token_hash TEXT NOT NULL UNIQUE,
+  token_enc TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  last_used_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS widgets_user_idx ON widgets (user_id);

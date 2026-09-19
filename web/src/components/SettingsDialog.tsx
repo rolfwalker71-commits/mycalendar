@@ -78,6 +78,7 @@ export function SettingsDialog({
   onMeChange,
   threaded,
   onThreadedChange,
+  onOpenWidgets,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -85,6 +86,7 @@ export function SettingsDialog({
   onMeChange: (next: Me) => void;
   threaded: boolean;
   onThreadedChange: (next: boolean) => void;
+  onOpenWidgets: () => void;
 }) {
   const [fontScale, setFontScale] = useState(readFontScale);
   const [followSystemText, setFollowSystemText] = useState(readFollowSystemText);
@@ -298,6 +300,18 @@ export function SettingsDialog({
           />
           <Button variant="outline" disabled={!supported || busy} onClick={() => void sendTest()}>
             Testbenachrichtigung
+          </Button>
+        </section>
+        <section className="flex flex-col gap-2">
+          <h2 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Widgets
+          </h2>
+          <p className="text-xs text-muted-foreground">
+            Eigene Widgets für iPhone und iPad mit der App Scriptable: Termine mit Kalendergrafiken,
+            Mails und Aufgaben, auch auf dem Sperrbildschirm.
+          </p>
+          <Button variant="outline" onClick={onOpenWidgets}>
+            Widgets einrichten
           </Button>
         </section>
         <section className="flex flex-col gap-1">

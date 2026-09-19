@@ -1,4 +1,4 @@
-import { copyFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import sharp from "sharp";
@@ -150,5 +150,18 @@ await writePng("apple-touch-icon.png", 180, { opaque: true, apple: true });
 await writePng("apple-touch-icon-152.png", 152, { opaque: true, apple: true });
 await writePng("apple-touch-icon-167.png", 167, { opaque: true, apple: true });
 await writePng("apple-touch-icon.png", 180, { opaque: true, apple: true, dest: publicRoot });
+
+// Kleine Kalendergrafiken für Home-Bildschirm-Widgets (Scriptable hat wenig Speicher).
+const artDir = path.join(publicRoot, "event-art");
+const thumbDir = path.join(artDir, "thumbs");
+mkdirSync(thumbDir, { recursive: true });
+for (const file of readdirSync(artDir)) {
+  if (!file.endsWith(".jpg")) continue;
+  const header = file.endsWith("-header.jpg");
+  await sharp(path.join(artDir, file))
+    .resize(header ? 480 : 144, header ? 270 : 144, { fit: "cover" })
+    .jpeg({ quality: 78, progressive: false, mozjpeg: true })
+    .toFile(path.join(thumbDir, file));
+}
 
 console.log("Icons geschrieben nach", outDir);

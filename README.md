@@ -63,6 +63,28 @@ Hinweise:
 - Die Schriftgröße folgt der **iOS-Textgröße**, auch live über das Kontrollzentrum (Steuerelement „Textgröße“, optional nur für diese App). Abschaltbar in den Einstellungen.
 - Apple verlangt für Push ein gültiges VAPID-Subject (`mailto:` mit echter Adresse oder `https://`-URL). Die App nimmt die erste Adresse aus `ALLOWED_GOOGLE_EMAILS`, sonst `PUBLIC_BASE_URL`. Optional `VAPID_SUBJECT` setzen.
 
+## Widgets mit Scriptable (iPhone und iPad)
+
+Eigene Home- und Sperrbildschirm-Widgets über die kostenlose App [Scriptable](https://apps.apple.com/app/scriptable/id1405459188).
+
+1. In der App: Einstellungen › **Widgets einrichten** (oder am Handy: Mehr › Widgets für Home-Bildschirm).
+2. **Neues Widget**: Inhalt wählen (**Kalender**, **Mail** oder **Mein Tag**), Kalender anhaken, Kalendergrafiken ein/aus, Zeitraum. Beim Anlegen wird das Skript in die Zwischenablage kopiert.
+3. In Scriptable **+** tippen, einfügen, benennen.
+4. Home-Bildschirm lange drücken › **+** › Scriptable › Größe wählen › im Widget unter „Script“ das Skript wählen.
+
+| Inhalt | Klein | Mittel | Groß | iPad extragroß | Sperrbildschirm |
+|---|---|---|---|---|---|
+| Kalender | nächster Termin mit Titelgrafik | heute mit Grafiken | Agenda 1/3/7 Tage | Agenda über zwei Spalten | rechteckig, rund, Textzeile |
+| Mail | Ungelesene + neueste | 3 neueste | 6 neueste | 6 neueste | rund (Anzahl), rechteckig |
+| Mein Tag | nächster Termin | Termine + Mail + Aufgabe | Termine, Mails, Aufgaben | Agenda links, Mails und Aufgaben rechts | wie Kalender |
+
+- Die Einstellungen (Kalender, Grafiken, Zeitraum, Mail-Vorschau) liegen auf dem Server. Änderungen gelten ohne neues Einfügen des Skripts.
+- Jedes Widget hat einen eigenen **Schlüssel, der nur lesen darf** (`/api/widget/data`). „Neuer Schlüssel“ oder Löschen sperrt ein kopiertes Skript sofort.
+- „Absender und Betreff zeigen“ ausschalten, wenn auf dem Sperrbildschirm nur die Anzahl sichtbar sein soll.
+- Optionaler Widget-Parameter in Scriptable: `kalender`, `mail` oder `tag` überschreibt den Inhalt.
+- iOS aktualisiert Widgets selbst, meist alle 15–30 Minuten. Ohne Verbindung zeigt das Widget die letzten Daten mit „Offline · Stand …“.
+- Die App muss vom Gerät aus erreichbar sein (HTTPS-Adresse, unter der die App geöffnet wurde).
+
 ## Google Cloud OAuth
 
 1. In der [Google Cloud Console](https://console.cloud.google.com/) ein Projekt anlegen (oder das Workspace-Projekt nutzen).

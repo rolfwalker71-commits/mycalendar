@@ -22,6 +22,8 @@ export default defineConfig({
       manifest: false,
       injectManifest: {
         globPatterns: ["**/*.{js,css,html,ico,png,jpg,svg,webmanifest}"],
+        // Widget thumbnails are fetched by Scriptable, not by the PWA.
+        globIgnores: ["**/event-art/thumbs/**"],
       },
       devOptions: {
         enabled: true,

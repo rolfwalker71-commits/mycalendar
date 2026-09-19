@@ -10,6 +10,7 @@ type ContactWrite = {
   birthday?: string | null;
 };
 import type { MailLabel, MailThread, MailThreadSummary } from "@/mail/types";
+import type { WidgetConfig, WidgetKind, WidgetSummary } from "./widgets";
 
 export class ApiError extends Error {
   constructor(
@@ -80,6 +81,24 @@ export const apiClient = {
       body: JSON.stringify(body),
     }),
   pushVapid: () => api<{ publicKey: string }>("/api/push/vapid"),
+  widgets: () => api<{ widgets: WidgetSummary[] }>("/api/widgets"),
+  createWidget: (body: { name: string; kind: WidgetKind; config: WidgetConfig }) =>
+    api<{ widget: WidgetSummary; token: string }>("/api/widgets", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  updateWidget: (id: string, body: { name?: string; kind?: WidgetKind; config?: WidgetConfig }) =>
+    api<{ widget: WidgetSummary }>(`/api/widgets/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  deleteWidget: (id: string) =>
+    api<{ ok: boolean }>(`/api/widgets/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  widgetToken: (id: string) => api<{ token: string }>(`/api/widgets/${encodeURIComponent(id)}/token`),
+  rotateWidgetToken: (id: string) =>
+    api<{ widget: WidgetSummary; token: string }>(`/api/widgets/${encodeURIComponent(id)}/rotate`, {
+      method: "POST",
+    }),
   pushSubscribe: (sub: PushSubscriptionJSON) =>
     api<{ ok: boolean }>("/api/push/subscribe", {
       method: "POST",
