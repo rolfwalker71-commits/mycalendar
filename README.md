@@ -85,71 +85,14 @@ Eigene Home- und Sperrbildschirm-Widgets über die kostenlose App [Scriptable](h
 - iOS aktualisiert Widgets selbst, meist alle 15–30 Minuten. Ohne Verbindung zeigt das Widget die letzten Daten mit „Offline · Stand …“.
 - Die App muss vom Gerät aus erreichbar sein (HTTPS-Adresse, unter der die App geöffnet wurde).
 
-## Illustrationen aus Schichtklar (Arbeitsplan)
+## Illustrationen für Arbeitsplan-Termine
 
-Termine aus einem Arbeitsplan-Kalender (z. B. „Arbeitsplan Valentyna“) zeigen die **Illustration der Schichtart aus Schichtklar/Shiftplanner**, in der App und in den Widgets. Die Bilder kommen nicht aus Google, sondern direkt aus dessen Datenbank und Bilderordner:
+Termine aus einem Arbeitsplan-Kalender bekommen die allgemeine Kalendergrafik, genau wie andere Termine ohne eigenes Bild.
 
-- `backend/data/schichtklar.db` (Schichtarten und ihre Bilder)
-- `backend/uploads/illustrations/…`
+Zwei Ausnahmen, ohne jede Einrichtung:
 
-Beide Dienste müssen auf **demselben Server** laufen. An der `docker-compose.yml` selbst wird nichts geändert — der Mount kommt aus einer eigenen `docker-compose.override.yml`, die Compose automatisch dazulädt. Vorlagen liegen im Ordner `docker/`.
-
-In der `.env` steht immer:
-
-```bash
-SCHICHTKLAR_DIR=/schichtklar   # Pfad im Container
-```
-
-**Fall A — Schichtklar läuft selbst in Docker und legt seine Daten in Volumes ab** (`schichtklar-data`, `schichtklar-uploads`):
-
-```bash
-docker volume ls | grep schichtklar          # echte Namen anzeigen
-cp docker/schichtklar-volumes.override.yml docker-compose.override.yml
-```
-
-Danach in der Kopie die beiden `name:`-Zeilen an die angezeigten Namen anpassen. Compose stellt den Projektnamen voran, typisch `shiftplanner_schichtklar-data`. `SCHICHTKLAR_HOST_DIR` bleibt leer.
-
-```yaml
-services:
-  app:
-    volumes:
-      - schichtklar-data:/schichtklar/backend/data:ro
-      - schichtklar-uploads:/schichtklar/backend/uploads:ro
-
-volumes:
-  schichtklar-data:
-    external: true
-    name: shiftplanner_schichtklar-data
-  schichtklar-uploads:
-    external: true
-    name: shiftplanner_schichtklar-uploads
-```
-
-Am Shiftplanner ändert sich nichts, er schreibt weiter in dieselben Volumes.
-
-**Fall B — Schichtklar liegt als Ordner auf dem Host:**
-
-```bash
-cp docker/schichtklar-ordner.override.yml docker-compose.override.yml
-```
-
-```bash
-# .env, zusätzlich
-SCHICHTKLAR_HOST_DIR=/pfad/zu/shiftplanner
-```
-
-Ohne Docker genügt `SCHICHTKLAR_DIR` mit dem lokalen Pfad; liegt `shiftplanner` neben `mycalendar`, wird er auch ohne Angabe gefunden.
-
-Danach `docker compose up -d`.
-
-Beim Start schreibt die App ins Log, was sie gefunden hat:
-
-```
-Schichtklar-Illustrationen: 5 aus /schichtklar
-Schichtklar-Illustrationen: keine gefunden — für Arbeitsplan-Termine erscheinen Standardbilder.
-```
-
-Zugeordnet wird zuerst über die Google-Event-ID der Schicht, sonst über das Kürzel am Titelanfang (z. B. „S1 Spätdienst“ → Schichtart `S1`). Passt nichts, greift die allgemeine Kalendergrafik.
+- Hängt am Termin ein Bild (Google-Drive-Anhang), zeigt die App dieses Bild — in der Agenda und im Widget.
+- Läuft die App direkt neben einer Schichtklar-Installation auf derselben Maschine (Entwicklung, gemeinsamer Ordner), nimmt sie deren Schicht-Illustrationen. Optional über `SCHICHTKLAR_DIR` steuerbar. Findet sie nichts, bleibt es bei der allgemeinen Grafik.
 
 ## Google Cloud OAuth
 

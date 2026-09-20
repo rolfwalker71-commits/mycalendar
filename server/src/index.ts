@@ -183,11 +183,7 @@ async function main(): Promise<void> {
     }
     const shiftArt = shiftArtStatus();
     if (shiftArt.count) {
-      console.log(`Schichtklar-Illustrationen: ${shiftArt.count} aus ${shiftArt.root}`);
-    } else {
-      console.log(
-        "Schichtklar-Illustrationen: keine gefunden — für Arbeitsplan-Termine erscheinen Standardbilder. SCHICHTKLAR_DIR setzen (siehe README).",
-      );
+      console.log(`Schicht-Illustrationen: ${shiftArt.count} aus ${shiftArt.root}`);
     }
   });
   setTimeout(() => {

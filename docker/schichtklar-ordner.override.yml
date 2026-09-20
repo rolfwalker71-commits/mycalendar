@@ -1,9 +1,0 @@
-# Schichtklar/Shiftplanner liegt als Ordner auf dem Host (mit backend/data und
-# backend/uploads darin).
-#
-# 1. Diese Datei nach ../docker-compose.override.yml kopieren
-# 2. In der .env: SCHICHTKLAR_DIR=/schichtklar und SCHICHTKLAR_HOST_DIR=/pfad/zu/shiftplanner
-services:
-  app:
-    volumes:
-      - ${SCHICHTKLAR_HOST_DIR}:/schichtklar:ro
