@@ -74,16 +74,27 @@ Eigene Home- und Sperrbildschirm-Widgets über die kostenlose App [Scriptable](h
 
 | Inhalt | Klein | Mittel | Groß | iPad extragroß | Sperrbildschirm |
 |---|---|---|---|---|---|
-| Kalender | nächster Termin mit Titelgrafik | heute mit Grafiken | Agenda 1/3/7 Tage | Agenda über zwei Spalten | rechteckig, rund, Textzeile |
+| Kalender | Kalenderblatt mit Tageszahl oder Titelgrafik | heute mit Grafiken | Agenda 1/3/7 Tage | Agenda über zwei Spalten | rechteckig, rund, Textzeile |
 | Mail | Ungelesene + neueste | 3 neueste | 6 neueste | 6 neueste | rund (Anzahl), rechteckig |
 | Mein Tag | nächster Termin | Termine + Mail + Aufgabe | Termine, Mails, Aufgaben | Agenda links, Mails und Aufgaben rechts | wie Kalender |
 
 - Die Einstellungen (Kalender, Grafiken, Zeitraum, Mail-Vorschau) liegen auf dem Server. Änderungen gelten ohne neues Einfügen des Skripts.
 - Jedes Widget hat einen eigenen **Schlüssel, der nur lesen darf** (`/api/widget/data`). „Neuer Schlüssel“ oder Löschen sperrt ein kopiertes Skript sofort.
 - „Absender und Betreff zeigen“ ausschalten, wenn auf dem Sperrbildschirm nur die Anzahl sichtbar sein soll.
+- Das kleine Kalender-Widget gibt es als **Kalenderblatt** (Wochentag, große Tageszahl, nächster Termin) oder mit **Titelgrafik**; umschaltbar pro Widget.
 - Optionaler Widget-Parameter in Scriptable: `kalender`, `mail` oder `tag` überschreibt den Inhalt.
 - iOS aktualisiert Widgets selbst, meist alle 15–30 Minuten. Ohne Verbindung zeigt das Widget die letzten Daten mit „Offline · Stand …“.
 - Die App muss vom Gerät aus erreichbar sein (HTTPS-Adresse, unter der die App geöffnet wurde).
+
+## App-Icon
+
+Das Icon entsteht aus einer Vektorquelle (`scripts/app-icon.mjs`); `npm run build:icons` schreibt alle PNG-Größen inklusive Apple-Touch- und maskable-Icons. Zweite Variante:
+
+```bash
+APP_ICON_VARIANT=fold npm run build:icons
+```
+
+Das Icon trägt bewusst **kein Datum**: iOS merkt sich das Icon beim Hinzufügen zum Home-Bildschirm und lädt es nie neu, nur native Apps dürfen ihr Icon wechseln. Die Tageszahl zeigen deshalb das Logo in der App, das Favicon im Browser-Tab und das Kalenderblatt-Widget.
 
 ## Illustrationen für Arbeitsplan-Termine
 

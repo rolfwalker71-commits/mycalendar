@@ -5,30 +5,37 @@ export function calendarDayNumber(at = DateTime.now().setZone(ZONE)): number {
   return at.day;
 }
 
-/** SVG of proposal A with today's day number. Transparent pad. */
+/** Same mark as the app icon, with today's number on the peeking card. */
 export function appMarkSvg(day: number, dark: boolean): string {
   const n = String(Math.min(31, Math.max(1, Math.round(day))));
-  const page = dark ? "#2c2c2e" : "#ffffff";
-  const numeral = dark ? "#f5f5f7" : "#1c1c1e";
-  const mail = dark ? "#e8e8ed" : "#ffffff";
-  const hole = dark ? "#1c1c1e" : "#3a3a3c";
-  const shadow = dark ? "rgba(0,0,0,0.45)" : "rgba(28,28,30,0.18)";
-  const size = n.length === 1 ? 46 : 38;
+  const paper = dark ? "#F5F5F7" : "#FFFFFF";
+  const card = dark ? "#E9E9EE" : "#F2F2F7";
+  const ink = "#1C1C1E";
+  const red = "#E0241B";
+  const redLight = "#FF453A";
+  const redDeep = "#A8140E";
+  const numeral = n.length > 1 ? 118 : 138;
   return `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="128" height="128">
   <defs>
-    <filter id="drop" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow dx="0" dy="2" stdDeviation="2.2" flood-color="${shadow}"/>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="${redLight}"/>
+      <stop offset="1" stop-color="${red}"/>
+    </linearGradient>
+    <filter id="soft" x="-25%" y="-25%" width="150%" height="150%">
+      <feDropShadow dx="0" dy="14" stdDeviation="18" flood-color="rgba(0,0,0,0.22)"/>
     </filter>
   </defs>
-  <g filter="url(#drop)">
-    <rect x="18" y="16" width="78" height="86" rx="16" fill="${page}"/>
-    <path d="M18 32a16 16 0 0 1 16-16h46a16 16 0 0 1 16 16v12H18V32z" fill="#FF3B30"/>
-    <circle cx="44" cy="28" r="4.2" fill="${hole}"/>
-    <circle cx="70" cy="28" r="4.2" fill="${hole}"/>
-    <text x="57" y="78" text-anchor="middle" font-family="ui-rounded, ui-sans-serif, system-ui, sans-serif" font-size="${size}" font-weight="800" fill="${numeral}">${n}</text>
-    <rect x="70" y="78" width="40" height="34" rx="8" fill="${mail}"/>
-    <path d="M76 86h28l-14 11z" fill="#FF3B30"/>
+  <rect width="1024" height="1024" rx="230" fill="url(#bg)"/>
+  <rect x="182" y="150" width="660" height="724" rx="104" fill="${paper}"/>
+  <path d="M182 254a104 104 0 0 1 104-104h452a104 104 0 0 1 104 104v92H182z" fill="${ink}"/>
+  <circle cx="336" cy="250" r="30" fill="${paper}"/>
+  <circle cx="688" cy="250" r="30" fill="${paper}"/>
+  <g filter="url(#soft)">
+    <rect x="286" y="470" width="452" height="300" rx="48" fill="${redDeep}"/>
+    <rect x="352" y="388" width="320" height="250" rx="34" fill="${card}"/>
+    <text x="512" y="566" text-anchor="middle" fill="${ink}" font-family="ui-rounded, -apple-system, system-ui, sans-serif" font-size="${numeral}" font-weight="800">${n}</text>
+    <path d="M286 518v198c0 27 21 48 48 48h356c27 0 48-21 48-48V518L512 668z" fill="${red}"/>
   </g>
 </svg>`;
 }

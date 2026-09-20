@@ -9,6 +9,8 @@ export const WIDGET_KINDS: { value: WidgetKind; label: string; hint: string }[] 
 ];
 
 export type WidgetDays = 1 | 3 | 7;
+/** Look of the small calendar widget: artwork header or a tear-off calendar sheet. */
+export type WidgetSmallStyle = "art" | "sheet";
 
 export type WidgetConfig = {
   /** Empty = the calendars currently visible in the app. */
@@ -18,6 +20,7 @@ export type WidgetConfig = {
   hideDeclined: boolean;
   /** Days shown in the large calendar widget. */
   days: WidgetDays;
+  smallStyle: WidgetSmallStyle;
   /** Off = only the unread count (nothing readable on the lock screen). */
   mailPreview: boolean;
   showTasks: boolean;
@@ -29,6 +32,7 @@ export const DEFAULT_WIDGET_CONFIG: WidgetConfig = {
   showAllDay: true,
   hideDeclined: true,
   days: 3,
+  smallStyle: "sheet",
   mailPreview: true,
   showTasks: true,
 };
@@ -50,6 +54,7 @@ export function normalizeWidgetConfig(raw: unknown): WidgetConfig {
     showAllDay: bool("showAllDay"),
     hideDeclined: bool("hideDeclined"),
     days: days === 1 || days === 7 ? days : 3,
+    smallStyle: src.smallStyle === "art" ? "art" : "sheet",
     mailPreview: bool("mailPreview"),
     showTasks: bool("showTasks"),
   };
@@ -70,6 +75,16 @@ export type WidgetEvent = {
   /** App-relative paths of the event artwork, null when artwork is switched off. */
   art: string | null;
   artHeader: string | null;
+};
+
+export type WidgetToday = {
+  date: string;
+  weekday: string;
+  weekdayShort: string;
+  day: number;
+  month: string;
+  monthShort: string;
+  week: number;
 };
 
 export type WidgetDay = {
@@ -100,7 +115,7 @@ export type WidgetPayload = {
   timezone: string;
   appUrl: string;
   widget: { id: string; name: string; kind: WidgetKind; config: WidgetConfig };
-  today: { date: string; weekday: string; weekdayShort: string; day: number; month: string; week: number };
+  today: WidgetToday;
   next: WidgetEvent | null;
   days: WidgetDay[];
   mail: { unread: number | null; items: WidgetMailItem[]; error: string | null } | null;

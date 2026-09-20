@@ -23,6 +23,7 @@ import {
   type WidgetConfig,
   type WidgetDays,
   type WidgetKind,
+  type WidgetSmallStyle,
   type WidgetSummary,
 } from "@/lib/widgets";
 import { cn } from "@/lib/utils";
@@ -334,6 +335,22 @@ export function WidgetsDialog({
               onChange={(v) => patchConfig({ hideDeclined: v })}
             />
           </Group>
+          <div className="flex flex-col gap-1.5">
+            <Label>Kleines Widget</Label>
+            <Segmented<WidgetSmallStyle>
+              label="Kleines Widget"
+              value={draft.config.smallStyle}
+              options={[
+                { value: "sheet", label: "Kalenderblatt" },
+                { value: "art", label: "Grafik" },
+              ]}
+              onChange={(smallStyle) => patchConfig({ smallStyle })}
+            />
+            <p className="px-1 text-xs text-muted-foreground">
+              Kalenderblatt: Wochentag, große Tageszahl und der nächste Termin. Grafik: Titelbild
+              des nächsten Termins.
+            </p>
+          </div>
           <div className="flex flex-col gap-1.5">
             <Label>Zeitraum im großen Widget</Label>
             <Segmented<WidgetDays>

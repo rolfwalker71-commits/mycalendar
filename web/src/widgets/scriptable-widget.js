@@ -194,7 +194,54 @@ function smallWidgetWidth() {
   return 148;
 }
 
+/**
+ * Tear-off calendar sheet: red header with the weekday, today's number in large type,
+ * then the next event. The number changes with the day — unlike the home-screen icon.
+ */
+async function calendarSheet(w, data) {
+  w.setPadding(0, 0, 0, 0);
+  const head = hstack(w, 0);
+  head.backgroundColor = COLORS.red;
+  head.setPadding(7, 14, 7, 14);
+  head.centerAlignContent();
+  text(head, data.today.weekday.toUpperCase(), 11, { weight: "bold", color: Color.white() });
+  head.addSpacer();
+  text(head, data.today.monthShort.toUpperCase(), 11, { weight: "semibold", color: Color.white() });
+
+  const body = vstack(w, 0);
+  body.setPadding(2, 14, 12, 14);
+  const number = text(body, data.today.day, 52, { weight: "medium" });
+  number.minimumScaleFactor = 0.6;
+  body.addSpacer(2);
+
+  const ev = data.next;
+  if (!ev) {
+    text(body, "Keine Termine", 12, { weight: "semibold", color: COLORS.muted });
+    body.addSpacer();
+    return;
+  }
+  const row = hstack(body, 7);
+  colorBar(row, ev.color, 30);
+  const col = vstack(row, 1);
+  text(col, ev.title, 13, { weight: "semibold", lines: 2 });
+  const minutesAway = ev.start ? (new Date(ev.start) - Date.now()) / 60000 : null;
+  const when = hstack(col, 4);
+  when.centerAlignContent();
+  text(when, ev.allDay ? ev.time : ev.time.split("–")[0], 11, { color: COLORS.muted });
+  if (minutesAway != null && minutesAway > 0 && minutesAway <= 90) {
+    text(when, "·", 11, { color: COLORS.muted });
+    const d = when.addDate(new Date(ev.start));
+    d.applyRelativeStyle();
+    d.font = Font.systemFont(11);
+    d.textColor = COLORS.muted;
+  } else if (ev.location) {
+    text(when, `· ${ev.location}`, 11, { color: COLORS.muted });
+  }
+  body.addSpacer();
+}
+
 async function calendarSmall(w, data) {
+  if (data.widget.config.smallStyle === "sheet") return calendarSheet(w, data);
   const ev = data.next;
   const art = ev && ev.artHeader ? await loadImage(ev.artHeader) : null;
   if (art) {

@@ -309,6 +309,7 @@ export async function buildWidgetPayload(
       weekdayShort: now.toFormat("ccc").replace(".", ""),
       day: now.day,
       month: now.toFormat("LLLL"),
+      monthShort: now.toFormat("LLL").replace(".", ""),
       week: now.weekNumber,
     },
     next,
