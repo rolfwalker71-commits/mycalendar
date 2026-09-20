@@ -92,30 +92,22 @@ Termine aus einem Arbeitsplan-Kalender (z. B. „Arbeitsplan Valentyna“) zeige
 - `backend/data/schichtklar.db` (Schichtarten und ihre Bilder)
 - `backend/uploads/illustrations/…`
 
-Beide Dienste müssen auf **demselben Server** laufen. In der `.env` steht immer:
+Beide Dienste müssen auf **demselben Server** laufen. An der `docker-compose.yml` selbst wird nichts geändert — der Mount kommt aus einer eigenen `docker-compose.override.yml`, die Compose automatisch dazulädt. Vorlagen liegen im Ordner `docker/`.
+
+In der `.env` steht immer:
 
 ```bash
 SCHICHTKLAR_DIR=/schichtklar   # Pfad im Container
 ```
 
-**Fall A — Schichtklar liegt als Ordner auf dem Host:**
+**Fall A — Schichtklar läuft selbst in Docker und legt seine Daten in Volumes ab** (`schichtklar-data`, `schichtklar-uploads`):
 
 ```bash
-# .env, zusätzlich
-SCHICHTKLAR_HOST_DIR=/pfad/zu/shiftplanner
+docker volume ls | grep schichtklar          # echte Namen anzeigen
+cp docker/schichtklar-volumes.override.yml docker-compose.override.yml
 ```
 
-Compose hängt diesen Ordner schreibgeschützt nach `/schichtklar` ein. Mehr ist nicht nötig.
-
-**Fall B — Schichtklar läuft selbst in Docker mit Volumes** (`schichtklar-data`, `schichtklar-uploads`):
-
-`SCHICHTKLAR_HOST_DIR` bleibt leer. Stattdessen dieselben Volumes einbinden. Zuerst die echten Namen anzeigen:
-
-```bash
-docker volume ls | grep schichtklar
-```
-
-Compose stellt den Projektnamen voran, typisch `shiftplanner_schichtklar-data`. Dann neben der `docker-compose.yml` eine `docker-compose.override.yml` anlegen:
+Danach in der Kopie die beiden `name:`-Zeilen an die angezeigten Namen anpassen. Compose stellt den Projektnamen voran, typisch `shiftplanner_schichtklar-data`. `SCHICHTKLAR_HOST_DIR` bleibt leer.
 
 ```yaml
 services:
@@ -133,9 +125,22 @@ volumes:
     name: shiftplanner_schichtklar-uploads
 ```
 
-Die beiden `name:`-Zeilen an die Ausgabe von `docker volume ls` anpassen. Danach `docker compose up -d`. Am Shiftplanner selbst ändert sich nichts, er schreibt weiter in dieselben Volumes.
+Am Shiftplanner ändert sich nichts, er schreibt weiter in dieselben Volumes.
+
+**Fall B — Schichtklar liegt als Ordner auf dem Host:**
+
+```bash
+cp docker/schichtklar-ordner.override.yml docker-compose.override.yml
+```
+
+```bash
+# .env, zusätzlich
+SCHICHTKLAR_HOST_DIR=/pfad/zu/shiftplanner
+```
 
 Ohne Docker genügt `SCHICHTKLAR_DIR` mit dem lokalen Pfad; liegt `shiftplanner` neben `mycalendar`, wird er auch ohne Angabe gefunden.
+
+Danach `docker compose up -d`.
 
 Beim Start schreibt die App ins Log, was sie gefunden hat:
 

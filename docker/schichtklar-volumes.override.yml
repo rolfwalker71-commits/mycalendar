@@ -1,0 +1,19 @@
+# Schichtklar/Shiftplanner läuft selbst in Docker und legt seine Daten in Volumes ab.
+#
+# 1. Namen prüfen:  docker volume ls | grep schichtklar
+# 2. Diese Datei nach ../docker-compose.override.yml kopieren
+# 3. Die beiden name:-Zeilen an die Ausgabe aus Schritt 1 anpassen
+# 4. In der .env: SCHICHTKLAR_DIR=/schichtklar
+services:
+  app:
+    volumes:
+      - schichtklar-data:/schichtklar/backend/data:ro
+      - schichtklar-uploads:/schichtklar/backend/uploads:ro
+
+volumes:
+  schichtklar-data:
+    external: true
+    name: shiftplanner_schichtklar-data
+  schichtklar-uploads:
+    external: true
+    name: shiftplanner_schichtklar-uploads
