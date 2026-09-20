@@ -1,0 +1,16 @@
+# Beispiel für Fall B aus dem README: Schichtklar/Shiftplanner läuft selbst in Docker
+# und legt seine Daten in Volumes ab. Datei nach `docker-compose.override.yml` kopieren
+# und die Volume-Namen an `docker volume ls | grep schichtklar` anpassen.
+services:
+  app:
+    volumes:
+      - schichtklar-data:/schichtklar/backend/data:ro
+      - schichtklar-uploads:/schichtklar/backend/uploads:ro
+
+volumes:
+  schichtklar-data:
+    external: true
+    name: shiftplanner_schichtklar-data
+  schichtklar-uploads:
+    external: true
+    name: shiftplanner_schichtklar-uploads

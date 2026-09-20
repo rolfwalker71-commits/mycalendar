@@ -92,15 +92,50 @@ Termine aus einem Arbeitsplan-Kalender (z. B. „Arbeitsplan Valentyna“) zeige
 - `backend/data/schichtklar.db` (Schichtarten und ihre Bilder)
 - `backend/uploads/illustrations/…`
 
-Damit die App sie findet:
+Beide Dienste müssen auf **demselben Server** laufen. In der `.env` steht immer:
 
 ```bash
-# .env
-SCHICHTKLAR_DIR=/schichtklar          # Pfad im Container
-SCHICHTKLAR_HOST_DIR=/pfad/zu/shiftplanner   # Ordner auf dem Host
+SCHICHTKLAR_DIR=/schichtklar   # Pfad im Container
 ```
 
-Compose hängt `SCHICHTKLAR_HOST_DIR` schreibgeschützt nach `/schichtklar` ein. Ohne Docker genügt `SCHICHTKLAR_DIR` mit dem lokalen Pfad; liegt `shiftplanner` neben `mycalendar`, wird er auch ohne Angabe gefunden.
+**Fall A — Schichtklar liegt als Ordner auf dem Host:**
+
+```bash
+# .env, zusätzlich
+SCHICHTKLAR_HOST_DIR=/pfad/zu/shiftplanner
+```
+
+Compose hängt diesen Ordner schreibgeschützt nach `/schichtklar` ein. Mehr ist nicht nötig.
+
+**Fall B — Schichtklar läuft selbst in Docker mit Volumes** (`schichtklar-data`, `schichtklar-uploads`):
+
+`SCHICHTKLAR_HOST_DIR` bleibt leer. Stattdessen dieselben Volumes einbinden. Zuerst die echten Namen anzeigen:
+
+```bash
+docker volume ls | grep schichtklar
+```
+
+Compose stellt den Projektnamen voran, typisch `shiftplanner_schichtklar-data`. Dann neben der `docker-compose.yml` eine `docker-compose.override.yml` anlegen:
+
+```yaml
+services:
+  app:
+    volumes:
+      - schichtklar-data:/schichtklar/backend/data:ro
+      - schichtklar-uploads:/schichtklar/backend/uploads:ro
+
+volumes:
+  schichtklar-data:
+    external: true
+    name: shiftplanner_schichtklar-data
+  schichtklar-uploads:
+    external: true
+    name: shiftplanner_schichtklar-uploads
+```
+
+Die beiden `name:`-Zeilen an die Ausgabe von `docker volume ls` anpassen. Danach `docker compose up -d`. Am Shiftplanner selbst ändert sich nichts, er schreibt weiter in dieselben Volumes.
+
+Ohne Docker genügt `SCHICHTKLAR_DIR` mit dem lokalen Pfad; liegt `shiftplanner` neben `mycalendar`, wird er auch ohne Angabe gefunden.
 
 Beim Start schreibt die App ins Log, was sie gefunden hat:
 

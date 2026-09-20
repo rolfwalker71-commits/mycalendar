@@ -20,6 +20,7 @@ type CoverRef =
   | { kind: "drive"; fileId: string; mimeType?: string; version: string };
 
 let artsCache: { mtime: number; arts: ShiftArt[] } | null = null;
+let lastDbError: string | null = null;
 
 export function invalidateShiftArtCache(): void {
   artsCache = null;
@@ -62,7 +63,19 @@ function loadShiftArts(): ShiftArt[] {
   }
   if (artsCache && artsCache.mtime === mtime) return artsCache.arts;
 
-  const db = new DatabaseSync(dbPath, { readOnly: true });
+  let db: DatabaseSync;
+  try {
+    db = new DatabaseSync(dbPath, { readOnly: true });
+  } catch (err) {
+    // Locked, unreadable or an unexpected format: keep serving generic artwork.
+    if (lastDbError !== String(err)) {
+      lastDbError = String(err);
+      console.warn(`Schichtklar-Datenbank ${dbPath} nicht lesbar:`, err);
+    }
+    artsCache = { mtime, arts: [] };
+    return [];
+  }
+  lastDbError = null;
   try {
     const types = db
       .prepare(
@@ -112,6 +125,10 @@ function loadShiftArts(): ShiftArt[] {
     });
     artsCache = { mtime, arts };
     return arts;
+  } catch (err) {
+    console.warn("Schichtklar-Illustrationen konnten nicht gelesen werden:", err);
+    artsCache = { mtime, arts: [] };
+    return [];
   } finally {
     db.close();
   }
