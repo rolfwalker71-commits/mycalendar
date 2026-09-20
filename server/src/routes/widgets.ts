@@ -4,6 +4,9 @@ import { requireAuth, loadUserById } from "../auth.js";
 import { publicOrigin } from "../config.js";
 import { decrypt } from "../crypto.js";
 import { query } from "../db.js";
+import { downloadDriveBytes } from "../google.js";
+import { loadCoverFile, widgetCover } from "../shiftCover.js";
+import type { EventAttachmentJson } from "../types.js";
 import {
   buildWidgetPayload,
   hashWidgetToken,
@@ -174,6 +177,16 @@ widgetDataRouter.use(
   }),
 );
 
+/** Resolves a widget token to its widget row, or answers 401. */
+async function widgetFromRequest(req: Request): Promise<WidgetRow | null> {
+  const token = bearer(req);
+  if (!looksLikeWidgetToken(token)) return null;
+  const { rows } = await query<WidgetRow>("SELECT * FROM widgets WHERE token_hash = $1", [
+    hashWidgetToken(token),
+  ]);
+  return rows[0] ?? null;
+}
+
 widgetDataRouter.get("/data", async (req, res) => {
   res.setHeader("Cache-Control", "no-store");
   const token = bearer(req);
@@ -211,5 +224,66 @@ widgetDataRouter.get("/data", async (req, res) => {
   } catch (err) {
     console.error("Widget-Daten:", err);
     res.status(502).json({ error: "Daten gerade nicht verfügbar." });
+  }
+});
+
+/** Same artwork the app shows (shift illustrations, Drive images), for the widget's own events. */
+widgetDataRouter.get("/cover/:eventId", async (req, res) => {
+  const widget = await widgetFromRequest(req);
+  if (!widget) {
+    res.status(401).end();
+    return;
+  }
+  const user = await loadUserById(widget.user_id);
+  if (!user) {
+    res.status(401).end();
+    return;
+  }
+  const config = normalizeWidgetConfig(widget.config);
+  const params: unknown[] = [req.params.eventId, widget.user_id];
+  let calendarFilter = "AND c.selected = TRUE";
+  if (config.calendarIds.length) {
+    params.push(config.calendarIds);
+    calendarFilter = "AND e.calendar_id = ANY($3::uuid[])";
+  }
+  const { rows } = await query<{
+    google_event_id: string;
+    summary: string | null;
+    calendar_summary: string | null;
+    attachments: EventAttachmentJson[] | null;
+  }>(
+    `SELECT e.google_event_id, e.summary, c.summary AS calendar_summary, e.attachments
+       FROM events e
+       JOIN calendars c ON c.id = e.calendar_id
+      WHERE e.id = $1 AND e.user_id = $2 ${calendarFilter}`,
+    params,
+  );
+  const event = rows[0];
+  if (!event) {
+    res.status(404).end();
+    return;
+  }
+  try {
+    const file = await loadCoverFile(
+      {
+        googleEventId: event.google_event_id,
+        summary: event.summary,
+        calendarSummary: event.calendar_summary,
+        attachments: event.attachments,
+      },
+      async (fileId) => downloadDriveBytes(user, fileId),
+    );
+    if (!file) {
+      res.status(404).end();
+      return;
+    }
+    const version = typeof req.query.v === "string" ? req.query.v : "0";
+    const small = await widgetCover(`${req.params.eventId}-${version}`, file);
+    res.setHeader("Content-Type", small.mimeType);
+    res.setHeader("Cache-Control", "private, max-age=86400");
+    res.send(small.buffer);
+  } catch (err) {
+    console.error("Widget-Cover:", err);
+    res.status(404).end();
   }
 });

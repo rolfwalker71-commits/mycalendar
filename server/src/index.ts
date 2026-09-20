@@ -23,6 +23,7 @@ import { searchRouter } from "./routes/search.js";
 import { mailRouter } from "./routes/mail.js";
 import { tasksRouter } from "./routes/tasks.js";
 import { pushRouter } from "./routes/push.js";
+import { shiftArtStatus } from "./shiftCover.js";
 import { widgetDataRouter, widgetsRouter } from "./routes/widgets.js";
 import { aiRouter } from "./routes/ai.js";
 import { weatherRouter } from "./routes/weather.js";
@@ -179,6 +180,14 @@ async function main(): Promise<void> {
       console.log(`Login nur für ${ALLOWED_GOOGLE_EMAILS.length} Google-Konten.`);
     } else if (NODE_ENV === "production") {
       console.warn("ALLOWED_GOOGLE_EMAILS fehlt — Anmeldung in production ist gesperrt.");
+    }
+    const shiftArt = shiftArtStatus();
+    if (shiftArt.count) {
+      console.log(`Schichtklar-Illustrationen: ${shiftArt.count} aus ${shiftArt.root}`);
+    } else {
+      console.log(
+        "Schichtklar-Illustrationen: keine gefunden — für Arbeitsplan-Termine erscheinen Standardbilder. SCHICHTKLAR_DIR setzen (siehe README).",
+      );
     }
   });
   setTimeout(() => {

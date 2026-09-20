@@ -57,7 +57,11 @@ async function loadImage(path) {
   const file = cachePath(`img-${path}`);
   if (fm.fileExists(file)) return fm.readImage(file);
   try {
-    const img = await new Request(`${APP_URL}${path}`).loadImage();
+    const req = new Request(`${APP_URL}${path}`);
+    // Original artwork (shift illustrations, attachments) needs the widget key.
+    if (path.startsWith("/api/")) req.headers = { Authorization: `Bearer ${TOKEN}` };
+    req.timeoutInterval = 15;
+    const img = await req.loadImage();
     fm.writeImage(file, img);
     return img;
   } catch (err) {
@@ -210,8 +214,11 @@ async function calendarSmall(w, data) {
 
 async function smallBody(parent, data, ev) {
   const head = hstack(parent, 4);
+  head.centerAlignContent();
   text(head, `${data.today.weekdayShort.toUpperCase()} ${data.today.day}`, 11, { weight: "bold", color: COLORS.red });
-  if (ev && ev.start && new Date(ev.start) > new Date()) {
+  // Countdown only while it is short — "in 5 Std., 45 Min." would push the date out.
+  const minutesAway = ev && ev.start ? (new Date(ev.start) - Date.now()) / 60000 : null;
+  if (minutesAway != null && minutesAway > 0 && minutesAway <= 90) {
     text(head, "·", 11, { color: COLORS.muted });
     const d = head.addDate(new Date(ev.start));
     d.applyRelativeStyle();

@@ -71,6 +71,17 @@ function timeLabel(ev: ListedEvent, start: DateTime | null, end: DateTime | null
   return `${start.toFormat("HH:mm")}–${end.toFormat("HH:mm")}`;
 }
 
+/**
+ * The app serves original artwork (Schichtklar shift illustrations, Drive attachments)
+ * under /api/events/:id/cover, which needs an app session. Widgets get the same image
+ * through their own token-protected route.
+ */
+function widgetCoverUrl(ev: ListedEvent): string | null {
+  if (!ev.coverUrl) return null;
+  const version = /[?&]v=([^&]*)/.exec(ev.coverUrl)?.[1] ?? "";
+  return `/api/widget/cover/${encodeURIComponent(ev.id)}${version ? `?v=${version}` : ""}`;
+}
+
 /** Artwork paths are relative; the script prefixes its own app address. */
 function toWidgetEvent(ev: ListedEvent, showArt: boolean): WidgetEvent {
   const start = toDt(ev.startAt);
@@ -92,8 +103,8 @@ function toWidgetEvent(ev: ListedEvent, showArt: boolean): WidgetEvent {
     location: ev.location?.split("\n")[0]?.trim() || null,
     color: ev.backgroundColor || "#5ac8fa",
     calendar: ev.calendarSummary,
-    art: showArt ? eventArtThumbSrc(kind, "side") : null,
-    artHeader: showArt ? eventArtThumbSrc(kind, "header") : null,
+    art: showArt ? widgetCoverUrl(ev) ?? eventArtThumbSrc(kind, "side") : null,
+    artHeader: showArt ? widgetCoverUrl(ev) ?? eventArtThumbSrc(kind, "header") : null,
   };
 }
 

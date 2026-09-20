@@ -85,6 +85,32 @@ Eigene Home- und Sperrbildschirm-Widgets über die kostenlose App [Scriptable](h
 - iOS aktualisiert Widgets selbst, meist alle 15–30 Minuten. Ohne Verbindung zeigt das Widget die letzten Daten mit „Offline · Stand …“.
 - Die App muss vom Gerät aus erreichbar sein (HTTPS-Adresse, unter der die App geöffnet wurde).
 
+## Illustrationen aus Schichtklar (Arbeitsplan)
+
+Termine aus einem Arbeitsplan-Kalender (z. B. „Arbeitsplan Valentyna“) zeigen die **Illustration der Schichtart aus Schichtklar/Shiftplanner**, in der App und in den Widgets. Die Bilder kommen nicht aus Google, sondern direkt aus dessen Datenbank und Bilderordner:
+
+- `backend/data/schichtklar.db` (Schichtarten und ihre Bilder)
+- `backend/uploads/illustrations/…`
+
+Damit die App sie findet:
+
+```bash
+# .env
+SCHICHTKLAR_DIR=/schichtklar          # Pfad im Container
+SCHICHTKLAR_HOST_DIR=/pfad/zu/shiftplanner   # Ordner auf dem Host
+```
+
+Compose hängt `SCHICHTKLAR_HOST_DIR` schreibgeschützt nach `/schichtklar` ein. Ohne Docker genügt `SCHICHTKLAR_DIR` mit dem lokalen Pfad; liegt `shiftplanner` neben `mycalendar`, wird er auch ohne Angabe gefunden.
+
+Beim Start schreibt die App ins Log, was sie gefunden hat:
+
+```
+Schichtklar-Illustrationen: 5 aus /schichtklar
+Schichtklar-Illustrationen: keine gefunden — für Arbeitsplan-Termine erscheinen Standardbilder.
+```
+
+Zugeordnet wird zuerst über die Google-Event-ID der Schicht, sonst über das Kürzel am Titelanfang (z. B. „S1 Spätdienst“ → Schichtart `S1`). Passt nichts, greift die allgemeine Kalendergrafik.
+
 ## Google Cloud OAuth
 
 1. In der [Google Cloud Console](https://console.cloud.google.com/) ein Projekt anlegen (oder das Workspace-Projekt nutzen).

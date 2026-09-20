@@ -117,6 +117,12 @@ function loadShiftArts(): ShiftArt[] {
   }
 }
 
+/** For the startup log: where the shift illustrations come from, and how many were found. */
+export function shiftArtStatus(): { root: string | null; count: number } {
+  const root = schichtklarRoot();
+  return { root, count: root ? loadShiftArts().length : 0 };
+}
+
 export function driveFileId(input: { fileId?: string | null; fileUrl?: string | null }): string | null {
   if (input.fileId && /^[\w-]{10,}$/.test(input.fileId)) return input.fileId;
   const url = input.fileUrl ?? "";
@@ -230,6 +236,35 @@ function coversDir(): string {
   const dir = resolve(here, "../data/covers");
   mkdirSync(dir, { recursive: true });
   return dir;
+}
+
+/**
+ * Home-screen widgets have a tight memory budget, so covers are scaled down once and
+ * cached next to the originals. Falls back to the original if sharp is unavailable.
+ */
+export async function widgetCover(
+  key: string,
+  source: { buffer: Buffer; mimeType: string },
+  maxSize = 256,
+): Promise<{ buffer: Buffer; mimeType: string }> {
+  const cached = join(coversDir(), `w${maxSize}-${key.replace(/[^a-zA-Z0-9_-]/g, "")}.png`);
+  if (existsSync(cached)) return { buffer: readFileSync(cached), mimeType: "image/png" };
+  try {
+    const { default: sharp } = await import("sharp");
+    const buffer = await sharp(source.buffer)
+      .resize(maxSize, maxSize, { fit: "inside", withoutEnlargement: true })
+      .png({ compressionLevel: 9, palette: true, quality: 82 })
+      .toBuffer();
+    try {
+      writeFileSync(cached, buffer);
+    } catch {
+      /* ignore cache write */
+    }
+    return { buffer, mimeType: "image/png" };
+  } catch (err) {
+    console.warn("Widget-Cover konnte nicht verkleinert werden:", err);
+    return source;
+  }
 }
 
 export async function loadCoverFile(

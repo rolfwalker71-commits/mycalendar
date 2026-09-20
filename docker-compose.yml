@@ -50,6 +50,12 @@ services:
       APP_PORT: "3366"
       # Compose-Interpolation: Host "db" ist der Service-Name im internen Netz.
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    volumes:
+      # Illustrationen aus Schichtklar/Shiftplanner (nur lesen). Ohne diesen Mount
+      # zeigen Termine aus "Arbeitsplan …" die Standardbilder.
+      # Host-Pfad in der .env als SCHICHTKLAR_HOST_DIR setzen; im Container liegt er
+      # unter /schichtklar, passend zu SCHICHTKLAR_DIR=/schichtklar.
+      - ${SCHICHTKLAR_HOST_DIR:-./docker/empty-schichtklar}:/schichtklar:ro
     ports:
       # Nur die App ist vom Host erreichbar (Standard: http://localhost:3366).
       - "${APP_PORT:-3366}:3366"

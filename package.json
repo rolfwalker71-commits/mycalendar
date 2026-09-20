@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Selbst gehosteter Kalender und Mail mit Google Workspace — PWA und Desktop-Webapp.",
+  "description": "Selbst gehosteter Kalender und Mail mit Google Workspace \u2014 PWA und Desktop-Webapp.",
   "scripts": {
     "dev": "concurrently -k -n server,web -c blue,green \"npm run dev:server\" \"npm run dev:web\"",
     "dev:server": "tsx watch server/src/index.ts",
@@ -29,6 +29,7 @@
     "jsonwebtoken": "^9.0.2",
     "luxon": "^3.7.1",
     "pg": "^8.16.3",
+    "sharp": "^0.34.3",
     "web-push": "^3.6.7"
   },
   "devDependencies": {
@@ -50,7 +51,6 @@
     "lucide-react": "^0.525.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "sharp": "^0.34.3",
     "sonner": "^2.0.6",
     "tailwind-merge": "^3.3.1",
     "tailwindcss": "^4.1.11",
